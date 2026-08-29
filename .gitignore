@@ -50,4 +50,6 @@ logs/
 .idea/
 servers/
 server/
+.run/
+*.jfr
 
