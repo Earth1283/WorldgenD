@@ -1,0 +1,5 @@
+config,label,gc,heap_gb,pretouch,mosaic_tile,chunks,max_bg_threads_flag,workers_actual,jcmd_verified,total_ms,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
+zgc_throughput_4w,"ZGC, throughput-tuned, 4 workers","ZGC (throughput flags)",16,true,5,6400,4,4,yes,241169,0.05,1.80,8.21,37.34,44.82,141.52,1580.83
+zgc_plain_4w,"ZGC (plain), 4 workers","ZGC (generational)",16,true,5,6400,4,4,no,241066,0.03,1.76,8.20,37.44,44.55,134.74,1736.96
+g1_throughput_4w,"G1, throughput-tuned, 4 workers","G1 (throughput-tuned)",16,true,5,6400,4,4,no,226112,0.06,1.56,7.80,34.77,41.85,136.38,1588.86
+parallel_4w,"ParallelGC, 4 workers","Parallel (STW)",16,true,5,6400,4,4,no,225922,0.05,1.55,7.84,34.78,41.84,135.56,1428.65

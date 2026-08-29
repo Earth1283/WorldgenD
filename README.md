@@ -58,8 +58,9 @@ That's the whole point of building MSPC in the first place: a number you can wat
 down as the fill algorithm improves, instead of an average that hides whether it
 actually did. See `scientific-findings.md` #13 for the thread-pool experiment that
 motivated bumping the mosaic tile size, #14 for a three-way GC comparison (default G1
-vs. a throughput-tuned G1 vs. ZGC, all at a fixed pretouched heap), and #15 for the
-full chart set.
+vs. a throughput-tuned G1 vs. ZGC, all at a fixed pretouched heap), #15 for what
+happens when GC choice is crossed with a smaller worker pool (short version: the
+7-worker GC ranking from #14 flips at 4 workers), and #16 for the full chart set.
 
 To test a different `Util.getMaxThreads()` cap without editing code:
 
@@ -84,8 +85,11 @@ To try a different garbage collector (or any other raw JVM flags):
 Every run now logs `Active GC(s): ...` at startup (via `ManagementFactory.getGarbageCollectorMXBeans()`),
 so you can confirm what actually loaded instead of trusting the flag. `scientific-findings.md`
 #14 ran this three ways (default G1, a throughput-tuned G1, and generational ZGC) at a fixed
-16GB pretouched heap — ZGC came out ~6% ahead across every MSPC percentile, G1's own tuning
-knob made basically no difference.
+16GB pretouched heap, all at 7 workers — ZGC came out ~6% ahead across every MSPC percentile,
+G1's own tuning knob made basically no difference. #15 reran the same collectors (plus a fourth,
+ParallelGC) at 4 workers instead of 7, and the ranking flipped: ZGC dropped to *last* place and
+tuned-G1/ParallelGC tied for fastest. GC choice and worker count interact — neither axis is safe
+to tune in isolation.
 
 ## Project layout
 
@@ -96,7 +100,7 @@ knob made basically no difference.
 | `src/main/kotlin/io/github/eath1283/worldgend/Reflect.kt` | Thin `Class`/`Method`/`Constructor` lookup helpers (`Mc`) |
 | `TUTORIAL.md` | The narrative: what this does and why it works, written for a human |
 | `scientific-findings.md` | The lab notebook: every empirical claim above, backed by `jcmd` thread dumps and `javap` bytecode disassembly instead of vibes |
-| `findings/` | Raw data (`mspc_results.csv`, `algorithm_progress.csv`) and the matplotlib script (`plot_results.py`) that generates every chart in this README and in `scientific-findings.md` |
+| `findings/` | Raw data (`mspc_results.csv`, `algorithm_progress.csv`, `gc_results.csv`, `gc_4w_results.csv`) and the matplotlib script (`plot_results.py`) that generates every chart in this README and in `scientific-findings.md` |
 
 ## Docs
 

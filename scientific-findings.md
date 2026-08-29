@@ -205,9 +205,34 @@ Three configs, same `MOSAIC_TILE = 5` mosaic, same 7-worker pool (no `-Dmax.bg.t
 
 **Not yet tried**: crossing this with worker count — rerun `-Dmax.bg.threads=4` *under ZGC* specifically, to see if a cheaper collector changes whether cutting workers costs anything. If GC pressure were secretly protecting the 4-worker run from looking worse, ZGC (less background contention) should make the 4-vs-7 gap *reappear*. If it still doesn't, that's stronger evidence the real ceiling is upstream of the collector entirely.
 
-## 15. Charts, for posterity
+## 15. Crossing GC choice with the 4-worker experiment — plus a fourth collector, ParallelGC
 
-Every number in #12, #13, and #14, plotted. Raw data lives in `findings/mspc_results.csv` and `findings/gc_results.csv`; every chart regenerates with:
+#14 explicitly flagged this as untried: rerun `-Dmax.bg.threads=4` *under* each collector to see whether a cheaper GC changes anything about #13's 4-vs-7-worker tie. Also added a fourth collector on request — ParallelGC, the plain stop-the-world throughput collector, no concurrent phases at all — and a set of ZGC-specific throughput flags (`-XX:-ZProactive` to stop periodic idle collections, `-XX:ZAllocationSpikeTolerance=4` to make it wait longer before reacting to an allocation spike), the ZGC analogue of #14's `-XX:MaxGCPauseMillis=1000` G1 knob.
+
+Same `MOSAIC_TILE = 5` mosaic, same `-Xms16g -Xmx16g -XX:+AlwaysPreTouch`, four configs, all pinned to `-Dmax.bg.threads=4` (jcmd-confirmed exactly `Worker-Main-1` through `Worker-Main-4` on the first row; the clamp mechanism proven bijective in #13 covers the rest):
+
+| Config | Confirmed GC | Total | MSPC min | p1 | p25 | p50 | p75 | p99 | max |
+|---|---|---|---|---|---|---|---|---|---|
+| `-XX:+UseZGC -XX:-ZProactive -XX:ZAllocationSpikeTolerance=4` | `ZGC Minor/Major Cycles/Pauses` | 241169ms | 0.05 | 1.80 | 8.21 | 37.34 | 44.82 | 141.52 | 1580.83 |
+| `-XX:+UseZGC` (plain) | `ZGC Minor/Major Cycles/Pauses` | 241066ms | 0.03 | 1.76 | 8.20 | 37.44 | 44.55 | 134.74 | 1736.96 |
+| `-XX:+UseG1GC -XX:MaxGCPauseMillis=1000` | `G1 Young/Concurrent/Old` | 226112ms | 0.06 | 1.56 | 7.80 | 34.77 | 41.85 | 136.38 | 1588.86 |
+| `-XX:+UseParallelGC` | `PS Scavenge, PS MarkSweep` | 225922ms | 0.05 | 1.55 | 7.84 | 34.78 | 41.84 | 135.56 | 1428.65 |
+
+**ZGC's own throughput flags did nothing** (241169ms vs 241066ms plain — inside noise), the same pattern #14 already saw when G1 got a looser pause target: loosening an already-loose collector's own safety margins doesn't move this workload.
+
+**G1-throughput and ParallelGC are now statistically tied** (226112ms vs 225922ms, 0.1% apart) — and that itself is informative. `-XX:MaxGCPauseMillis=1000` sets G1's pause budget so loose that it starts behaving like a plain stop-the-world collector, and at 4 workers it lands exactly where ParallelGC (which never had a pause target to begin with) already sits.
+
+**The real finding: rank order flipped.** At 7 workers (#14), ZGC was the *fastest* of the collectors tested. Here, at 4 workers, ZGC is the *slowest* of all four — beaten by both G1-throughput and ParallelGC by ~6%. Nothing about "ZGC is faster" survived the switch from 7 to 4 workers; it reversed.
+
+This also overturns half of #13's own conclusion. #13 found that cutting workers 7→4 cost *nothing* — but that test used default ergonomic G1 at both worker counts. Compared against #14's G1-throughput row at 7 workers (248592ms), this same G1-throughput config at 4 workers (226112ms) is **~9% faster**, not a tie. Worker count and GC choice interact; "cutting workers is free" isn't a property of the mosaic algorithm in isolation, it's true for some collectors and false for others.
+
+**A candidate mechanism, not yet verified**: ZGC dedicates real CPU cores to concurrent marking/relocation threads that run *alongside* the mutator, whether or not the mutator has spare cores to give up. At 7 workers there's only 1 idle core on this 8-core box — overlapping GC work with mutator work is worth it there, since fully pausing all 7 workers for a G1/Parallel-style STW collection would cost more wall-clock than ZGC's small continuous tax. At 4 workers there are 4 idle cores — a STW pause is now cheap (only 4 live workers to interrupt, plenty of headroom to blast through the collection fast) while ZGC keeps paying its fixed concurrent-thread cost regardless of how few mutator threads it's overlapping with. Not confirmed by a live trace — the direct test is sampling `jcmd <pid> Thread.print` thread *states* for ZGC's concurrent GC threads specifically at both worker counts, to see if they're doing less useful work per core at 4 workers than at 7. Untried.
+
+**Still open**: this doesn't fully explain #13's original 4-vs-7 tie under *default* ergonomic G1 (233174ms vs 235167ms) — that pairing is unaffected by anything tested here, since neither of today's runs used unmodified default G1. What today's experiment does establish is that the tie isn't a fixed, GC-independent property of the mosaic — it's real for default G1, disappears (turns into a 9% win) for tuned G1, and reverses into a small loss for ZGC.
+
+## 16. Charts, for posterity
+
+Every number in #12, #13, #14, and #15, plotted. Raw data lives in `findings/mspc_results.csv`, `findings/gc_results.csv`, and `findings/gc_4w_results.csv`; every chart regenerates with:
 
 ```
 python3 findings/plot_results.py
@@ -231,6 +256,14 @@ Same staircase shape again, all three collectors — but look closely and ZGC (g
 
 The ~6% ZGC edge from #14, in one picture — real, but nowhere near large enough on its own to explain the 4-vs-7-worker tie from #13.
 
+![MSPC percentiles across four GC configs at 4 workers, grouped bar chart, log scale](findings/gc_4w_percentiles.png)
+
+Same four collectors as #15, but now ZGC (blue and orange, plain and throughput-tuned) sits a hair *above* G1-throughput and ParallelGC (aqua and yellow) at every bar past `min` — the exact opposite direction from #14's 7-worker chart. Nothing changed about the collectors between these two charts; only the worker count did.
+
+![Total wall-clock time and MSPC median per GC config, 4 workers](findings/gc_4w_summary.png)
+
+#15's headline in one picture: G1-throughput and ParallelGC land on top of each other (226s/34.8ms vs 225s/34.8ms), both a clear ~6% ahead of either ZGC variant — the reverse of the 7-worker ranking two charts up.
+
 Add a row to the relevant CSV and rerun the script to keep all of this current as new experiments land.
 
 ## Open questions / where you pick this up
@@ -238,7 +271,7 @@ Add a row to the relevant CSV and rerun the script to keep all of this current a
 - **Nail down the exit-delay theory from #10.** Grab a `jcmd Thread.print` right before natural exit, check which live threads are missing the `daemon` flag, and consider reflectively calling `Util.shutdownExecutors()` at the end of `main()` for a fast, clean death without ever going near `stopServer()`/`halt()`.
 - **We've only ever sampled height + biome** (`describe()` in `HeadlessWorldgen.kt`). Real block data is one more reflective hop away — `ChunkAccess.getBlockState(BlockPos)` — completely untried.
 - **Overworld only.** Nether/End just need `LevelStem` lookups against `Level.NETHER` / `Level.END` instead of `overworld()`. Structurally trivial. Nobody's bothered yet.
-- **Why does cutting the worker pool from 7 to 4 not cost anything at `MOSAIC_TILE = 5`?** #13 confirmed (live, via `jcmd`) that `-Dmax.bg.threads` really does clamp the pool up and down as designed, then found that 4 vs 7 workers against a 25-chunk-per-phase mosaic produced statistically identical throughput. #14 ruled out one candidate explanation — the GC algorithm itself — by swapping G1 for ZGC and a throughput-tuned G1 at a fixed, pretouched heap: real but small (~6-8%) differences, nowhere near enough to explain a 43%-workers-for-free result. Two things left to try: (a) rerun `-Dmax.bg.threads=4` *under ZGC* specifically — if cutting GC background contention makes the 4-vs-7 gap reappear, GC was a bigger piece of the puzzle than #14's single-collector-at-a-time comparison could show; (b) sample thread *states* (not counts) mid-run with `jcmd <pid> Thread.print`, same technique as #6 — if all 4 workers sit `RUNNABLE` the whole time, it's genuinely compute-bound at this chunk density; if there's real idle time, something below the explicit per-phase chunk count is still throttling parallelism.
+- **Why does cutting the worker pool from 7 to 4 not cost anything under default G1 at `MOSAIC_TILE = 5`, but turn into a 9% win under tuned G1/ParallelGC and a small loss under ZGC?** #13 found the 7-vs-4 tie under default ergonomic G1. #15 crossed GC choice with the 4-worker count directly and found the tie isn't universal: G1-throughput and ParallelGC at 4 workers (226112/225922ms) beat their own 7-worker numbers by ~9% (#14's 248592ms G1-throughput row), while ZGC at 4 workers (241066-241169ms) is *slower* than ZGC at 7 workers (237127ms) — a full rank reversal from #14, where ZGC was the fastest collector tested. Leading candidate, untested: ZGC's concurrent GC threads have a fixed CPU cost that doesn't shrink just because there are fewer mutator threads to overlap with, so they start actively competing with workers once cores are freed up by dropping to 4; a STW collector, by contrast, gets *cheaper* pauses at 4 workers (fewer live threads to interrupt) with idle cores to burn through the pause fast. Still untested: default (untuned) G1 specifically at 4 workers — the one cell in this GC × worker-count grid nobody's run yet — plus a live `jcmd <pid> Thread.print` thread-*state* sample comparing ZGC's concurrent-thread utilization at 4 vs 7 workers, to confirm or kill the mechanism above directly.
 - **The #9 warmup batch was itself a dumb solid block**, paying the exact wavefront-stall tax described in #6 (83.6s for 1681 chunks, ~20cps average, for a phase whose own speed nobody cared about). A mosaic-shaped warmup would probably get JIT-hot faster and cheaper. Untried purely out of laziness.
 - **No decompiler was ever available here.** Every finding above came from `javap -p` (signatures) and `javap -c -p` (raw bytecode disassembly, read by hand, for constants like the radius-8 discovery in #7) — not recovered source. If a decompiler shows up later, it would be worth double-checking the manual bytecode archaeology in #6/#7 against real source, if only to confirm we didn't misread an `iconst` somewhere out of overconfidence.
 - **Nothing bigger than `MOSAIC_TILE = 3` (2304 chunks) has been attempted.** No idea how memory/GC behaves over tens of thousands of chunks in one process that never calls a single save-or-unload path. Could be fine. Could be a very educational `OutOfMemoryError`. Someone should find out.

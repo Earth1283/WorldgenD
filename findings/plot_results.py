@@ -129,7 +129,7 @@ def plot_run_summary(rows, out_path):
     plt.close(fig)
 
 
-def plot_gc_summary(rows, out_path):
+def plot_gc_summary(rows, out_path, caption="Same 7 workers, same 16GB pretouched heap, same mosaic — only the collector changes"):
     fig, (ax_time, ax_p50) = plt.subplots(1, 2, figsize=(10, 4.5))
     labels = [row["label"] for row in rows]
     colors = [SERIES[i % len(SERIES)] for i in range(len(rows))]
@@ -161,7 +161,7 @@ def plot_gc_summary(rows, out_path):
             tick.set_ha("right")
 
     fig.suptitle(
-        "Same 7 workers, same 16GB pretouched heap, same mosaic — only the collector changes",
+        caption,
         fontsize=10.5, color=INK_SECONDARY, y=1.02,
     )
     fig.tight_layout()
@@ -224,6 +224,18 @@ def main():
         subtitle="Lower is better. Same mosaic, same heap settings — only the collector changes.",
     )
     plot_gc_summary(gc_rows, HERE / "gc_summary.png")
+
+    with (HERE / "gc_4w_results.csv").open() as f:
+        gc_4w_rows = list(csv.DictReader(f))
+    plot_percentiles(
+        gc_4w_rows, HERE / "gc_4w_percentiles.png",
+        title="MSPC across garbage collectors, crossed with 4 workers (fixed 16GB pretouched heap)",
+        subtitle="Lower is better. Same mosaic, same heap, same worker count — only the collector changes.",
+    )
+    plot_gc_summary(
+        gc_4w_rows, HERE / "gc_4w_summary.png",
+        caption="4 workers this time (not 7), same 16GB pretouched heap, same mosaic — only the collector changes",
+    )
 
     print(f"Wrote charts to {HERE}")
 
