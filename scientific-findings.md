@@ -183,9 +183,31 @@ Bumped `MOSAIC_TILE` from 3 to 5 (25 chunks/phase, 6400-chunk mosaic, 80x80 bloc
 
 **Second result, unexpected and still unexplained**: 4 workers finished in 233174ms — statistically identical to 7 workers' 235167ms, MSPC medians 35.24 vs 35.80. A 43% cut in worker count against a phase with 25 chunks in flight (comfortably more than either thread count) produced no measurable slowdown. If worker count between 4 and 7 doesn't move throughput at all here, something else is the active ceiling in that range — not scheduling, not the radius-8 dependency graph (25 chunks/phase already clears that), something else. Two live candidates, neither checked yet: (a) genuinely compute-bound — each chunk's noise/surface/feature math costs enough raw CPU time that 4 saturated cores already match 7, with the other cores going to JIT (C1/C2) and GC threads that compete for the same 8 physical cores regardless of worker-pool size; (b) the explicit "25 chunks requested per phase" undercounts the real task graph — `getChunkFuture` recursively pulls in neighbor chunks at lower statuses as prerequisites, and those recursive sub-tasks may not decompose into as many truly-parallel units as the requested-chunk count suggests. Neither is confirmed. The next diagnostic is the same one #6 already used and it wasn't rerun here: sample thread *states* (`RUNNABLE` vs `WAITING`) live during a 4-worker run — if all 4 are pegged `RUNNABLE` the whole time, it's (a); if there's real idle time even at 4 workers, it's something closer to (b) or a third thing nobody's looked for yet.
 
-## 14. Charts, for posterity
+## 14. Is G1 the reason 4 workers keeps up with 7? Tried three collectors to find out
 
-Every number in #12 and #13, plotted. Raw data lives in `findings/mspc_results.csv`; the charts regenerate with:
+#13 left one real open question: cutting the worker pool 7→4 at `MOSAIC_TILE = 5` cost nothing measurable, and nothing in this document explained why. One live candidate: G1's own background threads (concurrent marking, refinement, remembered-set scanning) compete for the same 8 physical cores as the generation workers, so maybe the *collector* — not the dependency graph, not the pool size — is the thing quietly capping throughput regardless of worker count.
+
+Controlled for a variable that had been silently uncontrolled up to now, too: every prior run let the JVM pick its own heap size and grow it on demand. That's its own confound — heap-resize pauses and lazy page commits cost real time and have nothing to do with GC algorithm choice. So every run below fixes `-Xms16g -Xmx16g` (half this box's 32GB) plus `-XX:+AlwaysPreTouch` (commit and zero every page up front, so no first-touch page faults happen mid-run) — same heap footprint across all three, only the collector changes. Confirmed per-run via `ManagementFactory.getGarbageCollectorMXBeans()`, logged as `Active GC(s):` at the top of every run now (`HeadlessWorldgen.kt`), the same "ask the JVM, don't trust the flag" discipline #13 established for thread counts.
+
+Three configs, same `MOSAIC_TILE = 5` mosaic, same 7-worker pool (no `-Dmax.bg.threads` involved this time — that's a separate axis, not crossed with this one yet):
+
+| Config | Confirmed GC | Total | MSPC min | p1 | p25 | p50 | p75 | p99 | max |
+|---|---|---|---|---|---|---|---|---|---|
+| default (no GC flag) | `G1 Young Generation, G1 Concurrent GC, G1 Old Generation` | 252285ms | 0.05 | 1.68 | 7.91 | 40.05 | 48.28 | 144.33 | 1561.90 |
+| `-XX:+UseG1GC -XX:MaxGCPauseMillis=1000` (throughput-tuned: a loose pause budget lets G1 batch bigger, less frequent collections instead of chasing a tight pause target) | `G1 Young Generation, G1 Concurrent GC, G1 Old Generation` | 248592ms | 0.06 | 1.72 | 7.85 | 39.74 | 47.29 | 138.27 | 1513.73 |
+| `-XX:+UseZGC` (generational — the only mode ZGC has on JDK 24+; `-XX:+ZGenerational` itself was removed, confirmed by `java -XX:+ZGenerational -version` printing "Ignoring option ZGenerational; support was removed in 24.0") | `ZGC Minor Cycles, ZGC Minor Pauses, ZGC Major Cycles, ZGC Major Pauses` | 237127ms | 0.05 | 1.76 | 8.38 | 37.21 | 44.72 | 134.12 | 1428.92 |
+
+**G1-default vs. G1-throughput-tuned: no real difference** (248592ms vs 252285ms, p50 39.74 vs 40.05) — unsurprising in hindsight, since on this box's actual heap-occupancy pattern (6400 short-lived chunk objects, 16GB pretouched headroom) G1 apparently wasn't hitting its pause-time target often enough for loosening that target to matter.
+
+**ZGC is the one real signal here**: ~6% faster total (237127ms vs 252285ms) and better at every single percentile, not just the median — p50 down 7%, p99 down 7%, max down 8%. Consistent with ZGC's actual design difference from G1: its marking and relocation work runs concurrently on its own threads with much shorter, more predictable pauses, so it should show up exactly where a mild, real GC-pressure signal would show up — the whole distribution shifting down slightly, not one outlier phase getting fixed.
+
+**But it doesn't close #13's question.** A 6-8% gain from switching collectors entirely is nowhere near enough to explain how a 43% cut in worker count (7→4) produced a *0%* throughput cost. If G1's background threads were the dominant reason more workers weren't helping, removing G1 entirely should have unmasked a much bigger jump — not a single-digit-percent one. So: GC pressure is real and measurable (ZGC's clean sweep across every percentile proves that), but it's a minor contributor, not *the* answer to why 4 and 7 workers tie. That still points back at #13's other live candidate — the explicit 25-chunks-per-phase count undercounting the real internal task graph — as the more likely explanation, now with one confound (GC choice) ruled out as the primary cause instead of just unexamined.
+
+**Not yet tried**: crossing this with worker count — rerun `-Dmax.bg.threads=4` *under ZGC* specifically, to see if a cheaper collector changes whether cutting workers costs anything. If GC pressure were secretly protecting the 4-worker run from looking worse, ZGC (less background contention) should make the 4-vs-7 gap *reappear*. If it still doesn't, that's stronger evidence the real ceiling is upstream of the collector entirely.
+
+## 15. Charts, for posterity
+
+Every number in #12, #13, and #14, plotted. Raw data lives in `findings/mspc_results.csv` and `findings/gc_results.csv`; every chart regenerates with:
 
 ```
 python3 findings/plot_results.py
@@ -193,20 +215,30 @@ python3 findings/plot_results.py
 
 (needs `matplotlib` — on Debian/Ubuntu, `apt-get install python3-matplotlib`)
 
-![MSPC percentiles across all five experiment runs, grouped bar chart, log scale](findings/mspc_percentiles.png)
+![MSPC percentiles across all five thread-count experiment runs, grouped bar chart, log scale](findings/mspc_percentiles.png)
 
 The shape that matters: every run's bars trace roughly the same staircase from `min` to `max`. If a config's bars sat visibly higher or lower than the rest across the *whole* staircase, that would be a real difference. None do — the differences here are noise, not signal.
 
 ![Total wall-clock time and jcmd-confirmed worker count per experiment run](findings/run_summary.png)
 
-This is #13's finding in one picture: the worker-count panel shows 7, 7, 7, 7, 4 — not 7, 16, 7, 16, 4, because the flag only ever lowers the pool — and the total-time panel shows no relationship between that count and how long the run took, once tile size is held fixed. Add a row to the CSV and rerun the script to keep this current as new experiments land.
+This is #13's finding in one picture: the worker-count panel shows 7, 7, 7, 7, 4 — not 7, 16, 7, 16, 4, because the flag only ever lowers the pool — and the total-time panel shows no relationship between that count and how long the run took, once tile size is held fixed.
+
+![MSPC percentiles across the three GC configs, grouped bar chart, log scale](findings/gc_percentiles.png)
+
+Same staircase shape again, all three collectors — but look closely and ZGC (green) sits a hair below the other two at every single bar past `p1`, not just one lucky phase. That consistent, whole-distribution shift is what #14 calls a real signal instead of noise.
+
+![Total wall-clock time and MSPC median per GC config](findings/gc_summary.png)
+
+The ~6% ZGC edge from #14, in one picture — real, but nowhere near large enough on its own to explain the 4-vs-7-worker tie from #13.
+
+Add a row to the relevant CSV and rerun the script to keep all of this current as new experiments land.
 
 ## Open questions / where you pick this up
 
 - **Nail down the exit-delay theory from #10.** Grab a `jcmd Thread.print` right before natural exit, check which live threads are missing the `daemon` flag, and consider reflectively calling `Util.shutdownExecutors()` at the end of `main()` for a fast, clean death without ever going near `stopServer()`/`halt()`.
 - **We've only ever sampled height + biome** (`describe()` in `HeadlessWorldgen.kt`). Real block data is one more reflective hop away — `ChunkAccess.getBlockState(BlockPos)` — completely untried.
 - **Overworld only.** Nether/End just need `LevelStem` lookups against `Level.NETHER` / `Level.END` instead of `overworld()`. Structurally trivial. Nobody's bothered yet.
-- **Why does cutting the worker pool from 7 to 4 not cost anything at `MOSAIC_TILE = 5`?** #13 confirmed (live, via `jcmd`) that `-Dmax.bg.threads` really does clamp the pool up and down as designed, then found that 4 vs 7 workers against a 25-chunk-per-phase mosaic produced statistically identical throughput — which nothing in this document currently explains. Sample thread *states* (not just counts) mid-run with `jcmd <pid> Thread.print`, same technique as #6: if all 4 workers sit `RUNNABLE` the whole time, throughput is genuinely compute-bound at this chunk density and more threads were never going to help; if there's real idle time, something below the explicit per-phase chunk count is still throttling parallelism.
+- **Why does cutting the worker pool from 7 to 4 not cost anything at `MOSAIC_TILE = 5`?** #13 confirmed (live, via `jcmd`) that `-Dmax.bg.threads` really does clamp the pool up and down as designed, then found that 4 vs 7 workers against a 25-chunk-per-phase mosaic produced statistically identical throughput. #14 ruled out one candidate explanation — the GC algorithm itself — by swapping G1 for ZGC and a throughput-tuned G1 at a fixed, pretouched heap: real but small (~6-8%) differences, nowhere near enough to explain a 43%-workers-for-free result. Two things left to try: (a) rerun `-Dmax.bg.threads=4` *under ZGC* specifically — if cutting GC background contention makes the 4-vs-7 gap reappear, GC was a bigger piece of the puzzle than #14's single-collector-at-a-time comparison could show; (b) sample thread *states* (not counts) mid-run with `jcmd <pid> Thread.print`, same technique as #6 — if all 4 workers sit `RUNNABLE` the whole time, it's genuinely compute-bound at this chunk density; if there's real idle time, something below the explicit per-phase chunk count is still throttling parallelism.
 - **The #9 warmup batch was itself a dumb solid block**, paying the exact wavefront-stall tax described in #6 (83.6s for 1681 chunks, ~20cps average, for a phase whose own speed nobody cared about). A mosaic-shaped warmup would probably get JIT-hot faster and cheaper. Untried purely out of laziness.
 - **No decompiler was ever available here.** Every finding above came from `javap -p` (signatures) and `javap -c -p` (raw bytecode disassembly, read by hand, for constants like the radius-8 discovery in #7) — not recovered source. If a decompiler shows up later, it would be worth double-checking the manual bytecode archaeology in #6/#7 against real source, if only to confirm we didn't misread an `iconst` somewhere out of overconfidence.
 - **Nothing bigger than `MOSAIC_TILE = 3` (2304 chunks) has been attempted.** No idea how memory/GC behaves over tens of thousands of chunks in one process that never calls a single save-or-unload path. Could be fine. Could be a very educational `OutOfMemoryError`. Someone should find out.

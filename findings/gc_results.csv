@@ -1,0 +1,4 @@
+config,label,gc,heap_gb,pretouch,mosaic_tile,chunks,workers_actual,total_ms,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
+gc_default,"Default (G1, ergonomic)","G1 (ergonomic default)",16,true,5,6400,7,252285,0.05,1.68,7.91,40.05,48.28,144.33,1561.90
+gc_g1_throughput,"G1, MaxGCPauseMillis=1000","G1 (throughput-tuned)",16,true,5,6400,7,248592,0.06,1.72,7.85,39.74,47.29,138.27,1513.73
+gc_zgc,"ZGC (generational)","ZGC",16,true,5,6400,7,237127,0.05,1.76,8.38,37.21,44.72,134.12,1428.92

@@ -42,7 +42,8 @@ def load_rows():
         return list(csv.DictReader(f))
 
 
-def plot_percentiles(rows, out_path):
+def plot_percentiles(rows, out_path, title="MSPC: how long one chunk takes to generate, across every experiment",
+                      subtitle="Lower is better. Log scale — the gap from p99 to max is real, not a rounding artifact."):
     percentile_cols = [
         ("mspc_min", "min"),
         ("mspc_p1", "p1"),
@@ -72,14 +73,8 @@ def plot_percentiles(rows, out_path):
     ax.set_ylabel("milliseconds per chunk (log scale)")
     ax.set_xticks(list(x))
     ax.set_xticklabels([label for _, label in percentile_cols])
-    fig.suptitle(
-        "MSPC: how long one chunk takes to generate, across every experiment",
-        color=INK_PRIMARY, fontsize=14, y=0.99,
-    )
-    ax.set_title(
-        "Lower is better. Log scale — the gap from p99 to max is real, not a rounding artifact.",
-        color=INK_SECONDARY, fontsize=9.5, pad=12, loc="left",
-    )
+    fig.suptitle(title, color=INK_PRIMARY, fontsize=14, y=0.99)
+    ax.set_title(subtitle, color=INK_SECONDARY, fontsize=9.5, pad=12, loc="left")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:g}"))
     ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
     for spine in ("top", "right"):
@@ -134,6 +129,46 @@ def plot_run_summary(rows, out_path):
     plt.close(fig)
 
 
+def plot_gc_summary(rows, out_path):
+    fig, (ax_time, ax_p50) = plt.subplots(1, 2, figsize=(10, 4.5))
+    labels = [row["label"] for row in rows]
+    colors = [SERIES[i % len(SERIES)] for i in range(len(rows))]
+
+    total_s = [float(row["total_ms"]) / 1000.0 for row in rows]
+    bars = ax_time.bar(labels, total_s, color=colors, zorder=3)
+    ax_time.set_ylabel("total wall-clock time (s)")
+    ax_time.set_title("Total time to fill the mosaic", fontsize=11, color=INK_PRIMARY)
+    for bar, val in zip(bars, total_s):
+        ax_time.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.0f}s",
+                     ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+
+    p50 = [float(row["mspc_p50"]) for row in rows]
+    bars2 = ax_p50.bar(labels, p50, color=colors, zorder=3)
+    ax_p50.set_ylabel("MSPC median, p50 (ms/chunk)")
+    ax_p50.set_title("Typical per-chunk latency", fontsize=11, color=INK_PRIMARY)
+    for bar, val in zip(bars2, p50):
+        ax_p50.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.1f}ms",
+                    ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+
+    for ax in (ax_time, ax_p50):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        ax.spines["left"].set_color(BASELINE)
+        ax.spines["bottom"].set_color(BASELINE)
+        ax.tick_params(axis="x", labelrotation=15, labelsize=8.5)
+        for tick in ax.get_xticklabels():
+            tick.set_ha("right")
+
+    fig.suptitle(
+        "Same 7 workers, same 16GB pretouched heap, same mosaic — only the collector changes",
+        fontsize=10.5, color=INK_SECONDARY, y=1.02,
+    )
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_algorithm_progress(out_path):
     with (HERE / "algorithm_progress.csv").open() as f:
         progress_rows = list(csv.DictReader(f))
@@ -180,7 +215,17 @@ def main():
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
     plot_run_summary(rows, HERE / "run_summary.png")
     plot_algorithm_progress(HERE / "mspc_progress.png")
-    print(f"Wrote {HERE / 'mspc_percentiles.png'}, {HERE / 'run_summary.png'}, and {HERE / 'mspc_progress.png'}")
+
+    with (HERE / "gc_results.csv").open() as f:
+        gc_rows = list(csv.DictReader(f))
+    plot_percentiles(
+        gc_rows, HERE / "gc_percentiles.png",
+        title="MSPC across garbage collectors (fixed 16GB pretouched heap, 7 workers)",
+        subtitle="Lower is better. Same mosaic, same heap settings — only the collector changes.",
+    )
+    plot_gc_summary(gc_rows, HERE / "gc_summary.png")
+
+    print(f"Wrote charts to {HERE}")
 
 
 if __name__ == "__main__":

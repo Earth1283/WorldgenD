@@ -1,6 +1,7 @@
 package io.github.eath1283.worldgend
 
 import java.io.File
+import java.lang.management.ManagementFactory
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.net.Proxy as NetProxy
@@ -24,6 +25,12 @@ private const val MOSAIC_TILE = 5
 private const val MOSAIC_SIDE = MOSAIC_N * MOSAIC_TILE
 
 fun main() {
+    // Self-reported, not inferred: which collector actually loaded, straight from the
+    // JVM's own MXBeans, so a GC experiment's flags can be confirmed the same way
+    // -Dmax.bg.threads got confirmed in #13 — by asking the running JVM, not the flag.
+    val gcNames = ManagementFactory.getGarbageCollectorMXBeans().joinToString { it.name }
+    println("Active GC(s): $gcNames")
+
     val serversDir = File(System.getProperty("user.dir"), "servers")
     val discovered = ServerRuntime.discover(serversDir)
     println("Hammering ${discovered.jar} (${discovered.classpath.size} bundled libraries)")
