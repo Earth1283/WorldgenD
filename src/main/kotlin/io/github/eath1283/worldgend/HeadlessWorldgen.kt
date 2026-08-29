@@ -5,6 +5,7 @@ import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.net.Proxy as NetProxy
 import java.nio.file.Path
+import java.util.Collections
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
@@ -19,7 +20,7 @@ import java.util.function.BooleanSupplier
 // scheduler figure out the wavefront" into "there is no wavefront": every
 // chunk in a phase is generatable the instant it's submitted.
 private const val MOSAIC_N = 16
-private const val MOSAIC_TILE = 3
+private const val MOSAIC_TILE = 5
 private const val MOSAIC_SIDE = MOSAIC_N * MOSAIC_TILE
 
 fun main() {
@@ -208,6 +209,11 @@ fun main() {
     var failed = 0
     var fastestPhaseMs = Long.MAX_VALUE
     var slowestPhaseMs = 0L
+    // MSPC (milliseconds per chunk): submission-to-completion latency of one chunk's
+    // getChunkFuture, sampled per chunk rather than averaged per phase. whenComplete()
+    // fires on whichever thread actually finishes the future, so this list is written
+    // from many worker threads concurrently — hence the synchronized wrapper.
+    val chunkMspc = Collections.synchronizedList(mutableListOf<Double>())
     val overallStart = System.nanoTime()
     for (phase in 0 until phaseCount) {
         val residueX = phase % MOSAIC_N
@@ -218,8 +224,10 @@ fun main() {
 
         val phaseStart = System.nanoTime()
         val pending = phaseCoords.map { (cx, cz) ->
+            val submitNanos = System.nanoTime()
             @Suppress("UNCHECKED_CAST")
             val future = getChunkFuture.call(chunkSource, cx, cz, fullStatus, true) as CompletableFuture<Any?>
+            future.whenComplete { _, _ -> chunkMspc.add((System.nanoTime() - submitNanos) / 1_000_000.0) }
             Pending(cx, cz, future)
         }
         val phaseDone = CompletableFuture.allOf(*pending.map { it.future }.toTypedArray())
@@ -253,6 +261,7 @@ fun main() {
         "Done: $ok chunks generated, $failed failed in ${totalMs}ms across $phaseCount phases " +
             "(fastest=${fastestPhaseMs}ms, slowest=${slowestPhaseMs}ms). No network, no RCON, no tick loop ever ran."
     )
+    println(mspcSummary(chunkMspc))
 }
 
 private fun defaultInvoke(method: java.lang.reflect.Method, args: Array<Any?>?): Any? = when (method.name) {
@@ -260,4 +269,25 @@ private fun defaultInvoke(method: java.lang.reflect.Method, args: Array<Any?>?):
     "hashCode" -> System.identityHashCode(args)
     "equals" -> false
     else -> null
+}
+
+// Linear-interpolation percentile (numpy's default "linear" method): rank = p/100 * (n-1),
+// then interpolate between the two bracketing samples. Matches what most stats tooling
+// reports for "p50"/"p99" so MSPC numbers here are comparable elsewhere without translation.
+private fun percentile(sorted: DoubleArray, p: Double): Double {
+    if (sorted.isEmpty()) return Double.NaN
+    if (sorted.size == 1) return sorted[0]
+    val rank = p / 100.0 * (sorted.size - 1)
+    val lo = rank.toInt()
+    val hi = minOf(lo + 1, sorted.size - 1)
+    val frac = rank - lo
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * frac
+}
+
+private fun mspcSummary(samplesMs: List<Double>): String {
+    if (samplesMs.isEmpty()) return "MSPC (ms/chunk): no samples"
+    val sorted = samplesMs.toDoubleArray().also { it.sort() }
+    fun at(p: Double) = "%.2f".format(percentile(sorted, p))
+    return "MSPC (ms/chunk, n=${sorted.size}): min=${at(0.0)} p1=${at(1.0)} p25=${at(25.0)} " +
+        "p50=${at(50.0)} p75=${at(75.0)} p99=${at(99.0)} max=${at(100.0)}"
 }

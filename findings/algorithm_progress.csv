@@ -1,0 +1,4 @@
+era,label,ms_per_chunk,metric,source
+naive_solid_block,"Naive solid block\n(no independence fix)",49.7,"avg, cps-derived","scientific-findings.md #9 warmup batch: 1681 chunks / 83.6s"
+mosaic_tile3,"Mosaic algorithm\n(MOSAIC_TILE=3)",41.82,"MSPC median (p50)","scientific-findings.md #12, default 7-worker run"
+mosaic_tile5,"Mosaic algorithm\n(MOSAIC_TILE=5)",35.80,"MSPC median (p50)","scientific-findings.md #13, default 7-worker run"

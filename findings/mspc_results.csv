@@ -1,0 +1,6 @@
+config,label,mosaic_tile,chunks,max_bg_threads_flag,workers_actual,jcmd_verified,total_ms,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
+tile3_default,"Tile 3, default",3,2304,none,7,formula+prior_jcmd,97718,0.07,1.51,8.67,41.82,49.40,141.90,2230.50
+tile3_threads16,"Tile 3, -Dmax.bg.threads=16",3,2304,16,7,no,111224,0.03,1.56,8.65,48.25,57.13,171.08,2191.96
+tile5_default,"Tile 5, default",5,6400,none,7,formula+prior_jcmd,235167,0.04,1.57,8.20,35.80,44.05,137.03,1492.91
+tile5_threads16,"Tile 5, -Dmax.bg.threads=16",5,6400,16,7,yes,256587,0.04,1.53,8.49,40.45,48.95,149.94,1571.50
+tile5_threads4,"Tile 5, -Dmax.bg.threads=4",5,6400,4,4,yes,233174,0.06,1.48,7.77,35.24,43.18,138.77,1496.63

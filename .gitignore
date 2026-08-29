@@ -48,3 +48,6 @@ bin/
 logs/
 *.json
 .idea/
+servers/
+server/
+

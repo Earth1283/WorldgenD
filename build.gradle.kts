@@ -25,6 +25,7 @@ application {
 tasks.named<JavaExec>("run") {
     workingDir = layout.projectDirectory.asFile
     standardOutput = System.out
+    findProperty("maxBgThreads")?.let { jvmArgs("-Dmax.bg.threads=$it") }
 }
 
 tasks.test {

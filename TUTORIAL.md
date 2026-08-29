@@ -39,8 +39,8 @@ Watch the logs. You will see, in order:
 - `Loaded 1515 recipes` / `Loaded 1617 advancements` — yes, this happens. No, we don't need it. It's a side effect of reusing Mojang's own datapack loader instead of reimplementing it ourselves like chumps. We let their code do their job.
 - `Constructed DedicatedServer without run()/initServer() — calling loadLevel() directly.` — this is the whole heist, right here, in one log line. A concrete `DedicatedServer` object exists in memory. It has never been started. It never will be.
 - `Selecting global world spawn...` / `Preparing spawn area: 100%` — this is the server, unprompted, generating its own spawn chunks as an honest side effect of `loadLevel()`, because that's just what that method does and we didn't stop it.
-- A wall of `[x,z] FULL height=NN biome=minecraft:whatever` and `phase N/255: 9 chunks in NNms` lines — this is us tiling a solid 48x48 block, 2304 chunks, in 256 provably-independent batches. See "The Mosaic" below for why it's shaped like that instead of one big grid.
-- `Done: 2304 chunks generated, 0 failed in NNms across 256 phases. No network, no RCON, no tick loop ever ran.` — the mission statement, confirmed empirically.
+- A wall of `[x,z] FULL height=NN biome=minecraft:whatever` and `phase N/255: 25 chunks in NNms` lines — this is us tiling a solid 80x80 block, 6400 chunks, in 256 provably-independent batches (`MOSAIC_TILE = 5` as currently shipped — see "The Mosaic" below for why it's shaped like that instead of one big grid, and for the smaller `MOSAIC_TILE = 3` example that's how the technique was originally discovered).
+- `Done: 6400 chunks generated, 0 failed in NNms across 256 phases. No network, no RCON, no tick loop ever ran.` — the mission statement, confirmed empirically.
 
 Every single one of those height/biome pairs came out of the *real* noise router, the *real* climate sampler, the *real* biome source. If it says `frozen_ocean` at height 62, that's because the actual overworld noise settings, for the actual random seed that got picked, actually produced ocean there. We didn't fake a single number.
 
@@ -100,6 +100,16 @@ Ran it. 2304/2304, zero failures, phase durations logged the whole way:
 ~136x from cold to warm, and — this is the part that matters — it never relapses. No mid-run spike back to seconds-per-phase the way the solid-block run had troughs. That flat, monotonically-dropping tail is the actual signature of "no scheduling stalls left, only JIT warmup." Compare that to the *average* across the whole run — 2304 chunks / 103.4s ≈ 22.3 chunks/sec — which is a real number but a misleading one: it's dragged down hard by one 9.4-second cold phase, and undersells what steady-state throughput on this box actually is (90-130/sec) once C2 has compiled `Beardifier`/`SurfaceRules`/`DensityFunctions`.
 
 `MOSAIC_N`, `MOSAIC_TILE`, and the phase loop all live in `HeadlessWorldgen.kt`. Want a bigger map? Bump `MOSAIC_TILE`. Want tighter safety margin? You now know the real number is 8 — go argue with the bytecode if you think that's changed in a later version.
+
+(`MOSAIC_TILE` has since been bumped to `5` — 25 chunks/phase, an 80x80/6400-chunk mosaic — because `3`'s 9-chunks-per-phase turned out too small to tell whether the worker pool or the dependency radius was the real ceiling. See `scientific-findings.md` #13 for that investigation; the `MOSAIC_TILE = 3` numbers above are kept as the original discovery run, not a live description of current output.)
+
+Every run now also prints one more line after `Done:` — something like:
+
+```
+MSPC (ms/chunk, n=6400): min=0.04 p1=1.57 p25=8.20 p50=35.80 p75=44.05 p99=137.03 max=1492.91
+```
+
+That's **MSPC**, milliseconds-per-chunk: the submission-to-completion latency of every individual chunk, not a phase-level average. The `chunks/sec` numbers in the table above are still true, but a single average across a run this lopsided (one 9-second cold phase next to 60ms warm ones) hides more than it shows — see `scientific-findings.md` #11 for the exact definition and #13 for it in use.
 
 ## ICBM Or Just Cheap Mosaics? A Controlled Experiment
 
