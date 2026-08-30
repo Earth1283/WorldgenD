@@ -1,0 +1,32 @@
+engine,run_label,total_ms,chunks,finding
+Orion v2.1,7 workers,132949,6400,#33
+Orion v2.2,7 workers + scatter-order,136583,6400,#35
+Leaf,"sustained, 58081 chunks",1147310,58081,#19
+Paper,"sustained, 58081 chunks",1218200,58081,#19
+Leaf-crack,block-sequential drag race,134030,6561,#31
+Orion v2.1,interleaved round 1,147586,6400,#32
+Orion v2.2,4 workers + scatter-order,146021,6400,#35
+Leaf,block-sequential drag race,146140,6561,#31
+Paper,interleaved round 2,154280,6561,#32
+Paper,interleaved round 3,155200,6561,#32
+Leaf-crack,original drag race,151760,6561,#18
+Orion v2.1,interleaved round 2,150974,6400,#32
+Orion v2.1,interleaved round 3,151637,6400,#32
+Orion v2.1,fresh 4-worker baseline,148775,6400,#33
+Paper,original drag race,153770,6561,#18
+Orion v2.1,block-sequential drag race,153323,6400,#31
+Leaf,original drag race,154670,6561,#18
+Orion v2.1,champion JFR run,153496,6400,#30
+Paper,block-sequential drag race,170270,6561,#31
+Paper,interleaved round 1,163320,6561,#32
+Orion v2,7 workers,164990,6400,#26
+Orion v2,champion JFR baseline,171512,6400,#27
+Orion v2,poll backoff,172061,6400,#28
+Orion v2,completions-gated poll,175422,6400,#29
+Orion v2,original champion,176145,6400,#26
+Mosaic,7 workers,225093,6400,#26
+Mosaic,original drag race,229674,6400,#18
+Mosaic,champion baseline,232213,6400,#26
+Mosaic,"sustained, tile=5",244316,6400,#19
+Mosaic,"sustained, tile=10 (25600 chunks)",980512,25600,#19
+Orion v1,champion,288270,6400,#24

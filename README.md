@@ -102,6 +102,29 @@ ParallelGC) at 4 workers instead of 7, and the ranking flipped: ZGC dropped to *
 tuned-G1/ParallelGC tied for fastest. GC choice and worker count interact — neither axis is safe
 to tune in isolation.
 
+## The Leaderboard (deeply, deeply cursed)
+
+Every scheduler this project has ever shipped, plus real unmodified Paper, Leaf, and
+Leaf-with-crack-flags, ranked by **effective MSPC** (`total_ms / chunks` — the same "true
+average" metric `scientific-findings.md` #18 used to compare against real servers, distinct
+from the percentile-spread MSPC everywhere else on this page). Every row is one *individual*
+run, not an average — 31 of them, sorted best to worst, generated straight from
+`findings/leaderboard_entries.csv` rather than typed by hand:
+
+```
+python3 findings/generate_leaderboard.py   # regenerates findings/leaderboard.html
+```
+
+Open `findings/leaderboard.html` — sortable by any column, filterable by engine. **It is not a
+rigorous ranking and isn't trying to be one**: rows span different sessions and box states, and
+two of them are a genuinely different chunk count and scale entirely. `scientific-findings.md`
+#16/#17 already put this box's own run-to-run noise at ~9%, and #32 exists specifically because
+block-sequential comparisons like most of this table can't be trusted at face value — Orion v2.1
+shows up at rank #3 *and* rank #18, sandwiched between two Paper legs, which is the whole point
+of leaving every run in separately instead of averaging them away. The rigorous version, with
+every caveat intact, is `scientific-findings.md` #1-#35 and its unhinged sibling
+`cursed-scientific-advancements.md`.
+
 ## Project layout
 
 | File | What it is |
@@ -111,7 +134,9 @@ to tune in isolation.
 | `src/main/kotlin/io/github/eath1283/worldgend/Reflect.kt` | Thin `Class`/`Method`/`Constructor` lookup helpers (`Mc`) |
 | `TUTORIAL.md` | The narrative: what this does and why it works, written for a human |
 | `scientific-findings.md` | The lab notebook: every empirical claim above, backed by `jcmd` thread dumps and `javap` bytecode disassembly instead of vibes |
-| `findings/` | Raw data (`mspc_results.csv`, `algorithm_progress.csv`, `gc_results.csv`, `gc_4w_results.csv`) and the matplotlib script (`plot_results.py`) that generates every chart in this README and in `scientific-findings.md` |
+| `findings/` | Raw data (`mspc_results.csv`, `algorithm_progress.csv`, `gc_results.csv`, `gc_4w_results.csv`, ...) and the matplotlib script (`plot_results.py`) that generates every chart in this README and in `scientific-findings.md` |
+| `findings/leaderboard_entries.csv`, `findings/generate_leaderboard.py` | Source data and generator for `findings/leaderboard.html`, the sortable cursed leaderboard |
+| `cursed-scientific-advancements.md` | The highlight reel: the whole Orion arc, same receipts, deliberately unhinged tone |
 
 ## Docs
 
