@@ -1,2 +1,2 @@
-ok=256 failed=0 totalMs=12468
-MSPC (ms/chunk, n=256): min=0.09 p1=1.93 p25=35.24 p50=38.09 p75=44.10 p99=152.67 max=999.08
+ok=6400 failed=0 totalMs=164990
+MSPC (ms/chunk, n=6400): min=0.89 p1=3.08 p25=71.81 p50=283.88 p75=624.42 p99=3459.70 max=18946.45

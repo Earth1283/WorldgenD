@@ -30,6 +30,9 @@ class Mc(private val loader: ClassLoader) {
     fun staticField(cls: Class<*>, name: String): Any? =
         cls.getField(name).apply { isAccessible = true }.get(null)
 
+    fun field(cls: Class<*>, name: String, target: Any): Any? =
+        cls.getDeclaredField(name).apply { isAccessible = true }.get(target)
+
     private val methodCache = ConcurrentHashMap<Pair<Class<*>, String>, Method>()
     fun publicMethodCached(cls: Class<*>, name: String, vararg params: Class<*>): Method =
         methodCache.getOrPut(cls to name) { publicMethod(cls, name, *params) }

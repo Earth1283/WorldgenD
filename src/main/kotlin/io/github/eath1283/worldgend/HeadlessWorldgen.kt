@@ -47,6 +47,7 @@ fun main() {
     val orionMaxInFlight = System.getProperty("orion.maxinflight", "64").toInt()
     val orionLockRadius = System.getProperty("orion.lockradius", Orion.DEPENDENCY_RADIUS.toString()).toInt()
     val orionTelemetry = System.getProperty("orion.telemetry", "false").toBoolean()
+    val orionDispatchThreads = System.getProperty("orion.dispatchthreads", "1").toInt()
 
     val serversDir = File(System.getProperty("user.dir"), "servers")
     val callTelemetry = if (System.getProperty("call.telemetry", "false").toBoolean())
@@ -230,16 +231,75 @@ fun main() {
     val mosaicSide = MOSAIC_N * mosaicTile
     val base = -mosaicSide / 2
 
+    if (schedulerMode == "probe") {
+        val getChunkFutureMainThread = mc.method(
+            cServerChunkCache, "getChunkFutureMainThread",
+            Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, cChunkStatus, Boolean::class.javaPrimitiveType!!
+        )
+        val probeCoords = (0 until 5).flatMap { i -> (0 until 5).map { j -> (base + i) to (base + j) } }
+        val lines = mutableListOf<String>()
+        for ((cx, cz) in probeCoords) {
+            val t0 = System.nanoTime()
+            @Suppress("UNCHECKED_CAST")
+            val future = getChunkFutureMainThread.call(chunkSource, cx, cz, fullStatus, true) as CompletableFuture<Any?>
+            val registerMs = (System.nanoTime() - t0) / 1_000_000.0
+            managedBlock.call(dedicatedServer, BooleanSupplier { future.isDone })
+            future.join()
+            val totalMs = (System.nanoTime() - t0) / 1_000_000.0
+            lines.add("[$cx,$cz] register=${"%.3f".format(registerMs)}ms total=${"%.3f".format(totalMs)}ms wait=${"%.3f".format(totalMs - registerMs)}ms")
+        }
+        File(serversDir.parentFile, "probe_result.txt").writeText(lines.joinToString("\n"))
+        return
+    }
+
     if (schedulerMode == "orion") {
         val telemetryFile = if (orionTelemetry) File(serversDir.parentFile, "orion_telemetry.log").apply { writeText("") } else null
+        val pollTask = if (orionDispatchThreads > 1) mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask") else null
+        val mainThreadProcessor = if (orionDispatchThreads > 1) mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource) else null
         val orion = Orion(
             mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, managedBlock,
-            orionMaxInFlight, orionLockRadius, telemetryFile,
+            orionMaxInFlight, orionLockRadius, telemetryFile, pollTask, mainThreadProcessor, orionDispatchThreads,
         )
         val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
         println("Orion-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), max $orionMaxInFlight in flight, lock radius ${Orion.DEPENDENCY_RADIUS}.")
 
         File(serversDir.parentFile, "orion_result.txt").writeText("orion fill() starting, target=${target.size}\n")
+        val overallStart = System.nanoTime()
+        val result = try {
+            orion.fill(target) { cx, cz, success, chunkResult, error ->
+                if (!success) {
+                    println("[$cx,$cz] FAILED: $error")
+                } else if (describeAll) {
+                    val chunk = mc.publicMethod(chunkResult!!.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
+                    println(describe(chunk, cx, cz))
+                }
+            }
+        } catch (t: Throwable) {
+            File(serversDir.parentFile, "orion_result.txt").writeText("THREW: ${t.stackTraceToString()}\n")
+            throw t
+        }
+        val totalMs = (System.nanoTime() - overallStart) / 1_000_000
+        File(serversDir.parentFile, "orion_result.txt").writeText(
+            "ok=${result.ok} failed=${result.failed} totalMs=$totalMs overlapViolations=${orion.overlapViolations.get()}\n${mspcSummary(orion.chunkMspc)}\n"
+        )
+
+        println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
+        println(mspcSummary(orion.chunkMspc))
+        return
+    }
+
+    if (schedulerMode == "orion2") {
+        val telemetryFile = if (orionTelemetry) File(serversDir.parentFile, "orion_telemetry.log").apply { writeText("") } else null
+        val pollTask = mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask")
+        val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
+        val orion = OrionV2(
+            mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor,
+            orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile,
+        )
+        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        println("Orion v2-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), $orionDispatchThreads workers, max $orionMaxInFlight in flight, lock radius $orionLockRadius.")
+
+        File(serversDir.parentFile, "orion_result.txt").writeText("orion v2 fill() starting, target=${target.size}\n")
         val overallStart = System.nanoTime()
         val result = try {
             orion.fill(target) { cx, cz, success, chunkResult, error ->
@@ -348,6 +408,9 @@ fun main() {
             "(fastest=${fastestPhaseMs}ms, slowest=${slowestPhaseMs}ms). No network, no RCON, no tick loop ever ran."
     )
     println(mspcSummary(chunkMspc))
+    File(serversDir.parentFile, "mosaic_result.txt").writeText(
+        "ok=$ok failed=$failed totalMs=$totalMs\n${mspcSummary(chunkMspc)}\n"
+    )
 }
 
 

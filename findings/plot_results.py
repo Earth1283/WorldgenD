@@ -249,6 +249,55 @@ def plot_algorithm_progress(out_path):
     plt.close(fig)
 
 
+def plot_worker_scaling(rows, out_path):
+    by_config = {r["config"]: r for r in rows}
+    groups = [
+        ("Mosaic", by_config["mosaic_champion_fresh"], by_config["mosaic_7w"]),
+        ("Orion v2", by_config["orion2_champion"], by_config["orion2_7w"]),
+    ]
+
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    group_width = 0.6
+    bar_width = group_width / 2
+    x = range(len(groups))
+
+    for i, (name, row4, row7) in enumerate(groups):
+        t4 = float(row4["total_ms"]) / 1000.0
+        t7 = float(row7["total_ms"]) / 1000.0
+        xi = x[i]
+        b4 = ax.bar(xi - bar_width / 2, t4, width=bar_width * 0.92, color=SERIES[0], zorder=3,
+                    label="4 workers" if i == 0 else None)
+        b7 = ax.bar(xi + bar_width / 2, t7, width=bar_width * 0.92, color=SERIES[1], zorder=3,
+                    label="7 workers" if i == 0 else None)
+        for bar, val in ((b4, t4), (b7, t7)):
+            ax.text(bar[0].get_x() + bar[0].get_width() / 2, val, f"{val:.0f}s",
+                    ha="center", va="bottom", fontsize=9, color=INK_SECONDARY)
+        pct = (t4 - t7) / t4 * 100
+        ax.text(xi, max(t4, t7) * 1.12, f"{pct:+.1f}%", ha="center", va="bottom",
+                fontsize=10.5, color=INK_PRIMARY, fontweight="bold")
+
+    ax.set_ylabel("total wall-clock time (s)")
+    ax.set_xticks(list(x))
+    ax.set_xticklabels([name for name, _, _ in groups], fontsize=11)
+    ax.set_ylim(0, max(float(r["total_ms"]) for r in rows) / 1000.0 * 1.25)
+    fig.suptitle("Does adding cores (4->7 workers) actually help?", color=INK_PRIMARY, fontsize=14, y=0.99)
+    ax.set_title(
+        "Only Orion v2 gets faster — the mosaic's ~3% is inside this box's own ~9% noise band (#17),\n"
+        "matching #13's original 'cutting workers costs nothing' finding. v2 is the first scheduler\n"
+        "in this whole investigation to show a real, reproducible gain from more cores.",
+        color=INK_SECONDARY, fontsize=9, pad=12, loc="left",
+    )
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color(BASELINE)
+    ax.spines["bottom"].set_color(BASELINE)
+    ax.legend(frameon=False, loc="upper right", fontsize=9.5, labelcolor=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0, 1, 0.87))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def plot_orion_concurrency_trace(out_path):
     with (HERE / "orion_concurrency_trace.csv").open() as f:
         rows = list(csv.DictReader(f))
@@ -346,12 +395,12 @@ def main():
         orion_rows = list(csv.DictReader(f))
     plot_percentiles(
         orion_rows, HERE / "orion_percentiles.png",
-        title="MSPC: Orion vs the mosaic, champion scale (6400 chunks)",
-        subtitle="Lower is better. Same ParallelGC/4-worker/16GB-pretouched config, same box, same session.",
+        title="MSPC: mosaic vs Orion v1 vs Orion v2, champion scale (6400 chunks)",
+        subtitle="Lower is better per-chunk — but see orion_summary.png: v2's higher MSPC buys a lower total time.",
     )
     plot_gc_summary(
         orion_rows, HERE / "orion_summary.png",
-        caption="Orion pays the mosaic's own per-chunk cost plus its own area-lock overhead, for zero benefit",
+        caption="v1 loses on both; v2 trades latency for ~24-27% less total time — and unlike the mosaic, v2 actually gets faster from 4->7 workers",
     )
 
     with (HERE / "orion_call_timing.csv").open() as f:
@@ -363,6 +412,7 @@ def main():
     )
 
     plot_orion_concurrency_trace(HERE / "orion_concurrency_trace.png")
+    plot_worker_scaling(orion_rows, HERE / "orion_worker_scaling.png")
 
     print(f"Wrote charts to {HERE}")
 

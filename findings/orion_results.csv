@@ -1,3 +1,6 @@
 config,label,scheduler,mosaic_tile,chunks,max_bg_threads_flag,total_ms,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
-mosaic_champion_fresh,"Mosaic (pump.threads=1 control, this session, ParallelGC/4 workers/16g pretouched)",mosaic,5,6400,4,232213,0.04,1.61,7.89,35.48,42.53,140.69,1888.75
-orion_champion,"Orion (ParallelGC/4 workers/16g pretouched, orion.maxinflight=64, lockRadius=8)",orion,5,6400,4,288270,0.01,31.32,37.09,40.50,46.05,125.98,1280.69
+mosaic_champion_fresh,"Mosaic (control)",mosaic,5,6400,4,232213,0.04,1.61,7.89,35.48,42.53,140.69,1888.75
+orion_champion,"Orion v1 (single-threaded)",orion,5,6400,4,288270,0.01,31.32,37.09,40.50,46.05,125.98,1280.69
+orion2_champion,"Orion v2 (8 dispatch threads)",orion2,5,6400,4,176145,1.26,4.25,79.73,296.58,680.50,3576.57,18894.50
+mosaic_7w,"Mosaic (7 workers)",mosaic,5,6400,7,225093,0.04,1.54,7.94,35.22,42.17,135.57,1587.34
+orion2_7w,"Orion v2 (7 workers, 8 dispatch threads)",orion2,5,6400,7,164990,0.89,3.08,71.81,283.88,624.42,3459.70,18946.45
