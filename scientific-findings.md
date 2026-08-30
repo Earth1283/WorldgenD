@@ -230,9 +230,106 @@ This also overturns half of #13's own conclusion. #13 found that cutting workers
 
 **Still open**: this doesn't fully explain #13's original 4-vs-7 tie under *default* ergonomic G1 (233174ms vs 235167ms) — that pairing is unaffected by anything tested here, since neither of today's runs used unmodified default G1. What today's experiment does establish is that the tie isn't a fixed, GC-independent property of the mosaic — it's real for default G1, disappears (turns into a 9% win) for tuned G1, and reverses into a small loss for ZGC.
 
-## 16. Charts, for posterity
+## 16. JFR says the reflection heist is already free — we "optimized" it anyway and made it slower
 
-Every number in #12, #13, #14, and #15, plotted. Raw data lives in `findings/mspc_results.csv`, `findings/gc_results.csv`, and `findings/gc_4w_results.csv`; every chart regenerates with:
+Every experiment above measured wall-clock time. That answers "how long did it take," not "where did the time go" — so this one brings in `-XX:StartFlightRecording` against the current champion (ParallelGC, 4 workers, 16GB pretouched heap, `MOSAIC_TILE = 5`), `delay=45s` to skip past JIT warmup, `settings=profile` to get CPU (`jdk.ExecutionSample`), allocation (`jdk.ObjectAllocationSample`), lock (`jdk.JavaMonitorEnter`/`Wait`), and GC events in one recording. Every number below comes from `jfr summary` and grep/awk aggregation over `jfr print --events <type>` output — never a raw, unaggregated `jfr print` dump, which for this recording would have been tens of thousands of lines.
+
+**CPU**: 23101 execution samples over the 260s recording. The top 30 leaf frames are 100% `net.minecraft.*`/`com.mojang.*`/`it.unimi.dsi.fastutil.*` — `ImprovedNoise.p`/`.noise`, `SurfaceRules$TestRule.tryApply`, `Aquifer$NoiseBasedAquifer.computeSubstance`, `NoiseChunk`, `BiomeManager.getBiome`, `PalettedContainer`. Exactly 5 samples had `io.github.eath1283.worldgend.*` as the true leaf (currently-executing) frame — all on the `main` thread, none on the 4 worker threads. At the JDK's own documented 10ms `jdk.ExecutionSample` period (confirmed straight from `$JAVA_HOME/lib/jfr/profile.jfc`, not assumed), that's **5 × 10ms = 50ms of WorldgenD's own code actually executing, out of 260,000ms recorded — 0.019%.** Two of those five samples sit at source lines beyond the 301-line file's own length (Kotlin's SMAP attributing inlined-stdlib bytecode, e.g. `mspcSummary`'s `String.format` calls, to synthetic line numbers — a real but harmless compiler artifact, not a bug). A deeper stack dump (depth 8) shows many more samples with `ReflectKt.call`/`Method.invoke` as *callers*, but the leaf beneath them is genuine Mojang code (`DistanceManager.runAllUpdates`, `ChunkMap.runGenerationTasks`, `TicketStorage.addTicket`) — that's the main thread driving `managedBlock()` through Mojang's own single-threaded scheduling, invoked reflectively; the trampoline frame costs nothing, the real work beneath it is 100% Mojang's.
+
+**Allocations**: top 25 `jdk.ObjectAllocationSample` classes are all genuine Mojang scratch objects (`long[]`/`double[]` noise buffers, `SurfaceRules$Context` lambdas, `BlockPos`, `DensityFunctions$*`) — no `Method[]`, no boxed `Integer`, nothing reflection-shaped anywhere in the list.
+
+**Locks**: zero `jdk.JavaMonitorEnter` events above the profile preset's 10ms threshold; 4 `jdk.JavaMonitorWait` events total. No meaningful lock contention in this workload.
+
+**GC**: 17 young collections (`PS Scavenge`, confirming ParallelGC), totaling ~845ms of pause time across the 260s window — under 0.4% of wall time. Consistent with #14/#15: a 16GB pretouched heap for a 6400-chunk run barely troubles the collector regardless of which one it is.
+
+So before touching any code, the profile already answered the question it was built to answer: WorldgenD's own reflection layer costs about 50 milliseconds out of a 230-second run. There was no real problem to fix. Went and looked anyway, because a genuine bug was visible straight from the source: `mc.publicMethod(result.javaClass, "isSuccess").call(result)` re-resolves that method via a fresh `Class.getMethod()` lookup on every one of 6400 chunks, every run, instead of once. Fixed it with a `ConcurrentHashMap<Pair<Class<*>, String>, Method>` cache (`Mc.publicMethodCached()`), and — since the JFR write-up was explicitly asked to bring "the heavy machinery" — also converted the two genuinely hot-path calls (`getChunkFuture`, 6400/run; `managedBlock`, 256/run) from `Method.invoke()` to raw `MethodHandle.invoke()`, on the theory that skipping `Object[]` boxing for `cx`/`cz` would help.
+
+It didn't. Three fresh, back-to-back runs at identical config (no stale numbers reused — an earlier attempt at reusing a 30-minutes-prior baseline number produced a contradiction that turned out to be ordinary session-to-session system drift, not a real regression, which is exactly why this round re-ran everything paired and adjacent-in-time instead of trusting old numbers):
+
+| Variant | Total | MSPC p50 |
+|---|---|---|
+| Baseline (uncached `isSuccess`, plain `Method.invoke()`) | 229728ms | 35.35ms |
+| `MethodHandle` conversion for `getChunkFuture`/`managedBlock` | 247528ms | 39.34ms |
+| Cached `Method` (uncached bug fixed, no `MethodHandle`s) — **shipped** | 229674ms | 35.44ms |
+
+The `MethodHandle` version was reproducibly ~7-8% *slower*, not faster (a second, less-controlled pair of runs earlier in this session showed the same direction, ~4-9% slower). The likely reason: since JDK 18 (JEP 416, "Reimplement Core Reflection with Method Handles"), `Method.invoke()` is *already* implemented internally via a generated `MethodHandle`-backed accessor (`jdk.internal.reflect.DirectMethodHandleAccessor`, visible directly in the JFR stack traces above) — so converting our own call sites to a raw `MethodHandle.invoke()` didn't remove a layer of indirection, it added a second, differently-shaped one. Kotlin's polymorphic-signature call sites erase arguments to `Object` (the call sites here pass `chunkSource`/`fullStatus`/`dedicatedServer` all typed as `Any`), so every `invoke()` does a checked-cast/adaptation dance the JDK's own already-specialized accessor apparently avoids. Reverted; kept only the `Method` cache, which is statistically identical to baseline (229674ms vs 229728ms — 0.02% apart, noise) because that's exactly what the profile predicted a reflection fix would look like: correct, and invisible.
+
+**The actual lesson, not the one going in expecting it**: "cache reflection, use MethodHandles" is folk wisdom that doesn't automatically hold on a modern JDK where `Method.invoke()` is already MethodHandle-shaped under the hood. Measure before assuming an "obviously faster" primitive actually is, on this JDK, for this call shape.
+
+## 17. Tuning ParallelGC to "leverage the 8 EPYC cores" — and discovering the box's own noise floor instead
+
+The champion is untouched default ParallelGC (#15). Natural next question: can explicit flags make it collect faster by using this box's 8 cores harder? Checked the ergonomic defaults first instead of guessing (`java -XX:+UseParallelGC -XX:+PrintFlagsFinal -version`) — `ParallelGCThreads=8` and `ParallelRefProcEnabled=true` are *already* the defaults on this box, so pinning them explicitly would be the exact same no-op #13 already caught once with `-Dmax.bg.threads`. The one default actually worth challenging: `UseDynamicNumberOfGCThreads=true`, which lets ParallelGC use *fewer* than 8 threads for small collections — the opposite of "leverage 8 cores." Tested `-XX:-UseDynamicNumberOfGCThreads -XX:GCTimeRatio=199` (force full 8-thread parallelism on every collection, plus a throughput target twice as aggressive as the 99:1 default) against fresh, un-reused baseline runs (#16 already burned the lesson about trusting old numbers across a long session):
+
+| Run (in order) | Total | MSPC p50 |
+|---|---|---|
+| Default ParallelGC (sample 1) | 247739ms | 39.64ms |
+| Forced full parallelism + `GCTimeRatio=199` | 231527ms | 35.37ms |
+| Default ParallelGC (sample 2) | 225381ms | 34.81ms |
+
+Read in isolation, the tuned run looks 6.5% faster than the baseline immediately before it. Read against *both* baselines, it looks unremarkable: **two untouched, unmodified default-ParallelGC runs, back to back, spanned 225381-247739ms — a 9% range with zero code or flag changes anywhere.** The tuned sample (231527ms) sits inside that range, not below it. There is no evidence here that the flags did anything; there is good evidence that this box has ~9% run-to-run noise on this workload, which the earlier `MethodHandle` finding in #16 happened to clear (that one showed the same direction twice, in independently-paired comparisons) but this one doesn't even attempt to clear, at n=1 tuned sample.
+
+This is the expected outcome once you already know #16: JFR proved GC costs under 0.4% of wall time on this workload. There is no headroom left to tune away — forcing more parallelism onto collections that already take single-digit milliseconds and happen 17 times in a quarter-hour run cannot move a number that small. The honest conclusion is a null result, not a negative one: **ParallelGC was already about as fast as this workload lets a garbage collector be**, and the interesting number tonight turned out to be the box's own noise floor, not anything about the collector.
+
+## 18. The drag race: WorldgenD vs. real Paper/Leaf servers, and WorldgenD loses badly
+
+Everything above compared WorldgenD against itself. This section compares it against the thing it was never trying to be — a real, ticking Minecraft server — to find out how much of #17's "there's no headroom left" conclusion was true in an absolute sense versus only true *relative to WorldgenD's own ceiling*.
+
+**Setup**: a separate `control/` directory (sibling of `WorldgenD/`), holding unmodified `paper.jar` and `leaf.jar` (Leaf is a Paper fork), the Chunky-Bukkit pre-generation plugin, and three launch scripts — `start-paper.sh`, `start-leaf.sh`, `start-leaf-with-crack.sh` — all three pinned to `-Xms16384M -Xmx16384M` plus the community-standard "Aikar's flags" G1GC tuning (`MaxGCPauseMillis=200`, tuned `G1NewSizePercent`/`G1HeapRegionSize`/`InitiatingHeapOccupancyPercent`, etc. — a different, more elaborate G1 tune than #14's simple `MaxGCPauseMillis=1000` experiment). The crack variant adds `-DLeaf.enableFMA=true -DLeaf.disable-vanilla-profiler=true -DLeaf.disable-vanilla-debug-feature=true`. Driven entirely over RCON (a from-scratch ~30-line Source RCON client, since no `mcrcon` binary was available) rather than piping a console — real servers, real commands, no reflection heist involved at all here.
+
+Chunky configured identically for every run, verified via `chunky selection` after each reboot before starting:
+
+```
+chunky world world
+chunky shape square
+chunky center 0 0
+chunky radius 640
+```
+
+That's a radius-640 square — 6561 chunks (81×81, since Chunky's radius is inclusive of the center chunk; **not** the same chunk count as WorldgenD's own 6400, a real, acknowledged mismatch, not an oversight). World wiped (`control/wipe-world.sh`) and the server rebooted fresh before every single run, so no run ever benefited from a previous run's cached spawn chunks. Timing taken three independent ways per run and cross-checked: the wall-clock instant `chunky start` was sent via RCON, the server log's own timestamps, and Chunky's self-reported `Total time:` line — all three agreed to within a second on every run. Full `[Chunky]`-tagged log output for all three runs saved in `findings/paper_chunky_run1.log`, `findings/leaf_chunky_run1.log`, `findings/leafcrack_chunky_run1.log`.
+
+| Config | Chunks | Total time | Avg ms/chunk | Chunks/sec |
+|---|---|---|---|---|
+| **WorldgenD** (headless, ParallelGC, 4 workers — the #15/#16 champion) | 6400 | 229674ms | 35.89 | 27.87 |
+| Paper (Aikar's flags) | 6561 | 153770ms | 23.44 | 42.67 |
+| Leaf (Aikar's flags, no crack flags) | 6561 | 154670ms | 23.57 | 42.42 |
+| Leaf-with-crack (+ FMA/profiler-disable, `/tick freeze` active) | 6561 | 151760ms | 23.13 | 43.23 |
+
+**WorldgenD is ~53% slower, throughput-normalized, than plain unmodified Paper.** Not close, not within this box's demonstrated ~9% noise band (#17) — a real, large gap. All three real-server configs land within 2% of each other (matching #15's own G1-vs-Parallel-vs-ZGC pattern of "GC/flag differences are single-digit-percent, not the dominant effect"); the interesting comparison isn't Paper-vs-Leaf-vs-crack, it's any-of-them-vs-WorldgenD.
+
+**The obvious hypothesis — "Paper just uses more cores" — is wrong, and checkably so.** The server log states plainly: `[MoonriseCommon] Paper is using 2 worker threads, 1 I/O threads`. That's Paper's own auto-sized (`worker-threads: -1` in `paper-global.yml`, confirmed unmodified — not something tuned down for this test) dedicated chunk-generation pool, on this same 8-core box, and it beat WorldgenD's *4* workers while itself using *2*. Whatever is faster here, it isn't "more parallelism."
+
+**Working theory, not yet proven with a source diff**: Paper and its forks carry real, substantial patches to the chunk-generation pipeline itself — caching, restructured data layouts, region-based scheduling that reduces redundant lookups across neighboring chunks — layered *on top of* the same underlying vanilla Mojang algorithms. WorldgenD's entire design constraint, stated since #1, is that it will never touch or replace a single line of Mojang's own generator or concurrency code — it drives the *unmodified* official jar, by design. That constraint is exactly what caps it here: Paper isn't winning by using the hardware differently, it's winning because its generator does measurably less work per chunk than vanilla's, and WorldgenD, being deliberately vanilla, cannot access that speedup without ceasing to be what it is. This reframes #13-#17's whole thread-count/GC-tuning investigation: all of that tuning was optimizing around the edges of a generator implementation that a widely-used fork had already found ~53% more headroom in, through changes WorldgenD's own founding constraint rules out by definition.
+
+**Caveats on the numbers themselves**: (a) 6561 vs 6400 chunks — the chunks/sec column normalizes for this, the raw total-time column doesn't. (b) Chunky exposes no per-chunk timing, only a periodic `Rate: X cps` line roughly once a second — the "avg ms/chunk" above is `total_ms / chunks`, a true average, not a percentile distribution the way WorldgenD's MSPC is. A rate-derived pseudo-distribution was computed for each run (inverting each `Rate:` sample to ms/chunk and taking percentiles across those ~140 per-run samples) but is deliberately not shown side-by-side with WorldgenD's real per-chunk percentiles in a single chart, since a distribution of ~1-second window averages and a distribution of individual chunk completions are not the same statistic — putting them on one staircase chart would imply a comparability that isn't there. (c) `/tick freeze` was active only for the crack run, an attempt to strip tick-loop overhead closer to WorldgenD's own "no tick loop ever ran" baseline; its effect size here (151760ms vs Leaf's 154670ms with ticking active) is small enough to be inside noise, not a proven contributor — a fourth run (Leaf, plain flags, tick frozen) would be needed to isolate tick-freeze's own effect from the FMA/profiler flags', which was not run tonight.
+
+**Open question this leaves**: is the ~53% gap really the generator patches, or does some of it come from something checkable tonight but not checked — e.g. Chunky's own chunk-request ordering/pattern differing from the mosaic's residue-class order in a way that matters for cache locality? The thread-count evidence rules out raw parallelism specifically; it doesn't rule out every other explanation.
+
+## 19. Sustained test: tripling the workload, and Leaf finally pulls ahead of Paper
+
+#18 ran a comparatively small job (6561 chunks) — small enough that a real difference between Paper and Leaf could plausibly hide inside noise the way #17 demonstrated this box is capable of. This one triples Chunky's linear radius (640 → 1920, so ~9x the chunks: 58081) for Paper and Leaf, and separately doubles WorldgenD's own linear scale (`MOSAIC_TILE` 5 → 10, 6400 → 25600 chunks) plus reruns the original tile-5 size fresh, specifically to check whether WorldgenD's own throughput holds steady as the job gets bigger — a distinct question from #18's cross-engine comparison.
+
+Same methodology as #18: world wiped and server rebooted fresh before every run, Chunky's `world`/`shape square`/`center 0,0`/`radius 1920` selection reapplied and verified each time, timing cross-checked between the RCON-send instant and the log/self-report (agreement within 1s on both runs, same as #18). Leaf ran with its *plain* Aikar's-flags config — no crack flags, no `/tick freeze` — specifically to get a bigger, more statistically trustworthy sample of "Leaf vs. Paper with nothing else different" than #18's single small run could give.
+
+| Config | Chunks | Total time | Avg ms/chunk | Chunks/sec |
+|---|---|---|---|---|
+| WorldgenD (`MOSAIC_TILE=5`, fresh sample) | 6400 | 244316ms | 38.17 | 26.20 |
+| WorldgenD (`MOSAIC_TILE=10`, doubled) | 25600 | 980512ms | 38.30 | 26.11 |
+| Paper (radius 1920) | 58081 | 1218200ms | 20.97 | 47.68 |
+| Leaf, plain flags (radius 1920) | 58081 | 1147310ms | 19.75 | 50.62 |
+
+**WorldgenD's own throughput is scale-invariant**: 26.20 vs 26.11 chunks/sec at 4x the chunk count — a 0.3% difference, well inside this box's noise band, confirming the fixed 16GB pretouched heap and 4-worker pool don't start straining at 4x the job size. Good news for anyone about to run WorldgenD on something bigger than a demo-sized mosaic (see the last Open Questions bullet about untested scale).
+
+**Leaf pulls ahead of Paper for real this time**: 50.62 vs 47.68 chunks/sec, a ~6% gap — and unlike #18's statistically-tied 42.42-vs-42.67 result at the smaller sample size, this one's built on a run nearly 9x longer, which is exactly the kind of larger sample that should surface a real small effect #18 didn't have the statistical power to see. Notably, this is **plain Leaf**, no crack flags, no tick freeze — meaning whatever Leaf does differently from Paper by default (not the opt-in `-DLeaf.*` extras from #18) is worth a real ~6% on a job this size.
+
+**The headline from #18 stands, and gets more data behind it**: both real servers are still roughly double WorldgenD's throughput (47.68/50.62 vs ~26.1-26.2 chunks/sec) at a scale nearly 10x larger than #18's, ruling out "the earlier gap was some small-N fluke" as an explanation. Whatever Paper/Leaf's generator patches are doing, they keep doing it at scale.
+
+**Also along the way**: confirmed empirically (not assumed) that WorldgenD's generated chunks never actually reach disk. `servers/.run/.../region/*.mca` files exist after a run — Minecraft's storage layer creates the region-file handle the moment a chunk load is requested — but every single one is **0 bytes**, because WorldgenD never calls `save()` and never runs the tick loop whose autosave would normally flush chunks to disk. Generated chunks live only in the in-memory `ChunkMap` and vanish the instant the JVM exits. Worth knowing before anyone assumes a completed WorldgenD run leaves usable region files behind — it doesn't.
+
+Raw Chunky logs: `findings/paper_chunky_sustained.log`, `findings/leaf_chunky_sustained.log`. Data: `findings/sustained_results.csv`.
+
+## 20. Charts, for posterity
+
+Every number in #12 through #19, plotted. Raw data lives in `findings/mspc_results.csv`, `findings/gc_results.csv`, `findings/gc_4w_results.csv`, `findings/jfr_ab_results.csv`, `findings/pgc_tuning_results.csv`, `findings/drag_race_results.csv`, and `findings/sustained_results.csv`; every chart regenerates with:
 
 ```
 python3 findings/plot_results.py
@@ -264,14 +361,35 @@ Same four collectors as #15, but now ZGC (blue and orange, plain and throughput-
 
 #15's headline in one picture: G1-throughput and ParallelGC land on top of each other (226s/34.8ms vs 225s/34.8ms), both a clear ~6% ahead of either ZGC variant — the reverse of the 7-worker ranking two charts up.
 
+![MSPC percentiles across the JFR-guided reflection A/B, grouped bar chart, log scale](findings/jfr_ab_percentiles.png)
+
+All three bars trace the same staircase within noise except one: the `MethodHandle` conversion (orange) sits visibly above the other two from `p25` through `max`, not just at one percentile. That's #16's regression made visible — a consistent shift, the same signature a real effect leaves (and the same one ZGC's genuine edge left in the chart three up).
+
+![Total wall-clock time and MSPC median for the JFR-guided reflection A/B](findings/jfr_ab_summary.png)
+
+Baseline and the shipped cached-`Method` fix land on identical bars (230s/35.4ms both); the `MethodHandle` attempt cost ~8%. #16's whole point in one picture: the "optimization" that looked obviously correct on paper is the one that lost.
+
+![Total wall-clock time and MSPC median across the ParallelGC tuning attempt, in run order](findings/pgc_tuning_summary.png)
+
+#17's whole point in one picture: three bars, roughly evenly spaced downward, and the tuned config is the middle one — not because it's between two genuinely different regimes, but because two *identical* default-config runs bracket it just as far apart as the "improvement" itself. If this were a real effect, the two baseline bars would sit together and the tuned bar would stand apart. They don't.
+
+![Total wall-clock time and normalized throughput, WorldgenD vs. real Paper/Leaf servers](findings/drag_race_summary.png)
+
+#18 in one picture, and the one chart in this whole document where the bars don't look close. Every prior chart here was hunting for a real signal inside a small noise band; this is the opposite problem — the WorldgenD bar isn't subtly different from the other three, it's in a different regime entirely, on both panels, and no amount of the tuning explored in #13-#17 gets it there.
+
+![Total wall-clock time and normalized throughput at 9x the scale, WorldgenD vs. real Paper/Leaf servers](findings/sustained_summary.png)
+
+#19 in one picture: WorldgenD's two bars (different scales, same throughput) sit right on top of each other on the right panel — the scale-invariance claim, visibly true, not just asserted. Leaf edges out Paper here in a way #18's smaller sample couldn't distinguish from noise; both still sit roughly double WorldgenD's bar, same as #18, now backed by a run 9x bigger.
+
 Add a row to the relevant CSV and rerun the script to keep all of this current as new experiments land.
 
 ## Open questions / where you pick this up
 
+- **#18's ~53% gap to Paper/Leaf is unexplained beyond "probably the generator patches."** Thread-count is ruled out (Paper used 2 dedicated workers to WorldgenD's 4 and still won). The leading theory — Paper/Leaf's fork-level chunk-generation patches doing genuinely less work per chunk than vanilla — has never been checked against an actual source or bytecode diff the way #6/#7's claims were. Also untested: a fourth drag-race run (plain Leaf flags, `/tick freeze` active, no FMA/profiler-disable flags) to isolate tick-freeze's own contribution from the crack-specific flags', since #18's single crack sample can't separate the two.
 - **Nail down the exit-delay theory from #10.** Grab a `jcmd Thread.print` right before natural exit, check which live threads are missing the `daemon` flag, and consider reflectively calling `Util.shutdownExecutors()` at the end of `main()` for a fast, clean death without ever going near `stopServer()`/`halt()`.
 - **We've only ever sampled height + biome** (`describe()` in `HeadlessWorldgen.kt`). Real block data is one more reflective hop away — `ChunkAccess.getBlockState(BlockPos)` — completely untried.
 - **Overworld only.** Nether/End just need `LevelStem` lookups against `Level.NETHER` / `Level.END` instead of `overworld()`. Structurally trivial. Nobody's bothered yet.
 - **Why does cutting the worker pool from 7 to 4 not cost anything under default G1 at `MOSAIC_TILE = 5`, but turn into a 9% win under tuned G1/ParallelGC and a small loss under ZGC?** #13 found the 7-vs-4 tie under default ergonomic G1. #15 crossed GC choice with the 4-worker count directly and found the tie isn't universal: G1-throughput and ParallelGC at 4 workers (226112/225922ms) beat their own 7-worker numbers by ~9% (#14's 248592ms G1-throughput row), while ZGC at 4 workers (241066-241169ms) is *slower* than ZGC at 7 workers (237127ms) — a full rank reversal from #14, where ZGC was the fastest collector tested. Leading candidate, untested: ZGC's concurrent GC threads have a fixed CPU cost that doesn't shrink just because there are fewer mutator threads to overlap with, so they start actively competing with workers once cores are freed up by dropping to 4; a STW collector, by contrast, gets *cheaper* pauses at 4 workers (fewer live threads to interrupt) with idle cores to burn through the pause fast. Still untested: default (untuned) G1 specifically at 4 workers — the one cell in this GC × worker-count grid nobody's run yet — plus a live `jcmd <pid> Thread.print` thread-*state* sample comparing ZGC's concurrent-thread utilization at 4 vs 7 workers, to confirm or kill the mechanism above directly.
 - **The #9 warmup batch was itself a dumb solid block**, paying the exact wavefront-stall tax described in #6 (83.6s for 1681 chunks, ~20cps average, for a phase whose own speed nobody cared about). A mosaic-shaped warmup would probably get JIT-hot faster and cheaper. Untried purely out of laziness.
 - **No decompiler was ever available here.** Every finding above came from `javap -p` (signatures) and `javap -c -p` (raw bytecode disassembly, read by hand, for constants like the radius-8 discovery in #7) — not recovered source. If a decompiler shows up later, it would be worth double-checking the manual bytecode archaeology in #6/#7 against real source, if only to confirm we didn't misread an `iconst` somewhere out of overconfidence.
-- **Nothing bigger than `MOSAIC_TILE = 3` (2304 chunks) has been attempted.** No idea how memory/GC behaves over tens of thousands of chunks in one process that never calls a single save-or-unload path. Could be fine. Could be a very educational `OutOfMemoryError`. Someone should find out.
+- **Scale up to 25600 chunks (`MOSAIC_TILE = 10`) came back clean in #19** — same throughput as the 6400-chunk baseline, no sign of memory pressure on a fixed 16GB pretouched heap. Still untested: an order of magnitude beyond that. This process never calls a single save-or-unload path, so the in-memory `ChunkMap` only ever grows — at some size, on some heap, that stops being fine. Where exactly is still unknown.

@@ -1,0 +1,4 @@
+config,label,total_ms,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
+baseline_1,"Default ParallelGC (sample 1)",247739,0.05,1.64,7.81,39.64,47.03,144.75,1688.63
+tuned,"Forced full parallelism + GCTimeRatio=199",231527,0.05,1.61,7.74,35.37,42.87,140.37,1557.12
+baseline_2,"Default ParallelGC (sample 2)",225381,0.06,1.54,7.56,34.81,41.59,132.41,1481.67

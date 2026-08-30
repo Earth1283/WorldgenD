@@ -246,10 +246,10 @@ fun main() {
 
         for ((cx, cz, future) in pending) {
             val result = future.join()!!
-            val isSuccess = mc.publicMethod(result.javaClass, "isSuccess").call(result) as Boolean
+            val isSuccess = mc.publicMethodCached(result.javaClass, "isSuccess").call(result) as Boolean
             if (!isSuccess) {
                 failed++
-                println("[$cx,$cz] FAILED: ${mc.publicMethod(result.javaClass, "getError").call(result)}")
+                println("[$cx,$cz] FAILED: ${mc.publicMethodCached(result.javaClass, "getError").call(result)}")
                 continue
             }
             ok++

@@ -169,6 +169,45 @@ def plot_gc_summary(rows, out_path, caption="Same 7 workers, same 16GB pretouche
     plt.close(fig)
 
 
+def plot_drag_race(rows, out_path, time_title="Total time to generate its own selection",
+                    caption=("WorldgenD did 6400 chunks; Paper/Leaf variants did 6561 (Chunky's radius-640 square is inclusive of\n"
+                              "the center chunk) — throughput panel normalizes for that, time panel does not")):
+    fig, (ax_time, ax_cps) = plt.subplots(1, 2, figsize=(11, 4.5))
+    labels = [row["label"] for row in rows]
+    colors = [SERIES[i % len(SERIES)] for i in range(len(rows))]
+
+    total_s = [float(row["total_ms"]) / 1000.0 for row in rows]
+    bars = ax_time.bar(labels, total_s, color=colors, zorder=3)
+    ax_time.set_ylabel("total wall-clock time (s)")
+    ax_time.set_title(time_title, fontsize=11, color=INK_PRIMARY)
+    for bar, val in zip(bars, total_s):
+        ax_time.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.0f}s",
+                     ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+
+    cps = [float(row["chunks_per_sec"]) for row in rows]
+    bars2 = ax_cps.bar(labels, cps, color=colors, zorder=3)
+    ax_cps.set_ylabel("chunks/sec (normalized for chunk-count difference)")
+    ax_cps.set_title("Throughput", fontsize=11, color=INK_PRIMARY)
+    for bar, val in zip(bars2, cps):
+        ax_cps.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.1f}",
+                    ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+
+    for ax in (ax_time, ax_cps):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        ax.spines["left"].set_color(BASELINE)
+        ax.spines["bottom"].set_color(BASELINE)
+        ax.tick_params(axis="x", labelrotation=15, labelsize=8.5)
+        for tick in ax.get_xticklabels():
+            tick.set_ha("right")
+
+    fig.suptitle(caption, fontsize=9.5, color=INK_SECONDARY, y=1.05)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_algorithm_progress(out_path):
     with (HERE / "algorithm_progress.csv").open() as f:
         progress_rows = list(csv.DictReader(f))
@@ -235,6 +274,40 @@ def main():
     plot_gc_summary(
         gc_4w_rows, HERE / "gc_4w_summary.png",
         caption="4 workers this time (not 7), same 16GB pretouched heap, same mosaic — only the collector changes",
+    )
+
+    with (HERE / "jfr_ab_results.csv").open() as f:
+        jfr_rows = list(csv.DictReader(f))
+    plot_percentiles(
+        jfr_rows, HERE / "jfr_ab_percentiles.png",
+        title="MSPC across the JFR-guided reflection A/B (ParallelGC, 4 workers)",
+        subtitle="Lower is better. Same config throughout — only the reflection call strategy changes.",
+    )
+    plot_gc_summary(
+        jfr_rows, HERE / "jfr_ab_summary.png",
+        caption="MethodHandle conversion regressed; caching a plain Method did not",
+    )
+
+    with (HERE / "pgc_tuning_results.csv").open() as f:
+        pgc_rows = list(csv.DictReader(f))
+    plot_gc_summary(
+        pgc_rows, HERE / "pgc_tuning_summary.png",
+        caption="Bars are in run order — the tuned sample sits between two untouched baseline samples",
+    )
+
+    with (HERE / "drag_race_results.csv").open() as f:
+        drag_race_rows = list(csv.DictReader(f))
+    plot_drag_race(drag_race_rows, HERE / "drag_race_summary.png")
+
+    with (HERE / "sustained_results.csv").open() as f:
+        sustained_rows = list(csv.DictReader(f))
+    plot_drag_race(
+        sustained_rows, HERE / "sustained_summary.png",
+        time_title="Total time to generate its own (much bigger) selection",
+        caption=(
+            "WorldgenD ran at two scales (6400 and 25600 chunks) to confirm its own throughput doesn't\n"
+            "change with size; Paper/Leaf ran once each at 58081 chunks (Chunky radius 1920, tripled from #18)"
+        ),
     )
 
     print(f"Wrote charts to {HERE}")

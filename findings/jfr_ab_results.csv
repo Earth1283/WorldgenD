@@ -1,0 +1,4 @@
+config,label,total_ms,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
+baseline,"Baseline (uncached isSuccess lookup)",229728,0.04,1.67,8.03,35.35,42.39,137.57,1631.67
+methodhandle,"MethodHandle conversion (reverted)",247528,0.03,1.63,7.72,39.34,46.75,142.58,1549.16
+cached_method,"Cached Method (shipped)",229674,0.05,1.66,7.86,35.44,42.51,139.12,1689.47

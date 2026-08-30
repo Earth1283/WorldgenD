@@ -2,6 +2,7 @@ package io.github.eath1283.worldgend
 
 import java.lang.reflect.Constructor
 import java.lang.reflect.Method
+import java.util.concurrent.ConcurrentHashMap
 
 class Mc(private val loader: ClassLoader) {
     fun c(name: String): Class<*> = Class.forName(name, false, loader)
@@ -28,6 +29,10 @@ class Mc(private val loader: ClassLoader) {
 
     fun staticField(cls: Class<*>, name: String): Any? =
         cls.getField(name).apply { isAccessible = true }.get(null)
+
+    private val methodCache = ConcurrentHashMap<Pair<Class<*>, String>, Method>()
+    fun publicMethodCached(cls: Class<*>, name: String, vararg params: Class<*>): Method =
+        methodCache.getOrPut(cls to name) { publicMethod(cls, name, *params) }
 }
 
 fun Method.call(target: Any?, vararg args: Any?): Any? = invoke(target, *args)

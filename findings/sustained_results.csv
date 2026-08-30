@@ -1,0 +1,5 @@
+config,label,engine,chunks,total_ms,avg_mspc,chunks_per_sec
+worldgend_tile5,"WorldgenD (tile=5, baseline)","WorldgenD",6400,244316,38.17,26.20
+worldgend_tile10,"WorldgenD (tile=10, doubled)","WorldgenD",25600,980512,38.30,26.11
+paper_sustained,"Paper (radius 1920)","Paper",58081,1218200,20.97,47.68
+leaf_sustained,"Leaf, no dope (radius 1920)","Leaf",58081,1147310,19.75,50.62

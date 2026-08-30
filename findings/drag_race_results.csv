@@ -1,0 +1,5 @@
+config,label,engine,chunks,total_ms,avg_mspc,chunks_per_sec
+worldgend,"WorldgenD (headless, 4 workers)","WorldgenD",6400,229674,35.89,27.87
+paper,"Paper","Paper",6561,153770,23.44,42.67
+leaf,"Leaf","Leaf",6561,154670,23.57,42.42
+leaf_crack,"Leaf-with-crack (tick-frozen)","Leaf-with-crack",6561,151760,23.13,43.23

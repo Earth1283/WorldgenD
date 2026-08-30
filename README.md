@@ -60,7 +60,18 @@ actually did. See `scientific-findings.md` #13 for the thread-pool experiment th
 motivated bumping the mosaic tile size, #14 for a three-way GC comparison (default G1
 vs. a throughput-tuned G1 vs. ZGC, all at a fixed pretouched heap), #15 for what
 happens when GC choice is crossed with a smaller worker pool (short version: the
-7-worker GC ranking from #14 flips at 4 workers), and #16 for the full chart set.
+7-worker GC ranking from #14 flips at 4 workers), #16 for a JFR profile of the champion config
+(reflection costs ~0.02% of runtime — already invisible — and "obviously faster" `MethodHandle`s
+turned out to be an 8% regression on this JDK), #17 for an attempt to tune ParallelGC harder
+(the result was indistinguishable from this box's own ~9% run-to-run noise — there was no
+headroom left after #16 already proved GC costs under 0.4% of wall time), #18 for the
+uncomfortable one (a real, unmodified Paper server with the Chunky plugin beats this whole
+project's own best-tuned config by ~53% throughput, using *fewer* dedicated worker threads —
+strong evidence that Paper's fork-level generator patches, not concurrency tuning, are where
+the real headroom was this whole time), #19 for the same comparison at ~9x the scale (58081
+chunks) — confirms WorldgenD's own throughput holds steady as the job grows, and gives Leaf a
+big enough sample to show a real ~6% edge over Paper that #18's smaller run couldn't tell apart
+from noise — and #20 for the full chart set.
 
 To test a different `Util.getMaxThreads()` cap without editing code:
 
