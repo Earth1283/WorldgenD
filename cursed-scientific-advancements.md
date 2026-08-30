@@ -1,16 +1,16 @@
-# Cursed Scientific Advancements: How We Accidentally Out-Ran Paper
+# Cursed Scientific Advancements: How We Accidentally Out-Ran Paper (Allegedly, on paper, at least)
 
 A field guide to the crimes committed in this repository, presented in roughly the order we
-committed them. `TUTORIAL.md` has the heist. `scientific-findings.md` has the receipts, all 31
-of them, in a tone somewhere between lab notebook and confession. This document is the
-victory lap — the parts where a bit, a busy-spin, and a spreadsheet's worth of stubbornness
-turned into a headless Java process that generates Minecraft chunks faster than a real,
+committed them. `TUTORIAL.md` has the heist. `scientific-findings.md` has the receipts, all 35
+of them and counting, in a tone somewhere between lab notebook and confession. This document is
+the highlight reel — the parts where a bit, a busy-spin, and a spreadsheet's worth of stubbornness
+turned into a headless Java process that got genuinely competitive with a real,
 production-grade, professionally-maintained Paper server running the actual game.
 
-We are as surprised as you are. Read `scientific-findings.md` if you don't believe a word of
-this — every number below has a finding number next to it, and every finding number has
-`javap` output or a JFR recording backing it up. This document exists purely because the receipts
-deserved a highlight reel.
+"Allegedly" is doing real work in that title. Keep reading — we get there, then we take some of
+it back, then we take some of *that* back too, because that's how this document works. Every
+number below has a finding number next to it, and every finding number has `javap` output or a
+JFR recording backing it up. Read `scientific-findings.md` if you don't believe a word of this.
 
 ## Act 1: The Felony (a quick recap for the impatient)
 
@@ -152,22 +152,130 @@ rebooted fresh before every leg — Orion v2.1 standing in WorldgenD's seat this
 **Orion v2.1 came in faster than Paper.** A reflection-heist toy that ships zero bytes of
 Mojang's compiled game, driving the exact same unmodified vanilla generator code the whole time,
 beat a real production server with real, professionally-engineered generator-pipeline patches —
-on throughput, in a controlled same-session run.
+on throughput, in a controlled same-session run. We wrote that sentence and immediately felt
+nervous about it. Correctly, as it turns out — keep reading.
 
-We are contractually obligated by our own methodology (see: this entire document's older
-sibling) to immediately undercut that sentence, so: this is one run each, not replicated, and
-today's Paper number (25.95 ms/chunk) is itself slower than #18's original Paper number (23.44)
-— plausibly ordinary session-to-session box drift, not Paper getting worse. The margin over
-Paper (7.7%) and the deficit to Leaf (7.6%) both sit inside this box's own previously-measured
-~9% noise band. "Beats Paper" is not a claim one run can fully carry, and finding #31 says so
-explicitly, in writing, right next to the number that makes it look great.
+## Act 8: The Correction — turns out we'd drawn a good hand, not a winning one
 
-What *isn't* noise: WorldgenD went from **roughly half** Paper's throughput to **statistically
-indistinguishable** from it, without changing a single line of vanilla's generator code, purely
-by making its own scheduler stop being the bottleneck. The 53% gap is closed. Whether the last
-few percent flip in Paper's favor on a rerun is a real open question — and, per finding #31's
-own open-questions entry, the correct next move is an *interleaved* rerun, not another
-block-sequential one, before anyone gets to plant a flag on this hill.
+We are, per this document's own stated rules, contractually obligated to check our own homework
+before gloating. Finding #31's own open-questions entry said the honest next step was an
+*interleaved* rerun (v2.1, Paper, v2.1, Paper, ...) rather than one block-sequential leg each —
+block-sequential can't tell a real effect from both engines just having one good or bad run in a
+row. So we ran it: three rounds, strictly alternating, one sitting.
+
+| Round | Orion v2.1 | Paper | Diff |
+|---|---|---|---|
+| 1 | 23.06 | 24.89 | v2.1 +7.9% |
+| 2 | 23.59 | 23.51 | tie (0.3%) |
+| 3 | 23.69 | 23.65 | tie (0.17%) |
+| **mean** | **23.45** | **24.02** | **2.4% apart** |
+
+Only round 1 shows a real margin. Rounds 2 and 3 are statistical ties. Averaged out, v2.1 is
+~2.4% faster than Paper — a gap so far inside this box's own established ~9% noise band that
+"wins" stopped being a defensible word for it about two sentences ago. Act 7's single Paper leg
+(25.95 ms/chunk) turns out to have been sitting on the slow tail of Paper's own natural
+variance, which — this round — had more than double v2.1's own spread (σ=0.76 vs σ=0.34, small
+sample, don't overread that specific number either).
+
+The honest conclusion is a *better* headline than the one we almost ran with: Orion v2.1 closed
+the ~53% gap from Act 7 down to **genuine statistical parity** with a real production Paper
+server. Not a win. Not a loss. A tie, inside measurement noise, achieved by fixing our own
+scheduler's self-inflicted overhead and touching zero lines of Mojang's actual generator code.
+Parity is a claim the data can actually carry. "Beats Paper" wasn't, and we'd rather be the
+document that caught its own mistake than the one that didn't.
+
+## Act 9: The Second Wind — our own workers were slacking too
+
+Asked, in general: what's bottlenecking us now that the scheduler is basically free? Went back
+to the exact diagnostic that found the *original* wavefront problem all the way back in Act 2 —
+live `top -bH` per-thread sampling, not vibes.
+
+Aggregate CPU during a fresh champion run: **77.2% of the whole box idle.** Fine, only 4 workers
+configured on an 8-core box — except five snapshots of just those four `Worker-Main` threads
+told a sharper story:
+
+| Snapshot | Sum of 4 worker threads' CPU% (max possible 400%) |
+|---|---|
+| 1-5 | 363.5%, 190.0%, 254.4%, 154.6%, 140.0% |
+
+Averaging ~220 out of 400 — **the workers we did configure were themselves only ~55% busy.**
+Same signature Act 2 found for the original naive solid-block fill: the dependency graph's
+frontier is only ever so wide at any given instant, and no amount of extra idle silicon fixes a
+frontier that's momentarily too thin to feed the workers standing by.
+
+Tested the obvious follow-up anyway — 7 workers instead of 4, this box's real ceiling:
+
+| Config | Total time | ms/chunk |
+|---|---|---|
+| v2.1, 4 workers | 148775ms | 23.25 |
+| **v2.1, 7 workers** | **132949ms** | **20.77** |
+
+**~10.6% faster** — bigger than v2's own 4→7 gain (6.3%), because v2.1 had more idle capacity
+sitting around to go capture in the first place. Re-sampled under 7 workers: still bursty
+(572.5%, 90.9%, 90.9%, 490.7%, 191.0% out of a possible 700%) — more capacity caught, frontier
+thinness not solved, just less costly with more hands ready to catch whatever shows up.
+
+## Act 10: Prying the Jar Open, Again — a filing cabinet made of `ArrayList`
+
+Fair question got asked: is that thin frontier *purely* geometry, the way we assumed, or is
+something MC-55596-shaped (finding #22's background-thread-order terrain bug) hiding a level
+down? Only one way to find out — went and disassembled classes this project had never looked at
+before: `ChunkMap`, `GenerationChunkHolder`, `ServerChunkCache`.
+
+**The structure itself: boringly, reassuringly deterministic.** Every neighbor requirement comes
+from the same static, coordinate-derived radius table Act 2 already found. No surprises there.
+
+**But the path from "eligible" to "actually running" goes through a filing cabinet nobody
+bolted down.** `ChunkMap.pendingGenerationTasks` disassembles to a **plain, unsynchronized
+`java.util.ArrayList`** — `add()` from one method, a `forEach` + `clear()` from another, no lock
+anywhere in sight. That should be a hazard. It isn't, because we traced *why*: every
+`getChunkFuture()` call from any thread that isn't vanilla's own main thread gets funneled,
+via `CompletableFuture.supplyAsync(..., mainThreadProcessor)`, onto one single-threaded
+executor before it ever touches that list. Every one of our own eight dispatch threads,
+routed through the same one door. Not a bug. Deliberate, and — we checked — it holds.
+
+The consequence: a chunk can be fully, geometrically eligible and still sit in that `ArrayList`
+doing nothing until the next time *something* happens to poll that one specific executor. A
+real, additional latency source, stacked on top of the geometric thinness Act 9 already found —
+different in kind from MC-55596, though: that bug corrupts *what* gets generated. This one only
+ever delays *when* it starts. The output stays correct. The clock doesn't care that it's correct.
+
+## Act 11: Orion v2.2 — restoring a lesson we'd already learned once
+
+Somewhere in all this, a sharp observation landed: didn't Orion quietly *undo* one of Act 2's
+own insights? The mosaic's modulus math doesn't just prove independence — within any single
+phase, the included chunks form an evenly-spaced lattice across the *entire* region,
+automatically. That's the same "scatter beats one contiguous blob" fix Act 2 used, just
+generalized into gapless full coverage. Orion dropped the mosaic's hard barriers, correctly —
+but the actual candidate order it walks is a plain row-major sweep. Early in any run, every
+held chunk clusters in one corner. We'd reintroduced the exact clustering problem we'd already
+fixed once, just one layer further down.
+
+A space-filling curve (Hilbert, Z-order) was floated and rejected on the spot — those exist
+specifically to *preserve* locality, the opposite of what a scatter fix needs. What actually
+works: rank every residue by a 2D digit-reversal (bit-reverse the linear step index, de-interleave
+into two axes) — the standard 2D generalization of a van der Corput low-discrepancy sequence.
+Checked by hand before trusting it: the first four ranks land on `(0,0)`, `(0,8)`, `(8,0)`,
+`(8,8)` — the four corners of the tile — and the full 256-entry map is a confirmed bijection.
+
+| Config | Total time | MSPC p50 |
+|---|---|---|
+| 4w, no scatter | 148775ms | 259.82ms |
+| 4w, scatter | 146021ms (-1.9%) | 144.10ms (**-44.5%**) |
+| 7w, no scatter | 132949ms | 236.43ms |
+| 7w, scatter | 136583ms (+2.7%) | 115.88ms (**-51.0%**) |
+
+![Total time barely moves either way; median latency drops 45-51%](findings/orion2_2_scatter_order.png)
+
+Genuinely mixed, reported as such rather than rounded up into another victory lap: median
+per-chunk latency roughly *halved*, in both worker configs — a real, large effect. Total
+wall-clock time barely moved, and possibly got a hair worse at 7 workers (one run, edge of
+noise, not replicated). Scatter-ordering changes *when* any given chunk gets its turn, not the
+total amount of work or the aggregate CPU ceiling — latency and throughput, it turns out, are
+still two different metrics that don't have to move together, which is a lesson this project
+has now been taught twice by two different schedulers. The reigning throughput champion stays
+plain 7-worker v2.1, no scatter, 132949ms. v2.2 is real, it's just a tail-latency fix wearing a
+version bump, and we're naming it that instead of pretending otherwise.
 
 ## The Whole Arc, In One Table
 
@@ -177,12 +285,20 @@ block-sequential one, before anyone gets to plant a flag on this hill.
 | Mosaic (256 independent phases) | 36.28 | baseline established |
 | Orion v1 (single-threaded, area lock) | 45.04 | worse, abandoned |
 | Orion v2 (single scheduler, dumb workers) | 26.80-27.52 | ~24-27% faster than mosaic |
-| **Orion v2.1 (+ spatial index)** | **23.96-23.98** | **~34% faster than mosaic** |
-| *(for reference) real Paper, same session* | 25.95 | *Orion v2.1 is faster* |
+| Orion v2.1 (+ spatial index, 4 workers) | 23.25-23.98 | ~34% faster than mosaic |
+| **Orion v2.1 (+ 7 workers)** | **20.77** | **~43% faster than mosaic, reigning champion** |
+| Orion v2.2 (v2.1 + scatter order) | 20.77-22.81 | same throughput, ~half the median latency |
+| *(for reference) Paper, interleaved same-session mean* | 24.02 | *genuine parity with v2.1 @ 4 workers, per Act 8* |
 
-Every single number in that table is backed by a JFR recording, a CSV in `findings/`, or a
-`javap` disassembly — nothing here is vibes. `scientific-findings.md` #1 through #31 has the
-full, unabridged, occasionally-wrong-and-corrected version of this story, wrong turns and all,
-because a lab notebook that only records the wins isn't a lab notebook, it's marketing.
+The last row is deliberately not compared against the champion row above it — the 7-worker
+number has never been through Act 8's interleaved discipline against Paper, and until it has,
+this document isn't going to imply a comparison it can't back up. That's the whole point of
+having an Act 8 in the first place.
 
-Go make some land. Try not to gloat about the Paper number until someone's run it twice.
+Every single number in that table is backed by a JFR recording, a `top -bH` snapshot, a CSV in
+`findings/`, or a `javap` disassembly — nothing here is vibes. `scientific-findings.md` #1
+through #35 has the full, unabridged, occasionally-wrong-and-corrected version of this story,
+wrong turns and all, because a lab notebook that only records the wins isn't a lab notebook,
+it's marketing.
+
+Go make some land. Don't gloat about the Paper number until someone's run it interleaved twice.

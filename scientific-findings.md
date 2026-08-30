@@ -673,6 +673,107 @@ Raw logs: `findings/paper_chunky_dragrace2.log`, `findings/leaf_chunky_dragrace2
 
 **What would actually settle it**: repeat this same-session comparison a second time (ideally interleaved — v2.1, Paper, v2.1, Paper — rather than block-sequential the way both drag races here were run) to see whether the gap holds, tightens, or was partly a lucky draw from the ~9% noise band. Not yet run.
 
+## 32. The interleaved rerun #31 asked for — and the "win" was mostly a lucky draw
+
+Ran it: three rounds, strictly alternating (v2.1, Paper, v2.1, Paper, v2.1, Paper) in one sitting, same box, same session, same methodology (fresh world wipe and full reboot before each Paper leg, `control/run-drag-race.sh` scripted rather than done by hand this time). Infrastructure: a new `control/interleaved-rerun.sh` wrapping both engines' launch sequences and writing straight to `findings/interleaved_results.csv`.
+
+| Round | Orion v2.1 (ms/chunk) | Paper (ms/chunk) | Paper − v2.1 |
+|---|---|---|---|
+| 1 | 23.06 | 24.89 | +1.83 |
+| 2 | 23.59 | 23.51 | −0.08 |
+| 3 | 23.69 | 23.65 | −0.04 |
+| **mean** | **23.45** (σ=0.34) | **24.02** (σ=0.76) | **+0.57 (2.4%)** |
+
+![v2.1 wins round 1 by a real margin; rounds 2-3 are statistical ties](findings/interleaved_summary.png)
+
+**#31's "beats Paper" framing does not survive this.** Only round 1 shows a real margin (v2.1 faster by 7.9%) — rounds 2 and 3 are ties to within 0.3% and 0.17% respectively, nowhere near a real effect. Averaged across all three, v2.1 is ~2.4% faster than Paper — a gap so far inside the established ~9% noise band (#17) that "wins" is not a defensible word for it. #31's single block-sequential Paper leg (25.95 ms/chunk) turns out to have been on the slow tail of Paper's own natural variance (this round's Paper mean is 24.02, σ=0.76) — Paper's run-to-run spread here is more than double v2.1's (σ=0.76 vs 0.34, though n=3 is too small to lean hard on that specific number).
+
+**The honest conclusion, and it's a better one than #31's**: Orion v2.1 has closed the ~53% gap #18 found down to **genuine statistical parity** with Paper — not a win, not a loss, a tie within measurement noise. That's still the headline result of this whole Orion investigation: a reflection-heist toy that never modifies a line of Mojang's own generator code, driving unmodified vanilla the entire time, reached parity with a real production server carrying real generator-pipeline patches, purely by fixing its own scheduler's self-inflicted overhead (#27→#30). Parity is a stronger, more defensible claim than "beats Paper," and it's the one the data actually supports.
+
+**Left open**: n=3 per engine is still thin for characterizing Paper's own variance specifically — a larger interleaved batch (5-10 rounds each) would say something sharper about whether Paper's σ=0.76 here is real or itself a small-sample artifact. Not run, since #32's own result (genuine parity) is already a stable enough answer to the question #31 raised.
+
+## 33. Live thread sampling finds v2.1 still isn't feeding its own workers, and 7 workers fixes a real 10.6% of it
+
+Asked, in general: what's bottlenecking us now that the scheduler is basically free (#30)? Went back to the exact diagnostic #6 used to find the *original* wavefront problem — live `top -bH` per-thread sampling — rather than guessing.
+
+**Aggregate CPU during a fresh champion-config run (`-Dmax.bg.threads=4`)**: `top -bn1` showed **77.2% of the whole box idle**, with the JVM itself sitting at ~370% of a possible 800%. Not surprising on its own — only 4 workers are configured on an 8-core box — but the real signal was in the per-thread breakdown. Five `top -bH` snapshots of just the four `Worker-Main-N` threads, a few seconds apart:
+
+| Snapshot | Sum of 4 `Worker-Main` threads' CPU% (max possible 400%) |
+|---|---|
+| 1 | 363.5% |
+| 2 | 190.0% |
+| 3 | 254.4% |
+| 4 | 154.6% |
+| 5 | 140.0% |
+
+Averaging ~220% out of 400% — **the four configured workers are themselves only ~55% utilized**, not the fully-saturated ceiling the "we only have 4 workers" framing would predict. This is the same signature #6 found for the original naive solid-block fill: a dependency-graph frontier too thin, at any given instant, to keep every worker fed — resurfacing inside v2.1's continuous spatial-grid dispatch, which nobody had checked for this specific failure mode since the mosaic's phase barriers made it moot for every scheduler in between.
+
+**Test**: since #30 flagged a 7-worker v2.1 rerun as untested, and this is exactly the situation that prediction was made for (removing the scheduler-overhead ceiling should let the box's genuine idle capacity actually get used), ran it. Same champion config otherwise, `-Dmax.bg.threads=7` (this box's real ceiling, `cores - 1` per #13's own formula):
+
+| Config | Total time | ms/chunk |
+|---|---|---|
+| v2.1, 4 workers (fresh) | 148775ms | 23.25 |
+| **v2.1, 7 workers** | **132949ms** | **20.77** |
+
+**~10.6% faster** — a real, sizable win, and notably bigger than #26's own 4→7 finding for v2 (6.3%), consistent with v2.1 having more idle capacity available to capture in the first place now that its own scheduler isn't eating a third of a core. Re-sampled the same `top -bH` diagnostic under 7 workers: still bursty and uneven (572.5%, 90.9%, 90.9%, 490.7%, 191.0% across five snapshots, out of a possible 700%) — more capacity captured, but the wavefront-thinness problem is not fully solved, just less costly with more threads standing by to catch whatever frontier *is* available at any given moment.
+
+**Where this puts the Paper/Leaf comparison, with the appropriate #31→#32 caution attached**: v2.1 at 7 workers (20.77 ms/chunk) is ~13.5% faster than #32's own interleaved Paper mean (24.02), and within ~1.7% of #31's Leaf-crack figure (20.43) — but neither of those is a same-session, interleaved comparison the way #32 required before trusting a "beats Paper" claim. This number needs the same treatment #31 got in #32 before it means anything: an interleaved rerun, this time with `max.bg.threads=7` on the WorldgenD side.
+
+**Open, not yet run**: the interleaved comparison at 7 workers; whether `orion.maxinflight` (still the untuned default of 64) is itself now capping how much frontier the dispatch threads can expose at once, independent of worker count; and a live thread-state trace (`RUNNABLE` vs `WAITING`, the same discipline #6 used) during a trough specifically, to confirm the dependency graph — not something else — is what's leaving workers idle in those low snapshots.
+
+## 34. Is #33's thin frontier pure geometry, or is something MC-55596-shaped hiding in it? Went and pried the jar to find out
+
+#33 explained low worker utilization as a purely geometric effect — the radius-8 dependency (#7) exposes only a thin ring of simultaneously-eligible chunks at any instant. Worth checking directly rather than assuming: is chunk eligibility *really* a pure function of coordinates and radius, the way `ChunkPyramid`'s static requirement table implies, or is there a hidden extra ordering dependency the way MC-55596 hides one inside feature placement (#22)? Extracted and disassembled the actual vanilla scheduling classes this project had never looked at before — `ChunkMap`, `GenerationChunkHolder`, `ChunkHolder`, `ServerChunkCache` — same rule as every prior bytecode claim here, `javap -c -p`, no decompiler.
+
+**The dependency structure itself: confirmed purely geometric, no surprises.** `GenerationChunkHolder.applyStep(ChunkStep, GeneratingChunkMap, StaticCache2D<GenerationChunkHolder>)` takes a fixed 2D cache of neighbor holders built directly from position — the same static, coordinate-derived radius table #7 found, nothing runtime-order-dependent in *what* a chunk requires.
+
+**But the path from "eligible" to "actually running" goes through a genuine single-threaded funnel, and it's a different mechanism than #22's `blockingCount` race — not a bug, but a real, previously unquantified throughput ceiling.** `ChunkMap.runGenerationTasks()` disassembles to exactly this:
+
+```
+aload_0; getfield pendingGenerationTasks:Ljava/util/List;
+aload_0; invokedynamic accept:(ChunkMap)Consumer;
+invokeinterface List.forEach:(Consumer)V
+aload_0; getfield pendingGenerationTasks:Ljava/util/List;
+invokeinterface List.clear:()V
+```
+
+`pendingGenerationTasks` is a **plain, unsynchronized `java.util.ArrayList`** (confirmed at the constructor: `new ArrayList()`, no wrapper). `scheduleGenerationTask()` is the only place that adds to it (`List.add`). `runGenerationTasks()` is the only place that drains it — one `forEach` dispatch pass, then a full `clear()`. No lock anywhere in either method.
+
+That's only safe if exactly one thread ever touches it — traced whether that's actually guaranteed, not assumed. `ServerChunkCache.getChunkFuture()` disassembles to a thread-identity branch: on the main thread, call `getChunkFutureMainThread()` and block on it directly (#24's already-established synchronous path); from **any other thread**, `CompletableFuture.supplyAsync(supplier, mainThreadProcessor)` — the real work is *never* run on the calling thread, it's marshaled onto `mainThreadProcessor`, a single-threaded executor, and `getChunkFutureMainThread()` runs there. That method calls `ChunkHolder.scheduleChunkGenerationTask()` (confirmed by bytecode: `invokevirtual ChunkHolder.scheduleChunkGenerationTask`), which is what ultimately reaches `pendingGenerationTasks.add()`. **Every caller, from every one of v2.1's 8 dispatch threads, funnels through the same single-threaded executor before touching this list — that's why a plain `ArrayList` gets away with zero synchronization.** Not a bug. Deliberate, and it holds.
+
+**What this means for #33's thin frontier**: the rate at which `pendingGenerationTasks` gets drained is gated entirely by how often *something* calls `pollTask()` on `mainThreadProcessor` specifically — which in v2.1 is our own scheduler thread (`OrionV2_1.kt`'s `pollTask.call(mainThreadProcessor)`). A chunk can be geometrically eligible (every neighbor already at the required status) and still sit in that plain `ArrayList`, not yet handed to a `Worker-Main` thread, until the next drain happens to run. That's a real, additional latency source between "eligible" and "working" — layered on top of, not instead of, the radius-8 geometric thinness #33 already found. Distinct in kind from MC-55596: MC-55596 makes *terrain content* depend on background-thread order (a correctness question); this makes *dispatch latency* depend on polling cadence (a throughput question) — the structure and the eventual output are still fully deterministic, only the *timing* of when a known-eligible chunk actually starts is what's coupled to something outside pure geometry.
+
+**Untested, the obvious next step**: does `mainThreadProcessor` specifically getting starved of polls (as opposed to `dedicatedServer`, the other queue v2.1 already polls) measurably widen the observed thin-frontier troughs from #33? Cheap to check — log `pendingGenerationTasks`'s size via reflection right before each `runGenerationTasks()` drain (or just time-stamp each `pollTask.call(mainThreadProcessor)` call and correlate gaps against #33's low-utilization snapshots) — not yet done.
+
+## 35. Orion v2.2: restoring the mosaic's own scatter property, and a genuinely mixed result
+
+A conversational thread (not a numbered finding on its own, but worth recording the reasoning since it drove this fix) traced a real regression: the mosaic's modulus phase math (#8) doesn't just guarantee independence, it scatters every phase's chunks evenly across the *entire* region by construction — the same "many separated fronts beat one contiguous blob" insight #6 proved with 9 islands, generalized into gapless full coverage. Orion (v1 through v2.1) dropped the mosaic's hard barriers, correctly — but never carried the scatter property forward. The target list `HeadlessWorldgen.kt` builds for Orion is a plain row-major sweep:
+
+```kotlin
+val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+```
+
+v2.1's cursor walks this in exactly that order, so early in any run every held center clusters in one corner — reintroducing, for the *cursor's own candidate selection*, the exact single-front clustering #6 already diagnosed and fixed once for a naive solid-block fill.
+
+**The fix, "Orion v2.2"**: sort the target list by a scatter rank before handing it to the (unmodified) `OrionV2_1` scheduler — same class, same algorithm, only the caller's ordering changes, gated behind `-Dorion.scatterorder=true` (default `false`, matching this project's standard A/B-flag convention). A space-filling curve (Hilbert, Z-order) was considered and rejected first — those are built to *preserve* locality, the opposite of what's needed here. The actual construction: rank every `(rx, rz)` residue (`rx, rz ∈ [0, 16)`) by a 2D digit-reversal — bit-reverse the 8-bit linear step index, de-interleave the result into two 4-bit axes — which is the standard generalization of a 1D van der Corput low-discrepancy sequence to a 2D grid. Verified by hand and by a standalone script before trusting it in a real run: the first 4 ranks land on `(0,0)`, `(0,8)`, `(8,0)`, `(8,8)` — the four corners of the 16×16 tile — and the full 256-entry map is a confirmed bijection (no collisions, no gaps).
+
+**Correctness checked at small scale first** (`mosaic.tile=1`, 256 chunks, same discipline as every new scheduler variant here): `ok=256 failed=0`, no hang. Champion-scale results, same config as #33 otherwise, scatter-order toggled:
+
+| Config | Total time | MSPC p50 | MSPC max |
+|---|---|---|---|
+| 4w, no scatter (#33) | 148775ms | 259.82ms | 17577.78ms |
+| 4w, scatter | 146021ms (**-1.9%**) | 144.10ms (**-44.5%**) | 10787.47ms |
+| 7w, no scatter (#33) | 132949ms | 236.43ms | 16529.20ms |
+| 7w, scatter | 136583ms (**+2.7%**) | 115.88ms (**-51.0%**) | 10730.10ms |
+
+![Total time barely moves either way; median latency drops 45-51%](findings/orion2_2_scatter_order.png)
+
+**Genuinely mixed, reported as such rather than rounded up to a win**: median per-chunk latency improved by roughly half in both worker configs, and max latency dropped substantially too (17.6s→10.8s at 4 workers) — real, large, consistent effects on the *latency distribution*. **Total wall-clock time barely moved**: a small real-looking gain at 4 workers (1.9%, right at the edge of the noise band), a small real-looking *loss* at 7 workers (2.7%, also edge-of-noise, single run, not replicated). Mechanistically this makes sense on reflection: scatter-ordering changes *when* any given chunk gets worked on — spreading dispatch evenly instead of leaving a slow-moving front — which directly improves how long an individual chunk waits its turn, but doesn't change the total amount of generation work or the aggregate CPU ceiling, so total completion time is governed by other factors scatter-order doesn't touch. Latency and throughput are different metrics that don't have to move together — the same lesson #8/#13 already taught this project once, now demonstrated again for a different scheduler.
+
+**What "Orion v2.2" actually is, then**: not a clean successor that beats v2.1 on the metric #18-#32 always led with (total time / effective ms-per-chunk) — on that metric it's a wash, and the honest champion config for raw throughput remains plain 7-worker v2.1, no scatter (#33's 132949ms still the best number on record). Where v2.2 wins outright is tail latency, which matters if anything downstream cares about how long any *individual* chunk might have to wait, not just the aggregate. Left in the codebase, opt-in, correctly labeled as a latency optimization rather than a throughput one.
+
+**Untested**: whether the 7-worker total-time regression (+2.7%) is real or noise — single run, needs replication before trusting either direction; whether a smarter tie-break within same-rank candidates (currently just list order) matters at all; and whether scatter-order changes anything about #33's underlying worker-utilization snapshots (never re-sampled with `top -bH` under this config) — plausible that latency improved *because* utilization got smoother even though the total stayed flat, but that's a hypothesis, not yet checked directly.
+
 ## Open questions / where you pick this up
 
 - **#18's ~53% gap to Paper/Leaf is unexplained beyond "probably the generator patches."** Thread-count is ruled out (Paper used 2 dedicated workers to WorldgenD's 4 and still won). The leading theory — Paper/Leaf's fork-level chunk-generation patches doing genuinely less work per chunk than vanilla — has never been checked against an actual source or bytecode diff the way #6/#7's claims were. Also untested: a fourth drag-race run (plain Leaf flags, `/tick freeze` active, no FMA/profiler-disable flags) to isolate tick-freeze's own contribution from the crack-specific flags', since #18's single crack sample can't separate the two.
@@ -690,4 +791,7 @@ Raw logs: `findings/paper_chunky_dragrace2.log`, `findings/leaf_chunky_dragrace2
 - **Scale up to 25600 chunks (`MOSAIC_TILE = 10`) came back clean in #19** — same throughput as the 6400-chunk baseline, no sign of memory pressure on a fixed 16GB pretouched heap. Still untested: an order of magnitude beyond that. This process never calls a single save-or-unload path, so the in-memory `ChunkMap` only ever grows — at some size, on some heap, that stops being fine. Where exactly is still unknown.
 - **#22 named the real, bytecode-confirmed race (unsynchronized `blockingCount` in `BlockableEventLoop.managedBlock()`/`pollTask()`, gating `shouldRunAllTasks()`) but never proved it does anything observable** — the debug evidence suggests the race window barely ever opens at this project's actual batch sizes, since a freshly-spawned pump thread almost always finds `isDone` already true before it gets a CPU cycle. Deliberately forcing the window open (e.g. a `Thread.sleep` before the extra thread's `managedBlock()` call, or a much larger, much slower phase) and watching for `blockingCount` drift or a `shouldRunAllTasks()` misfire directly, instead of hoping for a lucky scheduler interleaving, is the obvious next step.
 - **MC-55596 means #5's "verified, not vibes" determinism claim is retroactively wrong** for any run using the real multi-worker background pool (i.e. every run since #6) — confirmed in #22 at an 11.9% same-seed chunk disagreement rate. Worth a real fix or workaround someday if reproducible-terrain-for-a-given-seed ever matters for this project (it hasn't so far — MSPC/throughput findings don't care what the terrain actually is): candidates include forcing `-Dmax.bg.threads=1` (single worker, no order nondeterminism, at a large throughput cost) or finding whichever specific feature-placement step MC-55596 blames and checking whether it's fixable from outside vanilla's own code, Moonrise-style.
-- **#31's "gap closed" result is one run each, block-sequential, not interleaved.** Orion v2.1 landed within noise of Paper and ~7.6% behind Leaf — a huge shift from #18's ~53%, but part of it is plausibly today's Paper run being slower than #18's Paper, not only v2.1 being faster (session-to-session box drift, #16/#17's own established confound). The real test is an interleaved rerun (v2.1, Paper, v2.1, Paper, ...) in one sitting, enough times to know whether this gap is real, noise, or somewhere between. Not yet run.
+- **#31's block-sequential "beats Paper" result was retested interleaved in #32 and downgraded to genuine parity** (v2.1 23.45ms vs Paper 24.02ms mean, 2.4% apart, deep inside the ~9% noise band) — the right, more defensible headline for this whole investigation, closed for now. Still open: #32 used n=3 rounds each, too thin to say much about Paper's own run-to-run variance (σ=0.76 here vs v2.1's σ=0.34) being real rather than a small-sample artifact — a 5-10-round interleaved batch would sharpen that. Leaf and Leaf-crack were never included in an interleaved comparison at all, only the original block-sequential #31 run.
+- **#33 found v2.1's own workers only ~55% utilized (live `top -bH` sampling) and 7 workers recovers a real 10.6% of it** (132949ms vs 148775ms) — but that number was never itself put through #32's interleaved-rerun discipline before comparing it to Paper/Leaf-crack. The obvious next step is exactly #32's recipe again, this time with WorldgenD running v2.1 at 7 workers instead of 4. Also open: whether `orion.maxinflight` (still the untuned default of 64 — #26 flagged this and it was never revisited) is itself capping how much frontier gets exposed independent of worker count, and a live `RUNNABLE`/`WAITING` thread-state trace during one of #33's low-utilization troughs specifically, to confirm the dependency graph (not something else) is what's leaving workers idle.
+- **#34 found a second, distinct contributor to #33's thin frontier**: `ChunkMap.pendingGenerationTasks` is a plain unsynchronized `ArrayList`, safe only because every `getChunkFuture()` caller (main thread or not) funnels through `mainThreadProcessor`, a single-threaded executor, before touching it — meaning a chunk can be geometrically eligible and still wait, un-dispatched, until the next time *something* polls `mainThreadProcessor` specifically. Untested: whether `mainThreadProcessor`-poll starvation (as opposed to `dedicatedServer`-poll starvation, the only one #27-#30 ever profiled) measurably correlates with #33's low-utilization troughs — cheap to check via reflection-based instrumentation of `pendingGenerationTasks`'s size or per-call timestamps on that specific poll, not yet done.
+- **#35's scatter-order fix is a real, large latency win (45-51% off MSPC p50) and a wash on total time** (+1.9% at 4 workers, -2.7% at 7 workers, both single runs near the noise floor) — so the reigning throughput champion is still plain 7-worker v2.1 with *no* scatter-order (#33's 132949ms). That number has never been through #32's interleaved-vs-Paper discipline — the natural next step, still not run. Also open: whether scatter-order's latency win traces back to smoother worker utilization (never re-sampled with `top -bH` under this config to check) or something else entirely.

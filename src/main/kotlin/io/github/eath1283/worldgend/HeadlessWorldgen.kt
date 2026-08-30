@@ -22,6 +22,34 @@ import java.util.function.BooleanSupplier
 // chunk in a phase is generatable the instant it's submitted.
 private const val MOSAIC_N = 16
 
+// Orion v2.2 (scientific-findings.md #35): the mosaic's phase math already scatters chunks
+// evenly, but its own phase NUMBER doesn't -- adjacent phases are 1 chunk apart. This ranks
+// every (rx, rz) residue via 2D bit-reversal (a digit-reversal / Hammersley-style construction:
+// bit-reverse the linear step index, de-interleave into two axes) so consecutive ranks land on
+// opposite corners/quadrants first, refining coarse-to-fine, instead of sweeping one axis at a
+// time. Verified by hand for the first 4 ranks: (0,0), (0,8), (8,0), (8,8) -- the four corners.
+private val SCATTER_RANK: Map<Pair<Int, Int>, Int> = run {
+    val map = HashMap<Pair<Int, Int>, Int>()
+    for (i in 0 until MOSAIC_N * MOSAIC_N) {
+        var reversed = 0
+        var x = i
+        repeat(8) { reversed = (reversed shl 1) or (x and 1); x = x shr 1 }
+        var rx = 0
+        var rz = 0
+        for (k in 0 until 4) {
+            if ((reversed shr (2 * k)) and 1 == 1) rx = rx or (1 shl k)
+            if ((reversed shr (2 * k + 1)) and 1 == 1) rz = rz or (1 shl k)
+        }
+        map[rx to rz] = i
+    }
+    map
+}
+
+private fun scatterSort(coords: List<Pair<Int, Int>>): List<Pair<Int, Int>> =
+    coords.sortedBy { (cx, cz) ->
+        SCATTER_RANK.getValue(Math.floorMod(cx, MOSAIC_N) to Math.floorMod(cz, MOSAIC_N))
+    }
+
 fun main() {
     // Self-reported, not inferred: which collector actually loaded, straight from the
     // JVM's own MXBeans, so a GC experiment's flags can be confirmed the same way
@@ -355,8 +383,13 @@ fun main() {
             mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor,
             orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile,
         )
-        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
-        println("Orion v2.1-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), $orionDispatchThreads workers, max $orionMaxInFlight in flight, lock radius $orionLockRadius.")
+        val rasterTarget = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        val scatterOrder = System.getProperty("orion.scatterorder", "false").toBoolean()
+        val target = if (scatterOrder) scatterSort(rasterTarget) else rasterTarget
+        println(
+            "Orion v2.1-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), $orionDispatchThreads workers, " +
+                "max $orionMaxInFlight in flight, lock radius $orionLockRadius, scatter-order=$scatterOrder."
+        )
 
         File(serversDir.parentFile, "orion_result.txt").writeText("orion v2.1 fill() starting, target=${target.size}\n")
         val overallStart = System.nanoTime()

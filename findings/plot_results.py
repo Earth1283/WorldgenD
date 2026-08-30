@@ -249,11 +249,11 @@ def plot_algorithm_progress(out_path):
     plt.close(fig)
 
 
-def plot_worker_scaling(rows, out_path):
-    by_config = {r["config"]: r for r in rows}
+def plot_worker_scaling(by_config, out_path):
     groups = [
         ("Mosaic", by_config["mosaic_champion_fresh"], by_config["mosaic_7w"]),
         ("Orion v2", by_config["orion2_champion"], by_config["orion2_7w"]),
+        ("Orion v2.1", by_config["orion2_1_4w_fresh"], by_config["orion2_1_7w"]),
     ]
 
     fig, ax = plt.subplots(figsize=(8, 5.5))
@@ -279,12 +279,13 @@ def plot_worker_scaling(rows, out_path):
     ax.set_ylabel("total wall-clock time (s)")
     ax.set_xticks(list(x))
     ax.set_xticklabels([name for name, _, _ in groups], fontsize=11)
-    ax.set_ylim(0, max(float(r["total_ms"]) for r in rows) / 1000.0 * 1.25)
+    all_ms = [float(r["total_ms"]) for _, row4, row7 in groups for r in (row4, row7)]
+    ax.set_ylim(0, max(all_ms) / 1000.0 * 1.25)
     fig.suptitle("Does adding cores (4->7 workers) actually help?", color=INK_PRIMARY, fontsize=14, y=0.99)
     ax.set_title(
-        "Only Orion v2 gets faster — the mosaic's ~3% is inside this box's own ~9% noise band (#17),\n"
-        "matching #13's original 'cutting workers costs nothing' finding. v2 is the first scheduler\n"
-        "in this whole investigation to show a real, reproducible gain from more cores.",
+        "The mosaic's ~3% is inside this box's own ~9% noise band (#17), matching #13's 'cutting\n"
+        "workers costs nothing' finding. v2's 6.3% was the first real gain in this investigation —\n"
+        "v2.1's 10.6% (#33) is bigger still, once its own scheduler stopped eating a third of a core.",
         color=INK_SECONDARY, fontsize=9, pad=12, loc="left",
     )
     ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
@@ -340,6 +341,93 @@ def plot_cpu_breakdown(rows, out_path):
     ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=1, fontsize=8.5, labelcolor=INK_SECONDARY)
     fig.tight_layout(rect=(0, 0, 1, 0.88))
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_scatter_order_comparison(by_config, out_path):
+    configs = [
+        ("4w, no scatter", "orion2_1_4w_fresh"),
+        ("4w, scatter", "orion2_2_4w_scatter"),
+        ("7w, no scatter", "orion2_1_7w"),
+        ("7w, scatter", "orion2_2_7w_scatter"),
+    ]
+    labels = [c[0] for c in configs]
+    rows = [by_config[c[1]] for c in configs]
+    colors = [SERIES[1], SERIES[0], SERIES[1], SERIES[0]]
+
+    fig, (ax_time, ax_p50) = plt.subplots(1, 2, figsize=(11, 4.8))
+
+    total_s = [float(r["total_ms"]) / 1000.0 for r in rows]
+    bars = ax_time.bar(labels, total_s, color=colors, zorder=3)
+    ax_time.set_ylabel("total wall-clock time (s)")
+    ax_time.set_title("Total time — mixed result", fontsize=11, color=INK_PRIMARY)
+    for bar, val in zip(bars, total_s):
+        ax_time.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.0f}s",
+                     ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+
+    p50 = [float(r["mspc_p50"]) for r in rows]
+    bars2 = ax_p50.bar(labels, p50, color=colors, zorder=3)
+    ax_p50.set_ylabel("MSPC median, p50 (ms/chunk)")
+    ax_p50.set_title("Typical per-chunk latency — clear win", fontsize=11, color=INK_PRIMARY)
+    for bar, val in zip(bars2, p50):
+        ax_p50.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.0f}ms",
+                    ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+
+    for ax in (ax_time, ax_p50):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        ax.spines["left"].set_color(BASELINE)
+        ax.spines["bottom"].set_color(BASELINE)
+        ax.tick_params(axis="x", labelrotation=12, labelsize=9)
+
+    fig.suptitle(
+        "#35: scatter-ordered target list — cuts median latency ~45-51%, total time barely moves either way",
+        fontsize=10.5, color=INK_SECONDARY, y=1.03,
+    )
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_interleaved_comparison(rows, out_path):
+    rounds = sorted(set(int(r["round"]) for r in rows))
+    by_round_engine = {(int(r["round"]), r["engine"]): float(r["ms_per_chunk"]) for r in rows}
+    engines = ["Orion v2.1", "Paper"]
+    colors = {"Orion v2.1": SERIES[0], "Paper": SERIES[1]}
+
+    fig, ax = plt.subplots(figsize=(8.5, 5.5))
+    group_width = 0.6
+    bar_width = group_width / len(engines)
+    x = range(len(rounds))
+
+    for i, engine in enumerate(engines):
+        values = [by_round_engine[(rnd, engine)] for rnd in rounds]
+        offsets = [xi - group_width / 2 + bar_width * i + bar_width / 2 for xi in x]
+        bars = ax.bar(offsets, values, width=bar_width * 0.92, color=colors[engine], zorder=3, label=engine)
+        for bar, val in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.2f}",
+                    ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+
+    ax.set_ylabel("ms/chunk (lower is better)")
+    ax.set_ylim(0, max(by_round_engine.values()) * 1.2)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels([f"Round {r}" for r in rounds])
+    fig.suptitle("#32: interleaved rerun — v2.1 vs Paper, alternating A,B,A,B,A,B",
+                 color=INK_PRIMARY, fontsize=13, y=0.99)
+    ax.set_title(
+        "v2.1 wins round 1 by a real margin; rounds 2-3 are statistical ties (<0.4% apart).\n"
+        "Averaged: v2.1 23.45ms vs Paper 24.02ms — a 2.4% gap, deep inside the ~9% noise band (#17).",
+        color=INK_SECONDARY, fontsize=9, pad=12, loc="left",
+    )
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color(BASELINE)
+    ax.spines["bottom"].set_color(BASELINE)
+    ax.legend(frameon=False, loc="upper right", fontsize=9.5, labelcolor=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0, 1, 0.87))
+    fig.savefig(out_path, dpi=150)
     plt.close(fig)
 
 
@@ -435,6 +523,10 @@ def main():
         ),
     )
 
+    with (HERE / "interleaved_results.csv").open() as f:
+        interleaved_rows = list(csv.DictReader(f))
+    plot_interleaved_comparison(interleaved_rows, HERE / "interleaved_summary.png")
+
     with (HERE / "sustained_results.csv").open() as f:
         sustained_rows = list(csv.DictReader(f))
     plot_drag_race(
@@ -483,7 +575,8 @@ def main():
     )
 
     plot_orion_concurrency_trace(HERE / "orion_concurrency_trace.png")
-    plot_worker_scaling(orion_rows, HERE / "orion_worker_scaling.png")
+    plot_worker_scaling(orion_rows_by_config, HERE / "orion_worker_scaling.png")
+    plot_scatter_order_comparison(orion_rows_by_config, HERE / "orion2_2_scatter_order.png")
 
     print(f"Wrote charts to {HERE}")
 

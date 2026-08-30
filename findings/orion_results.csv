@@ -8,3 +8,7 @@ orion2_champion_fresh,"Orion v2 (fresh baseline, pre-backoff, JFR run)",orion2,5
 orion2_backoff,"Orion v2 (poll backoff, #28)",orion2,5,6400,4,172061,0.65,3.88,87.05,324.11,702.83,3992.83,18311.26
 orion2_backoff_completions,"Orion v2 (completions-gated poll, #29)",orion2,5,6400,4,175422,0.95,4.45,82.28,308.82,697.25,3918.62,19414.71
 orion2_1_champion,"Orion v2.1 (spatial index, #30)",orion2.1,5,6400,4,153496,0.09,2.59,69.61,275.64,670.28,2686.46,17211.07
+orion2_1_4w_fresh,"Orion v2.1 (4 workers, fresh, #33)",orion2.1,5,6400,4,148775,0.07,3.00,67.35,259.82,664.86,2547.92,17577.78
+orion2_1_7w,"Orion v2.1 (7 workers, #33)",orion2.1,5,6400,7,132949,0.18,2.69,61.84,236.43,585.44,2213.49,16529.20
+orion2_2_4w_scatter,"Orion v2.2 (scatter order, 4 workers, #35)",orion2.1,5,6400,4,146021,1.57,4.89,22.47,144.10,517.16,3406.41,10787.47
+orion2_2_7w_scatter,"Orion v2.2 (scatter order, 7 workers, #35)",orion2.1,5,6400,7,136583,1.20,4.47,23.66,115.88,489.40,3228.48,10730.10
