@@ -381,8 +381,6 @@ Baseline and the shipped cached-`Method` fix land on identical bars (230s/35.4ms
 
 #19 in one picture: WorldgenD's two bars (different scales, same throughput) sit right on top of each other on the right panel — the scale-invariance claim, visibly true, not just asserted. Leaf edges out Paper here in a way #18's smaller sample couldn't distinguish from noise; both still sit roughly double WorldgenD's bar, same as #18, now backed by a run 9x bigger.
 
-Add a row to the relevant CSV and rerun the script to keep all of this current as new experiments land.
-
 ## Open questions / where you pick this up
 
 - **#18's ~53% gap to Paper/Leaf is unexplained beyond "probably the generator patches."** Thread-count is ruled out (Paper used 2 dedicated workers to WorldgenD's 4 and still won). The leading theory — Paper/Leaf's fork-level chunk-generation patches doing genuinely less work per chunk than vanilla — has never been checked against an actual source or bytecode diff the way #6/#7's claims were. Also untested: a fourth drag-race run (plain Leaf flags, `/tick freeze` active, no FMA/profiler-disable flags) to isolate tick-freeze's own contribution from the crack-specific flags', since #18's single crack sample can't separate the two.
