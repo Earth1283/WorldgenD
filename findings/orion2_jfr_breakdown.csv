@@ -1,0 +1,5 @@
+config,label,total_ms,mspc_p50,main_thread_pct,issafe_pct,polltask_pct,other_pct,park_events,total_samples
+orion2_champion_fresh,"Baseline (#27)",171512,305.39,32.40,17.10,14.37,68.53,5,34322
+orion2_backoff,"Poll backoff (#28)",172061,324.11,32.91,18.01,13.96,68.04,1,35196
+orion2_backoff_completions,"Completions-gated poll (#29)",175422,308.82,32.59,17.46,14.21,68.33,1,36371
+orion2_1_champion,"Orion v2.1: spatial index (#30)",153496,275.64,1.03,0.00,0.08,99.92,16,23833

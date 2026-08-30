@@ -2,7 +2,6 @@ package io.github.eath1283.worldgend
 
 import java.io.File
 import java.lang.reflect.Method
-import java.util.ArrayDeque
 import java.util.Collections
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -11,11 +10,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.LockSupport
 
-// Escapes #25's unexplained ReentrantAreaLock discrepancy by construction rather than by
-// fixing it: pending/heldCenters are touched only by the scheduler thread (this fill() call's
-// own caller), never by the worker threads, so there is no concurrent access to the conflict
-// state left to have a bug in. Workers only push/pop two plain queues.
-class OrionV2(
+// v2 + a spatial-grid candidate index instead of a full-backlog rescan (#27-#29). isSafe()
+// stays the sole dispatch authority; the grid only narrows what gets checked.
+class OrionV2_1(
     private val mc: Mc,
     private val dedicatedServer: Any,
     private val chunkSource: Any,
@@ -49,22 +46,69 @@ class OrionV2(
         synchronized(log) { log.appendText("$elapsedMs $event $cx,$cz\n") }
     }
 
+    private val cellSize = 2 * lockRadius + 1
+    private fun cellIndex(v: Int) = Math.floorDiv(v, cellSize)
+    private fun bucketKey(bx: Int, bz: Int) = (bx.toLong() shl 32) or (bz.toLong() and 0xFFFFFFFFL)
+    private fun bucketKeyFor(cx: Int, cz: Int) = bucketKey(cellIndex(cx), cellIndex(cz))
+
     fun fill(
         coords: List<Pair<Int, Int>>,
         onComplete: (cx: Int, cz: Int, success: Boolean, result: Any?, error: Any?) -> Unit = { _, _, _, _, _ -> },
     ): Result {
         val start = System.nanoTime()
         val target = coords.filter { (cx, cz) -> alreadyClaimed.add(key(cx, cz)) }
-        val pending = ArrayDeque(target)
+
+        // Built once, O(n); each undispatched candidate lives in exactly one bucket.
+        val grid = HashMap<Long, MutableList<Pair<Int, Int>>>()
+        val stillPending = HashSet<Pair<Int, Int>>(target.size * 2)
+        for (c in target) {
+            grid.getOrPut(bucketKeyFor(c.first, c.second)) { mutableListOf() }.add(c)
+            stillPending.add(c)
+        }
+
         val heldCenters = mutableListOf<Pair<Int, Int>>()
         val releaseQueue = ConcurrentLinkedQueue<Pair<Int, Int>>()
         val completionQueue = ConcurrentLinkedQueue<Pair<Int, Int>>()
         val allFutures = Collections.synchronizedList(mutableListOf<Submitted>())
         val completions = AtomicInteger(0)
         val stop = AtomicBoolean(false)
+        var cursor = 0
 
         fun isSafe(cx: Int, cz: Int) = heldCenters.none { (hx, hz) ->
             Math.abs(hx - cx) <= 2 * lockRadius && Math.abs(hz - cz) <= 2 * lockRadius
+        }
+
+        fun removeFromGrid(c: Pair<Int, Int>) {
+            grid[bucketKeyFor(c.first, c.second)]?.remove(c)
+            stillPending.remove(c)
+        }
+
+        // Only `center`'s own exclusion-zone buckets, never the rest of the backlog.
+        fun tryReleaseNear(center: Pair<Int, Int>, maxToRelease: Int) {
+            if (maxToRelease <= 0) return
+            var released = 0
+            val (ccx, ccz) = center
+            val loX = cellIndex(ccx - 2 * lockRadius)
+            val hiX = cellIndex(ccx + 2 * lockRadius)
+            val loZ = cellIndex(ccz - 2 * lockRadius)
+            val hiZ = cellIndex(ccz + 2 * lockRadius)
+            for (bx in loX..hiX) {
+                for (bz in loZ..hiZ) {
+                    if (released >= maxToRelease) return
+                    val bucket = grid[bucketKey(bx, bz)] ?: continue
+                    val it = bucket.iterator()
+                    while (it.hasNext() && released < maxToRelease) {
+                        val cand = it.next()
+                        if (isSafe(cand.first, cand.second)) {
+                            it.remove()
+                            stillPending.remove(cand)
+                            heldCenters.add(cand)
+                            releaseQueue.add(cand)
+                            released++
+                        }
+                    }
+                }
+            }
         }
 
         val workers = (0 until dispatchThreads).map { i ->
@@ -87,16 +131,9 @@ class OrionV2(
                     }
                     allFutures.add(Submitted(cx, cz, future))
                 }
-            }, "orion2-worker-$i").apply { isDaemon = true; start() }
+            }, "orion2.1-worker-$i").apply { isDaemon = true; start() }
         }
 
-        // scientific-findings.md #28: gating the poll bypass on `progressed` (candidate-scan
-        // activity included) didn't help, because the scan finds new safe candidates on almost
-        // every tick regardless of whether Mojang's queue has anything ready — that's pure local
-        // bookkeeping, unrelated to whether pollTask would find work. This version gates the
-        // bypass on `completedThisTick` only: a chunk future actually finishing is the one event
-        // downstream of getChunkFuture's own async machinery (#24/#25), so it's the only signal
-        // here with a real reason to correlate with new work landing on Mojang's queue.
         var pollBackoffNanos = 0L
         var nextPollNanos = System.nanoTime()
 
@@ -110,13 +147,17 @@ class OrionV2(
                 completions.incrementAndGet()
                 progressed = true
                 completedThisTick = true
+                tryReleaseNear(done, maxInFlight - heldCenters.size)
             }
 
-            val it = pending.iterator()
-            while (it.hasNext() && heldCenters.size < maxInFlight) {
-                val candidate = it.next()
+            // Frontier expansion for startup / sparsely-populated neighborhoods; each
+            // candidate is isSafe()-tested by the cursor at most once, ever.
+            while (heldCenters.size < maxInFlight && cursor < target.size) {
+                val candidate = target[cursor]
+                cursor++
+                if (candidate !in stillPending) continue
                 if (isSafe(candidate.first, candidate.second)) {
-                    it.remove()
+                    removeFromGrid(candidate)
                     heldCenters.add(candidate)
                     releaseQueue.add(candidate)
                     progressed = true

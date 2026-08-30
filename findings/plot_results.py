@@ -298,6 +298,51 @@ def plot_worker_scaling(rows, out_path):
     plt.close(fig)
 
 
+def plot_cpu_breakdown(rows, out_path):
+    fig, ax = plt.subplots(figsize=(8.5, 5.5))
+    labels = [row["label"] for row in rows]
+    issafe = [float(row["issafe_pct"]) for row in rows]
+    polltask = [float(row["polltask_pct"]) for row in rows]
+    other = [float(row["other_pct"]) for row in rows]
+
+    y = range(len(rows))
+    b1 = ax.barh(list(y), issafe, color=SERIES[1], zorder=3, label="isSafe() backlog rescan")
+    b2 = ax.barh(list(y), polltask, left=issafe, color=SERIES[0], zorder=3, label="reflective pollTask()")
+    left3 = [a + b for a, b in zip(issafe, polltask)]
+    ax.barh(list(y), other, left=left3, color=BASELINE, zorder=3, label="everything else (real generation, GC, ...)")
+
+    # Segments under 3% are visually near-zero already; an in-bar label there just overlaps.
+    for i, (row, is_v, pt_v) in enumerate(zip(rows, issafe, polltask)):
+        if is_v >= 3:
+            ax.text(is_v / 2, i, f"{is_v:.1f}%", ha="center", va="center", fontsize=9, color="white", fontweight="bold")
+        if pt_v >= 3:
+            ax.text(is_v + pt_v / 2, i, f"{pt_v:.1f}%", ha="center", va="center", fontsize=9, color="white", fontweight="bold")
+        if is_v < 3 and pt_v < 3:
+            ax.text(is_v + pt_v + 1.5, i, f"{is_v + pt_v:.1f}%", ha="left", va="center", fontsize=9, color=INK_SECONDARY)
+        ax.text(102, i, f"park={row['park_events']}", ha="left", va="center", fontsize=8.5, color=INK_MUTED)
+
+    ax.set_xlim(0, 118)
+    ax.set_yticks(list(y))
+    ax.set_yticklabels(labels, fontsize=10)
+    ax.set_xlabel("% of all CPU execution samples in the run")
+    fig.suptitle("Poll-gating (#28/#29) went nowhere; the spatial index (#30) nearly erases both costs",
+                 color=INK_PRIMARY, fontsize=12.5, y=1.0)
+    ax.set_title(
+        "#28/#29 only ever gated the smaller cost, so the loop stayed scan-bound either way. #30\n"
+        "replaced the scan itself — main thread's CPU share drops from ~32% to ~1%.",
+        color=INK_SECONDARY, fontsize=8.5, pad=10, loc="left",
+    )
+    ax.grid(axis="x", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color(BASELINE)
+    ax.spines["bottom"].set_color(BASELINE)
+    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=1, fontsize=8.5, labelcolor=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0, 1, 0.88))
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_orion_concurrency_trace(out_path):
     with (HERE / "orion_concurrency_trace.csv").open() as f:
         rows = list(csv.DictReader(f))
@@ -380,6 +425,16 @@ def main():
         drag_race_rows = list(csv.DictReader(f))
     plot_drag_race(drag_race_rows, HERE / "drag_race_summary.png")
 
+    with (HERE / "dragrace2_results.csv").open() as f:
+        dragrace2_rows = list(csv.DictReader(f))
+    plot_drag_race(
+        dragrace2_rows, HERE / "dragrace2_summary.png",
+        caption=(
+            "#31: same-session rerun with Orion v2.1 in place of headless WorldgenD — WorldgenD did 6400\n"
+            "chunks, Paper/Leaf/Leaf-crack did 6561 (Chunky radius-640 inclusive-center square), same as #18"
+        ),
+    )
+
     with (HERE / "sustained_results.csv").open() as f:
         sustained_rows = list(csv.DictReader(f))
     plot_drag_race(
@@ -392,7 +447,12 @@ def main():
     )
 
     with (HERE / "orion_results.csv").open() as f:
-        orion_rows = list(csv.DictReader(f))
+        all_orion_rows = list(csv.DictReader(f))
+    orion_rows_by_config = {r["config"]: r for r in all_orion_rows}
+    # Champion comparison charts stay fixed to the original 5 configs — the #27/#28
+    # backoff rows are a different story (did a fix help?), charted separately below.
+    champion_configs = ["mosaic_champion_fresh", "orion_champion", "orion2_champion", "mosaic_7w", "orion2_7w"]
+    orion_rows = [orion_rows_by_config[c] for c in champion_configs]
     plot_percentiles(
         orion_rows, HERE / "orion_percentiles.png",
         title="MSPC: mosaic vs Orion v1 vs Orion v2, champion scale (6400 chunks)",
@@ -402,6 +462,17 @@ def main():
         orion_rows, HERE / "orion_summary.png",
         caption="v1 loses on both; v2 trades latency for ~24-27% less total time — and unlike the mosaic, v2 actually gets faster from 4->7 workers",
     )
+
+    backoff_configs = ["orion2_champion_fresh", "orion2_backoff", "orion2_backoff_completions", "orion2_1_champion"]
+    backoff_rows = [orion_rows_by_config[c] for c in backoff_configs]
+    plot_gc_summary(
+        backoff_rows, HERE / "orion2_backoff_summary.png",
+        caption="#28/#29 (poll-gating) went nowhere; #30 (spatial index, targeting the actual dominant cost) is a real ~10.5% win",
+    )
+
+    with (HERE / "orion2_jfr_breakdown.csv").open() as f:
+        breakdown_rows = list(csv.DictReader(f))
+    plot_cpu_breakdown(breakdown_rows, HERE / "orion2_cpu_breakdown.png")
 
     with (HERE / "orion_call_timing.csv").open() as f:
         call_rows = list(csv.DictReader(f))

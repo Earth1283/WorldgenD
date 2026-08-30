@@ -4,3 +4,7 @@ orion_champion,"Orion v1 (single-threaded)",orion,5,6400,4,288270,0.01,31.32,37.
 orion2_champion,"Orion v2 (8 dispatch threads)",orion2,5,6400,4,176145,1.26,4.25,79.73,296.58,680.50,3576.57,18894.50
 mosaic_7w,"Mosaic (7 workers)",mosaic,5,6400,7,225093,0.04,1.54,7.94,35.22,42.17,135.57,1587.34
 orion2_7w,"Orion v2 (7 workers, 8 dispatch threads)",orion2,5,6400,7,164990,0.89,3.08,71.81,283.88,624.42,3459.70,18946.45
+orion2_champion_fresh,"Orion v2 (fresh baseline, pre-backoff, JFR run)",orion2,5,6400,4,171512,0.75,3.90,76.56,305.39,680.68,3716.53,20499.07
+orion2_backoff,"Orion v2 (poll backoff, #28)",orion2,5,6400,4,172061,0.65,3.88,87.05,324.11,702.83,3992.83,18311.26
+orion2_backoff_completions,"Orion v2 (completions-gated poll, #29)",orion2,5,6400,4,175422,0.95,4.45,82.28,308.82,697.25,3918.62,19414.71
+orion2_1_champion,"Orion v2.1 (spatial index, #30)",orion2.1,5,6400,4,153496,0.09,2.59,69.61,275.64,670.28,2686.46,17211.07

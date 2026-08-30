@@ -44,6 +44,11 @@ fun main() {
     val pumpDebug = System.getProperty("pump.debug", "false").toBoolean()
 
     val schedulerMode = System.getProperty("scheduler", "mosaic")
+    val saveWorld = System.getProperty("saveworld", "false").toBoolean()
+    println(
+        if (saveWorld) "World saving enabled: chunks will be flushed after generation timing completes."
+        else "World saving disabled (default): benchmark behavior is unchanged."
+    )
     val orionMaxInFlight = System.getProperty("orion.maxinflight", "64").toInt()
     val orionLockRadius = System.getProperty("orion.lockradius", Orion.DEPENDENCY_RADIUS.toString()).toInt()
     val orionTelemetry = System.getProperty("orion.telemetry", "false").toBoolean()
@@ -176,6 +181,21 @@ fun main() {
     )
 
     val cMinecraftServer = mc.c("net.minecraft.server.MinecraftServer")
+    val saveAllChunks = mc.publicMethod(
+        cMinecraftServer, "saveAllChunks",
+        Boolean::class.javaPrimitiveType!!,
+        Boolean::class.javaPrimitiveType!!,
+        Boolean::class.javaPrimitiveType!!,
+    )
+
+    fun saveWorldIfRequested() {
+        if (!saveWorld) return
+        println("Generation timing complete; saving world to ${File(runDir, "headless")} (blocking flush)...")
+        val saveStart = System.nanoTime()
+        saveAllChunks.call(dedicatedServer, false, true, false)
+        val saveMs = (System.nanoTime() - saveStart) / 1_000_000
+        println("World save complete in ${saveMs}ms (excluded from generation timing).")
+    }
 
     // ServerLevel's constructor reads getPlayerList().getViewDistance(); normally
     // DedicatedServer.initServer() sets that up, which we never call, so we wire
@@ -249,6 +269,7 @@ fun main() {
             lines.add("[$cx,$cz] register=${"%.3f".format(registerMs)}ms total=${"%.3f".format(totalMs)}ms wait=${"%.3f".format(totalMs - registerMs)}ms")
         }
         File(serversDir.parentFile, "probe_result.txt").writeText(lines.joinToString("\n"))
+        saveWorldIfRequested()
         return
     }
 
@@ -285,6 +306,7 @@ fun main() {
 
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
         println(mspcSummary(orion.chunkMspc))
+        saveWorldIfRequested()
         return
     }
 
@@ -321,6 +343,44 @@ fun main() {
 
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
         println(mspcSummary(orion.chunkMspc))
+        saveWorldIfRequested()
+        return
+    }
+
+    if (schedulerMode == "orion2.1") {
+        val telemetryFile = if (orionTelemetry) File(serversDir.parentFile, "orion_telemetry.log").apply { writeText("") } else null
+        val pollTask = mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask")
+        val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
+        val orion = OrionV2_1(
+            mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor,
+            orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile,
+        )
+        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        println("Orion v2.1-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), $orionDispatchThreads workers, max $orionMaxInFlight in flight, lock radius $orionLockRadius.")
+
+        File(serversDir.parentFile, "orion_result.txt").writeText("orion v2.1 fill() starting, target=${target.size}\n")
+        val overallStart = System.nanoTime()
+        val result = try {
+            orion.fill(target) { cx, cz, success, chunkResult, error ->
+                if (!success) {
+                    println("[$cx,$cz] FAILED: $error")
+                } else if (describeAll) {
+                    val chunk = mc.publicMethod(chunkResult!!.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
+                    println(describe(chunk, cx, cz))
+                }
+            }
+        } catch (t: Throwable) {
+            File(serversDir.parentFile, "orion_result.txt").writeText("THREW: ${t.stackTraceToString()}\n")
+            throw t
+        }
+        val totalMs = (System.nanoTime() - overallStart) / 1_000_000
+        File(serversDir.parentFile, "orion_result.txt").writeText(
+            "ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
+        )
+
+        println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
+        println(mspcSummary(orion.chunkMspc))
+        saveWorldIfRequested()
         return
     }
 
@@ -411,6 +471,7 @@ fun main() {
     File(serversDir.parentFile, "mosaic_result.txt").writeText(
         "ok=$ok failed=$failed totalMs=$totalMs\n${mspcSummary(chunkMspc)}\n"
     )
+    saveWorldIfRequested()
 }
 
 
