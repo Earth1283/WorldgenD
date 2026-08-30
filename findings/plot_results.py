@@ -249,6 +249,38 @@ def plot_algorithm_progress(out_path):
     plt.close(fig)
 
 
+def plot_orion_concurrency_trace(out_path):
+    with (HERE / "orion_concurrency_trace.csv").open() as f:
+        rows = list(csv.DictReader(f))
+
+    x = [int(r["chunk_index"]) for r in rows]
+    y = [float(r["latency_ms"]) for r in rows]
+
+    fig, ax = plt.subplots(figsize=(11, 5))
+    ax.plot(x, y, color=SERIES[0], linewidth=1.1, zorder=3)
+    ax.set_yscale("log")
+    ax.set_xlabel("chunk index (submission order, row-major across a 16x16 region)")
+    ax.set_ylabel("per-chunk latency (ms, log scale)")
+    fig.suptitle(
+        "Where the CPU curve actually came from: Orion's own scheduler never exceeded 1 in flight",
+        color=INK_PRIMARY, fontsize=13, y=0.99,
+    )
+    ax.set_title(
+        "Every telemetry sample this whole run reads inFlight=1 — the declining latency is vanilla's own\n"
+        "per-chunk neighbor fan-out shrinking as later requests find their radius-8 halo already resident,\n"
+        "not Orion's area-lock scheduler doing anything.",
+        color=INK_SECONDARY, fontsize=8.5, pad=10, loc="left",
+    )
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color(BASELINE)
+    ax.spines["bottom"].set_color(BASELINE)
+    fig.tight_layout(rect=(0, 0, 1, 0.86))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -309,6 +341,28 @@ def main():
             "change with size; Paper/Leaf ran once each at 58081 chunks (Chunky radius 1920, tripled from #18)"
         ),
     )
+
+    with (HERE / "orion_results.csv").open() as f:
+        orion_rows = list(csv.DictReader(f))
+    plot_percentiles(
+        orion_rows, HERE / "orion_percentiles.png",
+        title="MSPC: Orion vs the mosaic, champion scale (6400 chunks)",
+        subtitle="Lower is better. Same ParallelGC/4-worker/16GB-pretouched config, same box, same session.",
+    )
+    plot_gc_summary(
+        orion_rows, HERE / "orion_summary.png",
+        caption="Orion pays the mosaic's own per-chunk cost plus its own area-lock overhead, for zero benefit",
+    )
+
+    with (HERE / "orion_call_timing.csv").open() as f:
+        call_rows = list(csv.DictReader(f))
+    plot_percentiles(
+        call_rows, HERE / "orion_call_timing_percentiles.png",
+        title="getChunkFuture.call() itself blocks — identical in mosaic and Orion",
+        subtitle="Lower is better. Same reflective call, same JVM, same tile=1 config — this is what's actually serializing dispatch.",
+    )
+
+    plot_orion_concurrency_trace(HERE / "orion_concurrency_trace.png")
 
     print(f"Wrote charts to {HERE}")
 

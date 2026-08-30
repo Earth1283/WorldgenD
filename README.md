@@ -71,7 +71,7 @@ strong evidence that Paper's fork-level generator patches, not concurrency tunin
 the real headroom was this whole time), #19 for the same comparison at ~9x the scale (58081
 chunks) — confirms WorldgenD's own throughput holds steady as the job grows, and gives Leaf a
 big enough sample to show a real ~6% edge over Paper that #18's smaller run couldn't tell apart
-from noise — and #20 for the full chart set.
+from noise — #20 for the full chart set, #21 for what happened when we tried stealing Paper's Moonrise chunk-scheduler idea directly — calling the vanilla, unmodified `managedBlock()` from more than one thread at once (no timing win, left in as an opt-in `-Dpump.threads=N` flag, off by default), and #22 for the correction: the terrain divergence we first blamed on that turned out to be almost entirely [MC-55596](https://bugs.mojang.com/browse/MC-55596), a real, long-standing Mojang bug (background-thread generation order affects same-seed output, independent of anything this project does) — with the real, much smaller, bytecode-confirmed data race (`blockingCount` in `BlockableEventLoop`) isolated separately via `jcmd` and targeted instrumentation.
 
 To test a different `Util.getMaxThreads()` cap without editing code:
 

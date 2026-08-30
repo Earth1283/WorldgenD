@@ -21,8 +21,6 @@ import java.util.function.BooleanSupplier
 // scheduler figure out the wavefront" into "there is no wavefront": every
 // chunk in a phase is generatable the instant it's submitted.
 private const val MOSAIC_N = 16
-private const val MOSAIC_TILE = 5
-private const val MOSAIC_SIDE = MOSAIC_N * MOSAIC_TILE
 
 fun main() {
     // Self-reported, not inferred: which collector actually loaded, straight from the
@@ -31,7 +29,28 @@ fun main() {
     val gcNames = ManagementFactory.getGarbageCollectorMXBeans().joinToString { it.name }
     println("Active GC(s): $gcNames")
 
+    // Experiment (see scientific-findings.md #21): vanilla only ever expects ONE thread
+    // to call managedBlock() and drain MinecraftServer's task queue — normally "the server
+    // thread," here whichever thread happens to run main(). Nothing in the public API stops
+    // a second thread from calling the same protected managedBlock() on the same instance
+    // concurrently; vanilla just never does it. pumpThreads > 1 tries it anyway.
+    val pumpThreads = System.getProperty("pump.threads", "1").toInt()
+    println("Pump threads: $pumpThreads (managedBlock() drainers per phase barrier)")
+
+    // MC-55596 control knobs (see scientific-findings.md #22): describe.all logs every
+    // chunk instead of just phase 0/last, and mosaic.tile shrinks the run for fast iteration.
+    val mosaicTile = System.getProperty("mosaic.tile", "5").toInt()
+    val describeAll = System.getProperty("describe.all", "false").toBoolean()
+    val pumpDebug = System.getProperty("pump.debug", "false").toBoolean()
+
+    val schedulerMode = System.getProperty("scheduler", "mosaic")
+    val orionMaxInFlight = System.getProperty("orion.maxinflight", "64").toInt()
+    val orionLockRadius = System.getProperty("orion.lockradius", Orion.DEPENDENCY_RADIUS.toString()).toInt()
+    val orionTelemetry = System.getProperty("orion.telemetry", "false").toBoolean()
+
     val serversDir = File(System.getProperty("user.dir"), "servers")
+    val callTelemetry = if (System.getProperty("call.telemetry", "false").toBoolean())
+        File(serversDir.parentFile, "call_telemetry.log").apply { writeText("") } else null
     val discovered = ServerRuntime.discover(serversDir)
     println("Hammering ${discovered.jar} (${discovered.classpath.size} bundled libraries)")
 
@@ -208,9 +227,45 @@ fun main() {
         return "[$cx,$cz] height=$height biome=$biomeName"
     }
 
-    val base = -MOSAIC_SIDE / 2
+    val mosaicSide = MOSAIC_N * mosaicTile
+    val base = -mosaicSide / 2
+
+    if (schedulerMode == "orion") {
+        val telemetryFile = if (orionTelemetry) File(serversDir.parentFile, "orion_telemetry.log").apply { writeText("") } else null
+        val orion = Orion(
+            mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, managedBlock,
+            orionMaxInFlight, orionLockRadius, telemetryFile,
+        )
+        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        println("Orion-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), max $orionMaxInFlight in flight, lock radius ${Orion.DEPENDENCY_RADIUS}.")
+
+        File(serversDir.parentFile, "orion_result.txt").writeText("orion fill() starting, target=${target.size}\n")
+        val overallStart = System.nanoTime()
+        val result = try {
+            orion.fill(target) { cx, cz, success, chunkResult, error ->
+                if (!success) {
+                    println("[$cx,$cz] FAILED: $error")
+                } else if (describeAll) {
+                    val chunk = mc.publicMethod(chunkResult!!.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
+                    println(describe(chunk, cx, cz))
+                }
+            }
+        } catch (t: Throwable) {
+            File(serversDir.parentFile, "orion_result.txt").writeText("THREW: ${t.stackTraceToString()}\n")
+            throw t
+        }
+        val totalMs = (System.nanoTime() - overallStart) / 1_000_000
+        File(serversDir.parentFile, "orion_result.txt").writeText(
+            "ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
+        )
+
+        println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
+        println(mspcSummary(orion.chunkMspc))
+        return
+    }
+
     val phaseCount = MOSAIC_N * MOSAIC_N
-    println("Mosaic-filling a ${MOSAIC_SIDE}x$MOSAIC_SIDE block across $phaseCount independence-guaranteed phases (mod $MOSAIC_N).")
+    println("Mosaic-filling a ${mosaicSide}x$mosaicSide block across $phaseCount independence-guaranteed phases (mod $MOSAIC_N).")
 
     var ok = 0
     var failed = 0
@@ -225,8 +280,8 @@ fun main() {
     for (phase in 0 until phaseCount) {
         val residueX = phase % MOSAIC_N
         val residueZ = phase / MOSAIC_N
-        val phaseCoords = (0 until MOSAIC_TILE).flatMap { i ->
-            (0 until MOSAIC_TILE).map { j -> (base + residueX + i * MOSAIC_N) to (base + residueZ + j * MOSAIC_N) }
+        val phaseCoords = (0 until mosaicTile).flatMap { i ->
+            (0 until mosaicTile).map { j -> (base + residueX + i * MOSAIC_N) to (base + residueZ + j * MOSAIC_N) }
         }
 
         val phaseStart = System.nanoTime()
@@ -234,11 +289,35 @@ fun main() {
             val submitNanos = System.nanoTime()
             @Suppress("UNCHECKED_CAST")
             val future = getChunkFuture.call(chunkSource, cx, cz, fullStatus, true) as CompletableFuture<Any?>
+            if (callTelemetry != null) {
+                val callMs = (System.nanoTime() - submitNanos) / 1_000_000.0
+                synchronized(callTelemetry) { callTelemetry.appendText("CALL $cx,$cz took=${callMs}ms\n") }
+            }
             future.whenComplete { _, _ -> chunkMspc.add((System.nanoTime() - submitNanos) / 1_000_000.0) }
             Pending(cx, cz, future)
         }
         val phaseDone = CompletableFuture.allOf(*pending.map { it.future }.toTypedArray())
-        managedBlock.call(dedicatedServer, BooleanSupplier { phaseDone.isDone })
+        val pumpCondition = BooleanSupplier { phaseDone.isDone }
+        if (pumpThreads > 1) {
+            val extraPumpers = (1 until pumpThreads).map { i ->
+                Thread({
+                    val t0 = System.nanoTime()
+                    if (pumpDebug) println("pump-$i phase=$phase START +${(t0 - phaseStart) / 1_000_000}ms isDoneAlready=${pumpCondition.getAsBoolean()}")
+                    try {
+                        managedBlock.call(dedicatedServer, pumpCondition)
+                    } catch (t: Throwable) {
+                        println("pump-$i phase=$phase THREW: $t")
+                        t.printStackTrace(System.out)
+                    }
+                    if (pumpDebug) println("pump-$i phase=$phase END after ${(System.nanoTime() - t0) / 1_000_000}ms, total-since-phase-start=${(System.nanoTime() - phaseStart) / 1_000_000}ms")
+                }, "pump-$i").apply { isDaemon = true; start() }
+            }
+            if (pumpDebug) println("main phase=$phase pumpers launched +${(System.nanoTime() - phaseStart) / 1_000_000}ms")
+            managedBlock.call(dedicatedServer, pumpCondition)
+            extraPumpers.forEach { it.join() }
+        } else {
+            managedBlock.call(dedicatedServer, pumpCondition)
+        }
         phaseDone.join()
         val phaseMs = (System.nanoTime() - phaseStart) / 1_000_000
         fastestPhaseMs = minOf(fastestPhaseMs, phaseMs)
@@ -253,7 +332,7 @@ fun main() {
                 continue
             }
             ok++
-            if (phase == 0 || phase == phaseCount - 1) {
+            if (describeAll || phase == 0 || phase == phaseCount - 1) {
                 val chunk = mc.publicMethod(result.javaClass, "orElse", Any::class.java).call(result, null)!!
                 println(describe(chunk, cx, cz))
             }
@@ -270,6 +349,7 @@ fun main() {
     )
     println(mspcSummary(chunkMspc))
 }
+
 
 private fun defaultInvoke(method: java.lang.reflect.Method, args: Array<Any?>?): Any? = when (method.name) {
     "toString" -> "WorldgenD proxy for ${method.declaringClass}"

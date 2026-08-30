@@ -1,0 +1,3 @@
+config,label,scheduler,mosaic_tile,chunks,max_bg_threads_flag,total_ms,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
+mosaic_champion_fresh,"Mosaic (pump.threads=1 control, this session, ParallelGC/4 workers/16g pretouched)",mosaic,5,6400,4,232213,0.04,1.61,7.89,35.48,42.53,140.69,1888.75
+orion_champion,"Orion (ParallelGC/4 workers/16g pretouched, orion.maxinflight=64, lockRadius=8)",orion,5,6400,4,288270,0.01,31.32,37.09,40.50,46.05,125.98,1280.69

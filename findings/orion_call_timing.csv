@@ -1,0 +1,3 @@
+config,label,n,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
+mosaic,Mosaic (unmodified),256,0.0338,1.65,36.88,40.19,46.92,176.19,932.43
+orion,Orion,256,0.0444,1.87,35.09,37.89,43.94,152.50,995.88
