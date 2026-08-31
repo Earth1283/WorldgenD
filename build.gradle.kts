@@ -23,6 +23,10 @@ dependencies {
         // classloader parents to the system classloader — see scientific-findings.md #23.
         exclude(group = "it.unimi.dsi", module = "fastutil")
     }
+    // #49: bytecode patch for OrionV3's reentrancy deadlock (see OrionPatchAgent.kt).
+    // Zero net.minecraft/com.mojang references — a generic bytecode-editing library,
+    // same "not Mojang's code" reasoning as concurrentutil above.
+    implementation("org.javassist:javassist:3.30.2-GA")
     testImplementation(kotlin("test"))
 }
 
@@ -48,4 +52,27 @@ tasks.test {
 tasks.register("printRuntimeClasspath") {
     dependsOn("classes")
     doLast { println(sourceSets.main.get().runtimeClasspath.asPath) }
+}
+
+// #49: standalone -javaagent jar (agent code + javassist bundled) so the reentrancy
+// patch can be toggled per-run with a JVM flag, independent of the app's own classpath.
+// Hand-rolled fat jar (no shadow plugin) — just this project's classes plus javassist's
+// jar contents unpacked, filtered to the one class this agent actually needs.
+tasks.register<Jar>("agentJar") {
+    dependsOn("classes")
+    archiveFileName.set("orion-agent.jar")
+    from(sourceSets.main.get().output) {
+        include("io/github/eath1283/worldgend/OrionPatchAgent*.class")
+    }
+    from({
+        configurations.getByName("runtimeClasspath")
+            .filter { it.name.startsWith("javassist") }
+            .map { zipTree(it) }
+    })
+    manifest {
+        attributes(
+            "Premain-Class" to "io.github.eath1283.worldgend.OrionPatchAgent",
+            "Can-Retransform-Classes" to "true",
+        )
+    }
 }

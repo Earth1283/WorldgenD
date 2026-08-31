@@ -30,3 +30,4 @@ orion2_2_7w_tile5_mif32,"Orion v2.2 7w tile5 maxInFlight=32 (#42)",orion2.2,5,64
 orion2_2_7w_tile5_mif64,"Orion v2.2 7w tile5 maxInFlight=64 (#42)",orion2.2,5,6400,7,132609,1.17,4.68,20.70,111.31,466.06,3228.79,9650.95
 orion2_1_7w_tile5_bucketedisSafe,"Orion v2.1 7w tile5 bucketed isSafe (#43)",orion2.1,5,6400,7,132868,0.74,2.97,63.43,243.01,583.31,2105.37,15902.33
 orion2_2_7w_tile5_bucketedisSafe,"Orion v2.2 7w tile5 bucketed isSafe (#43)",orion2.2,5,6400,7,137036,1.12,4.28,23.51,139.51,490.27,3739.17,10768.74
+orion3_7w_tile5_champion_patched,"Orion v3 patched (7w, tile5, champion, #49)",orion3,5,6400,7,133585,1.02,3.11,67.35,238.25,567.39,2567.53,16799.64

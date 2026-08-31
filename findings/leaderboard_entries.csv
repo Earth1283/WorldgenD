@@ -44,3 +44,4 @@ Orion v2.2,7w tile5 maxInFlight=32,139577,6400,#42
 Orion v2.2,7w tile5 maxInFlight=64,132609,6400,#42
 Orion v2.1,7w tile5 bucketed isSafe,132868,6400,#43
 Orion v2.2,7w tile5 bucketed isSafe,137036,6400,#43
+Orion v3 (patched),7w tile5 champion (reentrancy patch),133585,6400,#49
