@@ -55,7 +55,7 @@ class OrionV2_1(
 
         val pending = PendingSpatialIndex(target, 2 * lockRadius)
 
-        val heldCenters = mutableListOf<Pair<Int, Int>>()
+        val heldCenters = HeldCenterIndex(2 * lockRadius)
         val releaseQueue = ConcurrentLinkedQueue<Pair<Int, Int>>()
         val completionQueue = ConcurrentLinkedQueue<Pair<Int, Int>>()
         val allFutures = Collections.synchronizedList(mutableListOf<Submitted>())
@@ -63,9 +63,7 @@ class OrionV2_1(
         val stop = AtomicBoolean(false)
         var cursor = 0
 
-        fun isSafe(cx: Int, cz: Int) = heldCenters.none { (hx, hz) ->
-            Math.abs(hx - cx) <= 2 * lockRadius && Math.abs(hz - cz) <= 2 * lockRadius
-        }
+        fun isSafe(cx: Int, cz: Int) = heldCenters.isSafe(cx, cz)
 
         val workers = (0 until dispatchThreads).map { i ->
             Thread({
@@ -95,14 +93,12 @@ class OrionV2_1(
 
         while (completions.get() < target.size) {
             var progressed = false
-            var completedThisTick = false
 
             while (true) {
                 val done = completionQueue.poll() ?: break
                 heldCenters.remove(done)
                 completions.incrementAndGet()
                 progressed = true
-                completedThisTick = true
                 pending.reconsiderNear(done)
             }
 
@@ -124,7 +120,7 @@ class OrionV2_1(
 
             val now = System.nanoTime()
             var taskRan = false
-            if (completedThisTick || now >= nextPollNanos) {
+            if (now >= nextPollNanos) {
                 val a = pollTask.call(dedicatedServer) as Boolean
                 val b = pollTask.call(mainThreadProcessor) as Boolean
                 taskRan = a || b

@@ -18,3 +18,15 @@ orion2_1_7w_tile5_35rerun,"Orion v2.1 7w (tile 5, #35 rerun)",orion2.1,5,6400,7,
 orion2_2_7w_tile5_35rerun,"Orion v2.2 7w (tile 5, #35 rerun)",orion2.2,5,6400,7,135616,1.40,4.53,21.32,104.92,470.74,3405.44,10334.68
 orion2_1_4w_tile5_35rerun,"Orion v2.1 4w (tile 5, #35 rerun)",orion2.1,5,6400,4,147001,0.26,2.62,73.70,258.00,645.26,2391.63,17946.87
 orion2_2_4w_tile5_35rerun,"Orion v2.2 4w (tile 5, #35 rerun)",orion2.2,5,6400,4,153339,1.07,4.06,21.96,146.73,496.65,3922.84,12861.80
+orion2_1_7w_tile5_polldecouple,"Orion v2.1 7w (tile 5, #41 poll-decouple)",orion2.1,5,6400,7,135215,0.63,2.63,62.70,239.29,630.71,2222.94,16051.55
+orion2_2_7w_tile5_polldecouple,"Orion v2.2 7w (tile 5, #41 poll-decouple)",orion2.2,5,6400,7,133864,0.97,3.99,25.29,120.09,464.24,3129.69,9472.25
+orion2_1_7w_tile5_mif8,"Orion v2.1 7w tile5 maxInFlight=8 (#42)",orion2.1,5,6400,7,143876,0.48,4.91,19.25,59.91,173.21,2146.77,8879.95
+orion2_1_7w_tile5_mif16,"Orion v2.1 7w tile5 maxInFlight=16 (#42)",orion2.1,5,6400,7,132773,0.53,3.33,43.87,123.04,297.42,3827.26,12144.01
+orion2_1_7w_tile5_mif32,"Orion v2.1 7w tile5 maxInFlight=32 (#42)",orion2.1,5,6400,7,136088,1.04,2.90,74.60,249.11,580.67,2092.52,15896.20
+orion2_1_7w_tile5_mif64,"Orion v2.1 7w tile5 maxInFlight=64 (#42)",orion2.1,5,6400,7,135708,0.22,2.35,60.74,238.05,639.44,2164.12,16460.97
+orion2_2_7w_tile5_mif8,"Orion v2.2 7w tile5 maxInFlight=8 (#42)",orion2.2,5,6400,7,136191,1.03,3.85,9.92,15.93,64.55,2241.06,7806.25
+orion2_2_7w_tile5_mif16,"Orion v2.2 7w tile5 maxInFlight=16 (#42)",orion2.2,5,6400,7,134101,1.21,3.99,19.39,60.94,272.19,3453.57,10331.73
+orion2_2_7w_tile5_mif32,"Orion v2.2 7w tile5 maxInFlight=32 (#42)",orion2.2,5,6400,7,139577,1.01,3.87,23.09,129.08,469.50,3137.50,11725.50
+orion2_2_7w_tile5_mif64,"Orion v2.2 7w tile5 maxInFlight=64 (#42)",orion2.2,5,6400,7,132609,1.17,4.68,20.70,111.31,466.06,3228.79,9650.95
+orion2_1_7w_tile5_bucketedisSafe,"Orion v2.1 7w tile5 bucketed isSafe (#43)",orion2.1,5,6400,7,132868,0.74,2.97,63.43,243.01,583.31,2105.37,15902.33
+orion2_2_7w_tile5_bucketedisSafe,"Orion v2.2 7w tile5 bucketed isSafe (#43)",orion2.2,5,6400,7,137036,1.12,4.28,23.51,139.51,490.27,3739.17,10768.74

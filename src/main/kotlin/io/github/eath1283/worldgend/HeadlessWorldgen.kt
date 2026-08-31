@@ -427,6 +427,46 @@ fun main() {
         return
     }
 
+    if (schedulerMode == "orion3") {
+        val telemetryFile = if (orionTelemetry) File(serversDir.parentFile, "orion_telemetry.log").apply { writeText("") } else null
+        val pollTask = mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask")
+        val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
+        val orion = OrionV3(
+            mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor,
+            orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile,
+        )
+        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        println(
+            "Orion v3-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), $orionDispatchThreads workers, " +
+                "max $orionMaxInFlight in flight, lock radius $orionLockRadius, multi-threaded admission."
+        )
+
+        File(serversDir.parentFile, "orion_result.txt").writeText("orion v3 fill() starting, target=${target.size}\n")
+        val overallStart = System.nanoTime()
+        val result = try {
+            orion.fill(target) { cx, cz, success, chunkResult, error ->
+                if (!success) {
+                    println("[$cx,$cz] FAILED: $error")
+                } else if (describeAll) {
+                    val chunk = mc.publicMethod(chunkResult!!.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
+                    println(describe(chunk, cx, cz))
+                }
+            }
+        } catch (t: Throwable) {
+            File(serversDir.parentFile, "orion_result.txt").writeText("THREW: ${t.stackTraceToString()}\n")
+            throw t
+        }
+        val totalMs = (System.nanoTime() - overallStart) / 1_000_000
+        File(serversDir.parentFile, "orion_result.txt").writeText(
+            "scheduler=orion3 ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
+        )
+
+        println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
+        println(mspcSummary(orion.chunkMspc))
+        saveWorldIfRequested()
+        return
+    }
+
     val phaseCount = MOSAIC_N * MOSAIC_N
     println("Mosaic-filling a ${mosaicSide}x$mosaicSide block across $phaseCount independence-guaranteed phases (mod $MOSAIC_N).")
 

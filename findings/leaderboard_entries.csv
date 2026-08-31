@@ -32,3 +32,15 @@ Mosaic,"sustained, tile=10 (25600 chunks)",980512,25600,#19
 Orion v1,champion,288270,6400,#24
 Orion v2.1,"7 workers, tile 6 (9216 chunks)",188157,9216,#39
 Orion v2.2,"7 workers, tile 6 (9216 chunks)",191976,9216,#39
+Orion v2.1,7w tile5 poll-decouple,135215,6400,#41
+Orion v2.2,7w tile5 poll-decouple,133864,6400,#41
+Orion v2.1,7w tile5 maxInFlight=8,143876,6400,#42
+Orion v2.1,7w tile5 maxInFlight=16,132773,6400,#42
+Orion v2.1,7w tile5 maxInFlight=32,136088,6400,#42
+Orion v2.1,7w tile5 maxInFlight=64,135708,6400,#42
+Orion v2.2,7w tile5 maxInFlight=8,136191,6400,#42
+Orion v2.2,7w tile5 maxInFlight=16,134101,6400,#42
+Orion v2.2,7w tile5 maxInFlight=32,139577,6400,#42
+Orion v2.2,7w tile5 maxInFlight=64,132609,6400,#42
+Orion v2.1,7w tile5 bucketed isSafe,132868,6400,#43
+Orion v2.2,7w tile5 bucketed isSafe,137036,6400,#43
