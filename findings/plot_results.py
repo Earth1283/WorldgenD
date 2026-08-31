@@ -578,6 +578,18 @@ def main():
     plot_worker_scaling(orion_rows_by_config, HERE / "orion_worker_scaling.png")
     plot_scatter_order_comparison(orion_rows_by_config, HERE / "orion2_2_scatter_order.png")
 
+    tile6_configs = ["orion2_1_7w_tile6", "orion2_2_7w_tile6"]
+    tile6_rows = [orion_rows_by_config[c] for c in tile6_configs]
+    plot_percentiles(
+        tile6_rows, HERE / "orion_tile6_percentiles.png",
+        title="MSPC: v2.1 vs v2.2 at tile 6 (9216 chunks, 7 workers, #39)",
+        subtitle="Lower is better. Same-tile rerun of #35's comparison — scatter-order still trades a lower p25/p50/max for a higher p99.",
+    )
+    plot_gc_summary(
+        tile6_rows, HERE / "orion_tile6_summary.png",
+        caption="#39: same tile (6) for both — v2.1 and v2.2 are a ~2% wash on total time, v2.2 still wins median latency",
+    )
+
     print(f"Wrote charts to {HERE}")
 
 

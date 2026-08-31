@@ -30,3 +30,5 @@ Mosaic,champion baseline,232213,6400,#26
 Mosaic,"sustained, tile=5",244316,6400,#19
 Mosaic,"sustained, tile=10 (25600 chunks)",980512,25600,#19
 Orion v1,champion,288270,6400,#24
+Orion v2.1,"7 workers, tile 6 (9216 chunks)",188157,9216,#39
+Orion v2.2,"7 workers, tile 6 (9216 chunks)",191976,9216,#39

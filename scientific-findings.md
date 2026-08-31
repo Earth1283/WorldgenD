@@ -774,6 +774,79 @@ v2.1's cursor walks this in exactly that order, so early in any run every held c
 
 **Untested**: whether the 7-worker total-time regression (+2.7%) is real or noise — single run, needs replication before trusting either direction; whether a smarter tie-break within same-rank candidates (currently just list order) matters at all; and whether scatter-order changes anything about #33's underlying worker-utilization snapshots (never re-sampled with `top -bH` under this config) — plausible that latency improved *because* utilization got smoother even though the total stayed flat, but that's a hypothesis, not yet checked directly.
 
+## 36. v2.1's spatial index had a real starvation hole hiding behind its successful square runs
+
+#30 replaced v2's full-backlog rescan with a grid and a one-way cursor. The performance result was real, but the optimization quietly weakened an invariant: every pending coordinate still needs some guaranteed path back to `isSafe()` after the cursor has passed it. The old `tryReleaseNear(done, maxToRelease)` almost provided that path. Almost is doing catastrophic work in that sentence.
+
+The failure is only five coordinates with `lockRadius=1`, `maxInFlight=2`, and FIFO completions: `[(3,2), (4,3), (0,3), (0,1), (2,0)]`. The old scheduler completes `(3,2)`, `(0,3)`, `(2,0)`, and `(0,1)`, then stops forever with `(4,3)` still pending and no held center left to complete. Nothing in Mojang is stuck. We simply lost our own coordinate.
+
+**Exact mechanism**: when a center completed, `tryReleaseNear()` walked nearby grid buckets and returned the instant it filled the available admission slots. Safe candidates later in that walk stayed in the grid. That sounds harmless until combined with v2.1's cursor, which checks each target coordinate at most once. If the cursor had already rejected one of those later candidates while it conflicted with an earlier center, and no future completion happened to be near it, nobody would ever test it again. The successful 256/2304/6400-chunk square runs did not prove the invariant; their regular geometry and completion order merely never stepped on the hole hard enough to hang.
+
+**Fix**: the spatial buckets now feed a persistent reconsideration queue. Every completion enqueues all still-pending candidates in its conflict neighborhood, deduplicated. Admission drains that queue only while capacity exists; anything not reached stays queued instead of disappearing behind an early return. A candidate tested while still unsafe remains in the spatial index and is enqueued again when another conflicting center completes. The one-way cursor remains the cheap startup/frontier path, but it is no longer the candidate's only lifetime chance.
+
+This is split into `PendingSpatialIndex.kt` so the geometry can be tested without booting Minecraft. The exact five-coordinate counterexample now completes, followed by 1,000 deterministic randomized irregular targets across admission limits 1-7. `./gradlew test`: clean. Then the real Mojang integration path was run at the deliberately tight `mosaic.tile=1`, `orion.maxinflight=2`, 8 dispatch threads, 4 vanilla workers: **256/256 generated, zero failures, 14196ms, no scheduler hang**. The process stayed alive afterward for the already-documented #10/#23 non-daemon executor reason; `orion_result.txt` had the complete result before the timeout killed the idle JVM.
+
+This is a correctness repair, not claimed as a speedup. The old regular benchmark never visibly starved, while the new queue does a little more bookkeeping precisely to make “eventually reconsidered” an actual invariant instead of a geometric coincidence. #37 measures what that bookkeeping cost at champion scale instead of smuggling a performance claim into the correctness test.
+
+## 37. The starvation fix costs nothing visible, and the throughput plateau starts around tile 5
+
+With #36 no longer capable of losing a coordinate, ran a fresh scale sweep through the fixed v2.1 scheduler: ParallelGC, 7 vanilla workers, 8 Orion dispatch threads, `maxInFlight=64`, no scatter order. Important naming trap: this knob is not the modulus or scheduler geometry — `MOSAIC_N` stays 16 and the dependency proof stays untouched. It changes the generated square from `(16T)²` chunks. This is a workload-size sweep, not several configurations doing the same amount of work.
+
+| `mosaic.tile` | Chunks | Total | Effective ms/chunk | MSPC p50 |
+|---:|---:|---:|---:|---:|
+| 2 | 1024 | 28780ms | 28.11 | 84.17ms |
+| 3 | 2304 | 55169ms | 23.94 | 116.91ms |
+| 4 | 4096 | 90098ms | 22.00 | 165.87ms |
+| **5** | **6400** | **134484ms** | **21.01** | **234.44ms** |
+
+Those first four runs used a 4GB fixed heap without pretouch. That is internally consistent, but it is not #33's actual champion heap configuration — which was 16GB fixed and pretouched. Caught that before extending the sweep: an in-progress 4GB tile-6 run was killed and discarded, then tiles 6 and 7 were run under the real champion flags. Tile 5 was rerun afterward under those identical flags so the comparison has an honest control. Process-list checks confirmed exactly one generator JVM during the measured runs.
+
+| `mosaic.tile` | Chunks | Total | Effective ms/chunk | MSPC p50 |
+|---:|---:|---:|---:|---:|
+| 5 | 6400 | 136763ms | 21.37 | 246.96ms |
+| **6** | **9216** | **192061ms** | **20.84** | **348.29ms** |
+| 7 | 12544 | 263254ms | 20.99 | 445.41ms |
+
+Raw data, including heap size and pretouch status so these series cannot be silently mixed again: `findings/orion2_1_starvation_fix_scale.csv`.
+
+Two different metrics move in opposite directions, exactly as they should. Effective ms/chunk improves as the fixed bootstrap/JIT/edge cost gets diluted across a larger interior: in the 4GB sweep tile 2→3 gains 14.8%, 3→4 gains 8.1%, and 4→5 still gains 4.5%. Per-chunk latency rises because a larger job admits more work ahead of each individual future. Calling tile 2 “better” because its p50 is lower would confuse a short queue with a fast generator.
+
+**The stopwatch winner is tile 6; the honest Goldilocks answer is still a plateau, not a magic integer.** At 16GB, tile 6 beats tile 5 by 2.48%, while tile 7 gives 0.70% back versus tile 6. Every difference is deep inside this box's established ~9% run-to-run noise. Tile 6 is the current best measured normalized throughput; tile 5 remains the smallest workload already on the plateau. The shipped default moves to 6 in #38, choosing the longer, more stable sample while keeping 7's extra work off the bill.
+
+The fixed 16GB tile-5 result is **136763ms versus #33's pre-fix 132949ms champion: +2.87%**, also noise-sized. The persistent reconsideration queue still has no measurable champion-scale throughput cost in this sample. One run cannot prove a 3% difference is zero; it can rule out the kind of large regression that would make the correctness repair questionable.
+
+## 38. Tile 6 becomes the default, and v2.2 finally gets its own front door
+
+#37's caveat still stands — 5/6/7 are a throughput plateau, not a statistically proven optimum — but defaults have to be integers anyway. `mosaic.tile` now defaults to **6**: a 96×96 region, 9216 chunks, 36 chunks per each of the same 256 independence phases. The property remains overridable. This does not touch `MOSAIC_N=16`, the radius-8 safety proof, or the shape of any individual phase; it only promotes the best measured normalized-throughput point from #37 into the no-flag path.
+
+The second cleanup is overdue naming debt from #35. “Orion v2.2” used to mean `scheduler=orion2.1 -Dorion.scatterorder=true`, while logs still introduced the run as v2.1 and the implementation still lived as two private helpers in `HeadlessWorldgen.kt`. That was useful A/B scaffolding and a bad permanent interface: omit one flag and the claimed version silently changes underneath you.
+
+**Now the versions are real modes**:
+
+- `-Dscheduler=orion2.1` is always the raster-ordered spatial-index scheduler. It no longer reads `orion.scatterorder`.
+- `-Dscheduler=orion2.2` always applies #35's 16×16 digit-reversal scatter order, prints v2.2, and writes `orion v2.2` into `orion_result.txt`.
+
+`OrionV2_2.kt` owns the scatter rank and delegates actual conflict tracking to the starvation-fixed `OrionV2_1` core. That reuse is intentional: v2.2 is still v2.1's scheduler with a different admission order, and copying 170 lines of concurrent scheduling code would create two places for #36's bug to crawl back in. The boundary is behavioral and operational, not fake architectural theater.
+
+Regression coverage now checks the first four scatter ranks `(0,0), (0,8), (8,0), (8,8)` and verifies that scatter sorting preserves a 1681-coordinate region exactly, alongside #36's starvation tests. `./gradlew test --rerun-tasks`: clean.
+
+## 39. v2.1 vs v2.2 at #38's new default tile — same-tile rerun of #35's comparison
+
+#38 promoted `mosaic.tile=6` (9216 chunks) to the default and split v2.1/v2.2 into real, independent scheduler modes. #35's own v2.1-vs-v2.2 numbers still predate both changes — they ran at tile 5 (6400 chunks) through the old `orion.scatterorder` flag on the shared `orion2.1` scheduler string. Reran both at the new default tile with the now-real `-Dscheduler=orion2.1` / `-Dscheduler=orion2.2` split, otherwise identical champion config: `-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC -Dmax.bg.threads=7 -Dmosaic.tile=6 -Dorion.dispatchthreads=8 -Dorion.maxinflight=64`, seed 69 (hardcoded, unconditional), via `run_direct.py` per #23's println-loss workaround.
+
+| Config | totalMs | eMSPC (total_ms/chunks) | p25 | p50 | p75 | p99 | max |
+|---|---|---|---|---|---|---|---|
+| v2.1, 7 workers, tile 6 | 188157 | 20.42 | 84.70 | 324.11 | 844.71 | 2960.79 | 22311.08 |
+| v2.2, 7 workers, tile 6 | 191976 | 20.83 | 39.62 | 128.56 | 535.02 | 5704.12 | 13027.86 |
+
+**eMSPC is a wash** (188157 vs 191976ms, 2.0% apart) — same conclusion as #35's tile-5 numbers, comfortably inside the box's own ~9% noise band (#16/#17), and confirms the split-scheduler refactor in #38 didn't quietly change either scheduler's actual throughput behavior.
+
+**The latency tradeoff #35 already found holds, same shape, different tile.** v2.2's median is 60% lower (128.56ms vs 324.11ms) and its worst chunk is 42% lower (13028ms vs 22311ms) — but its p99 is 93% *higher* (5704ms vs 2961ms). Scatter order still buys a much better typical and worst-case experience at the cost of a fatter tail just before the worst case, consistent with #35's theory that deferring some chunks later in scatter order concentrates a few of them right before the run drains.
+
+Charts: `findings/orion_tile6_percentiles.png` (full MSPC spread, log scale), `findings/orion_tile6_summary.png` (total time + p50, two-panel). Both regenerate via `python3 findings/plot_results.py`. Raw rows: `findings/orion_results.csv` (`orion2_1_7w_tile6`, `orion2_2_7w_tile6`). Also added to `findings/leaderboard.html` (`python3 findings/generate_leaderboard.py`).
+
+**Open**: same caveat as #35 — this is one run per config, not yet through #32's interleaved-vs-Paper discipline, and the p99 regression's mechanism (does scatter order concentrate late-scheduled chunks right before drain, or something else) is inferred from #35's theory, not directly traced.
+
 ## Open questions / where you pick this up
 
 - **#18's ~53% gap to Paper/Leaf is unexplained beyond "probably the generator patches."** Thread-count is ruled out (Paper used 2 dedicated workers to WorldgenD's 4 and still won). The leading theory — Paper/Leaf's fork-level chunk-generation patches doing genuinely less work per chunk than vanilla — has never been checked against an actual source or bytecode diff the way #6/#7's claims were. Also untested: a fourth drag-race run (plain Leaf flags, `/tick freeze` active, no FMA/profiler-disable flags) to isolate tick-freeze's own contribution from the crack-specific flags', since #18's single crack sample can't separate the two.
@@ -795,3 +868,5 @@ v2.1's cursor walks this in exactly that order, so early in any run every held c
 - **#33 found v2.1's own workers only ~55% utilized (live `top -bH` sampling) and 7 workers recovers a real 10.6% of it** (132949ms vs 148775ms) — but that number was never itself put through #32's interleaved-rerun discipline before comparing it to Paper/Leaf-crack. The obvious next step is exactly #32's recipe again, this time with WorldgenD running v2.1 at 7 workers instead of 4. Also open: whether `orion.maxinflight` (still the untuned default of 64 — #26 flagged this and it was never revisited) is itself capping how much frontier gets exposed independent of worker count, and a live `RUNNABLE`/`WAITING` thread-state trace during one of #33's low-utilization troughs specifically, to confirm the dependency graph (not something else) is what's leaving workers idle.
 - **#34 found a second, distinct contributor to #33's thin frontier**: `ChunkMap.pendingGenerationTasks` is a plain unsynchronized `ArrayList`, safe only because every `getChunkFuture()` caller (main thread or not) funnels through `mainThreadProcessor`, a single-threaded executor, before touching it — meaning a chunk can be geometrically eligible and still wait, un-dispatched, until the next time *something* polls `mainThreadProcessor` specifically. Untested: whether `mainThreadProcessor`-poll starvation (as opposed to `dedicatedServer`-poll starvation, the only one #27-#30 ever profiled) measurably correlates with #33's low-utilization troughs — cheap to check via reflection-based instrumentation of `pendingGenerationTasks`'s size or per-call timestamps on that specific poll, not yet done.
 - **#35's scatter-order fix is a real, large latency win (45-51% off MSPC p50) and a wash on total time** (+1.9% at 4 workers, -2.7% at 7 workers, both single runs near the noise floor) — so the reigning throughput champion is still plain 7-worker v2.1 with *no* scatter-order (#33's 132949ms). That number has never been through #32's interleaved-vs-Paper discipline — the natural next step, still not run. Also open: whether scatter-order's latency win traces back to smoother worker utilization (never re-sampled with `top -bH` under this config to check) or something else entirely.
+- **#36 closed v2.1's pending-candidate starvation hole** with an exact five-coordinate reproducer, 1,000 randomized irregular-target regressions, and a real 256-chunk integration run under `maxInFlight=2`. #37 then closed the obvious performance follow-up: under the actual 16GB champion flags, fixed v2.1 at tile 5 took 136763ms versus the pre-fix 132949ms champion (+2.87%, noise), with 6400/6400 chunks complete. Tiles 6 and 7 reached 20.84 and 20.99 effective ms/chunk respectively, confirming the normalized-throughput plateau continues above 5. The correctness repair has no measurable throughput cost in this sample.
+- **#38 promoted tile 6 to the runtime default and separated Orion v2.2 operationally from v2.1.** `scheduler=orion2.1` is now unconditionally raster ordered; `scheduler=orion2.2` is unconditionally scatter ordered. Both share the starvation-fixed scheduling core, so future scheduler changes still need version-aware A/B runs even though correctness fixes should normally remain shared.

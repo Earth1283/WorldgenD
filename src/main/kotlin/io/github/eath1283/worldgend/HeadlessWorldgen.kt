@@ -22,34 +22,6 @@ import java.util.function.BooleanSupplier
 // chunk in a phase is generatable the instant it's submitted.
 private const val MOSAIC_N = 16
 
-// Orion v2.2 (scientific-findings.md #35): the mosaic's phase math already scatters chunks
-// evenly, but its own phase NUMBER doesn't -- adjacent phases are 1 chunk apart. This ranks
-// every (rx, rz) residue via 2D bit-reversal (a digit-reversal / Hammersley-style construction:
-// bit-reverse the linear step index, de-interleave into two axes) so consecutive ranks land on
-// opposite corners/quadrants first, refining coarse-to-fine, instead of sweeping one axis at a
-// time. Verified by hand for the first 4 ranks: (0,0), (0,8), (8,0), (8,8) -- the four corners.
-private val SCATTER_RANK: Map<Pair<Int, Int>, Int> = run {
-    val map = HashMap<Pair<Int, Int>, Int>()
-    for (i in 0 until MOSAIC_N * MOSAIC_N) {
-        var reversed = 0
-        var x = i
-        repeat(8) { reversed = (reversed shl 1) or (x and 1); x = x shr 1 }
-        var rx = 0
-        var rz = 0
-        for (k in 0 until 4) {
-            if ((reversed shr (2 * k)) and 1 == 1) rx = rx or (1 shl k)
-            if ((reversed shr (2 * k + 1)) and 1 == 1) rz = rz or (1 shl k)
-        }
-        map[rx to rz] = i
-    }
-    map
-}
-
-private fun scatterSort(coords: List<Pair<Int, Int>>): List<Pair<Int, Int>> =
-    coords.sortedBy { (cx, cz) ->
-        SCATTER_RANK.getValue(Math.floorMod(cx, MOSAIC_N) to Math.floorMod(cz, MOSAIC_N))
-    }
-
 fun main() {
     // Self-reported, not inferred: which collector actually loaded, straight from the
     // JVM's own MXBeans, so a GC experiment's flags can be confirmed the same way
@@ -67,7 +39,7 @@ fun main() {
 
     // MC-55596 control knobs (see scientific-findings.md #22): describe.all logs every
     // chunk instead of just phase 0/last, and mosaic.tile shrinks the run for fast iteration.
-    val mosaicTile = System.getProperty("mosaic.tile", "5").toInt()
+    val mosaicTile = System.getProperty("mosaic.tile", "6").toInt()
     val describeAll = System.getProperty("describe.all", "false").toBoolean()
     val pumpDebug = System.getProperty("pump.debug", "false").toBoolean()
 
@@ -366,7 +338,7 @@ fun main() {
         }
         val totalMs = (System.nanoTime() - overallStart) / 1_000_000
         File(serversDir.parentFile, "orion_result.txt").writeText(
-            "ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
+            "scheduler=orion2 ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
         )
 
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
@@ -383,12 +355,10 @@ fun main() {
             mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor,
             orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile,
         )
-        val rasterTarget = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
-        val scatterOrder = System.getProperty("orion.scatterorder", "false").toBoolean()
-        val target = if (scatterOrder) scatterSort(rasterTarget) else rasterTarget
+        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
         println(
             "Orion v2.1-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), $orionDispatchThreads workers, " +
-                "max $orionMaxInFlight in flight, lock radius $orionLockRadius, scatter-order=$scatterOrder."
+                "max $orionMaxInFlight in flight, lock radius $orionLockRadius."
         )
 
         File(serversDir.parentFile, "orion_result.txt").writeText("orion v2.1 fill() starting, target=${target.size}\n")
@@ -408,7 +378,47 @@ fun main() {
         }
         val totalMs = (System.nanoTime() - overallStart) / 1_000_000
         File(serversDir.parentFile, "orion_result.txt").writeText(
-            "ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
+            "scheduler=orion2.1 ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
+        )
+
+        println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
+        println(mspcSummary(orion.chunkMspc))
+        saveWorldIfRequested()
+        return
+    }
+
+    if (schedulerMode == "orion2.2") {
+        val telemetryFile = if (orionTelemetry) File(serversDir.parentFile, "orion_telemetry.log").apply { writeText("") } else null
+        val pollTask = mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask")
+        val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
+        val orion = OrionV2_2(
+            mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor,
+            orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile,
+        )
+        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        println(
+            "Orion v2.2-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), $orionDispatchThreads workers, " +
+                "max $orionMaxInFlight in flight, lock radius $orionLockRadius, scatter order."
+        )
+
+        File(serversDir.parentFile, "orion_result.txt").writeText("orion v2.2 fill() starting, target=${target.size}\n")
+        val overallStart = System.nanoTime()
+        val result = try {
+            orion.fill(target) { cx, cz, success, chunkResult, error ->
+                if (!success) {
+                    println("[$cx,$cz] FAILED: $error")
+                } else if (describeAll) {
+                    val chunk = mc.publicMethod(chunkResult!!.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
+                    println(describe(chunk, cx, cz))
+                }
+            }
+        } catch (t: Throwable) {
+            File(serversDir.parentFile, "orion_result.txt").writeText("THREW: ${t.stackTraceToString()}\n")
+            throw t
+        }
+        val totalMs = (System.nanoTime() - overallStart) / 1_000_000
+        File(serversDir.parentFile, "orion_result.txt").writeText(
+            "scheduler=orion2.2 ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
         )
 
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")

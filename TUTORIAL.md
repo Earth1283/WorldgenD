@@ -39,8 +39,8 @@ Watch the logs. You will see, in order:
 - `Loaded 1515 recipes` / `Loaded 1617 advancements` — yes, this happens. No, we don't need it. It's a side effect of reusing Mojang's own datapack loader instead of reimplementing it ourselves like chumps. We let their code do their job.
 - `Constructed DedicatedServer without run()/initServer() — calling loadLevel() directly.` — this is the whole heist, right here, in one log line. A concrete `DedicatedServer` object exists in memory. It has never been started. It never will be.
 - `Selecting global world spawn...` / `Preparing spawn area: 100%` — this is the server, unprompted, generating its own spawn chunks as an honest side effect of `loadLevel()`, because that's just what that method does and we didn't stop it.
-- A wall of `[x,z] FULL height=NN biome=minecraft:whatever` and `phase N/255: 25 chunks in NNms` lines — this is us tiling a solid 80x80 block, 6400 chunks, in 256 provably-independent batches (`MOSAIC_TILE = 5` as currently shipped — see "The Mosaic" below for why it's shaped like that instead of one big grid, and for the smaller `MOSAIC_TILE = 3` example that's how the technique was originally discovered).
-- `Done: 6400 chunks generated, 0 failed in NNms across 256 phases. No network, no RCON, no tick loop ever ran.` — the mission statement, confirmed empirically.
+- A wall of `[x,z] FULL height=NN biome=minecraft:whatever` and `phase N/255: 36 chunks in NNms` lines — this is us tiling a solid 96x96 block, 9216 chunks, in 256 provably-independent batches (`MOSAIC_TILE = 6` as currently shipped — see "The Mosaic" below for why it's shaped like that instead of one big grid, and for the smaller `MOSAIC_TILE = 3` example that's how the technique was originally discovered).
+- `Done: 9216 chunks generated, 0 failed in NNms across 256 phases. No network, no RCON, no tick loop ever ran.` — the mission statement, confirmed empirically.
 
 Every single one of those height/biome pairs came out of the *real* noise router, the *real* climate sampler, the *real* biome source. If it says `frozen_ocean` at height 62, that's because the actual overworld noise settings, for the actual random seed that got picked, actually produced ocean there. We didn't fake a single number.
 
@@ -101,7 +101,7 @@ Ran it. 2304/2304, zero failures, phase durations logged the whole way:
 
 `MOSAIC_N`, `MOSAIC_TILE`, and the phase loop all live in `HeadlessWorldgen.kt`. Want a bigger map? Bump `MOSAIC_TILE`. Want tighter safety margin? You now know the real number is 8 — go argue with the bytecode if you think that's changed in a later version.
 
-(`MOSAIC_TILE` has since been bumped to `5` — 25 chunks/phase, an 80x80/6400-chunk mosaic — because `3`'s 9-chunks-per-phase turned out too small to tell whether the worker pool or the dependency radius was the real ceiling. See `scientific-findings.md` #13 for that investigation; the `MOSAIC_TILE = 3` numbers above are kept as the original discovery run, not a live description of current output.)
+(`MOSAIC_TILE` was first bumped to `5` because `3`'s 9-chunks-per-phase turned out too small to tell whether the worker pool or dependency radius was the real ceiling, then to `6` after #37's scale sweep found the best measured normalized throughput there. The live default is now 36 chunks/phase and a 96x96/9216-chunk mosaic. The `MOSAIC_TILE = 3` numbers above remain the original discovery run, not a live description of current output.)
 
 Every run now also prints one more line after `Done:` — something like:
 

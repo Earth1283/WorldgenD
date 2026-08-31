@@ -46,11 +46,6 @@ class OrionV2_1(
         synchronized(log) { log.appendText("$elapsedMs $event $cx,$cz\n") }
     }
 
-    private val cellSize = 2 * lockRadius + 1
-    private fun cellIndex(v: Int) = Math.floorDiv(v, cellSize)
-    private fun bucketKey(bx: Int, bz: Int) = (bx.toLong() shl 32) or (bz.toLong() and 0xFFFFFFFFL)
-    private fun bucketKeyFor(cx: Int, cz: Int) = bucketKey(cellIndex(cx), cellIndex(cz))
-
     fun fill(
         coords: List<Pair<Int, Int>>,
         onComplete: (cx: Int, cz: Int, success: Boolean, result: Any?, error: Any?) -> Unit = { _, _, _, _, _ -> },
@@ -58,13 +53,7 @@ class OrionV2_1(
         val start = System.nanoTime()
         val target = coords.filter { (cx, cz) -> alreadyClaimed.add(key(cx, cz)) }
 
-        // Built once, O(n); each undispatched candidate lives in exactly one bucket.
-        val grid = HashMap<Long, MutableList<Pair<Int, Int>>>()
-        val stillPending = HashSet<Pair<Int, Int>>(target.size * 2)
-        for (c in target) {
-            grid.getOrPut(bucketKeyFor(c.first, c.second)) { mutableListOf() }.add(c)
-            stillPending.add(c)
-        }
+        val pending = PendingSpatialIndex(target, 2 * lockRadius)
 
         val heldCenters = mutableListOf<Pair<Int, Int>>()
         val releaseQueue = ConcurrentLinkedQueue<Pair<Int, Int>>()
@@ -76,39 +65,6 @@ class OrionV2_1(
 
         fun isSafe(cx: Int, cz: Int) = heldCenters.none { (hx, hz) ->
             Math.abs(hx - cx) <= 2 * lockRadius && Math.abs(hz - cz) <= 2 * lockRadius
-        }
-
-        fun removeFromGrid(c: Pair<Int, Int>) {
-            grid[bucketKeyFor(c.first, c.second)]?.remove(c)
-            stillPending.remove(c)
-        }
-
-        // Only `center`'s own exclusion-zone buckets, never the rest of the backlog.
-        fun tryReleaseNear(center: Pair<Int, Int>, maxToRelease: Int) {
-            if (maxToRelease <= 0) return
-            var released = 0
-            val (ccx, ccz) = center
-            val loX = cellIndex(ccx - 2 * lockRadius)
-            val hiX = cellIndex(ccx + 2 * lockRadius)
-            val loZ = cellIndex(ccz - 2 * lockRadius)
-            val hiZ = cellIndex(ccz + 2 * lockRadius)
-            for (bx in loX..hiX) {
-                for (bz in loZ..hiZ) {
-                    if (released >= maxToRelease) return
-                    val bucket = grid[bucketKey(bx, bz)] ?: continue
-                    val it = bucket.iterator()
-                    while (it.hasNext() && released < maxToRelease) {
-                        val cand = it.next()
-                        if (isSafe(cand.first, cand.second)) {
-                            it.remove()
-                            stillPending.remove(cand)
-                            heldCenters.add(cand)
-                            releaseQueue.add(cand)
-                            released++
-                        }
-                    }
-                }
-            }
         }
 
         val workers = (0 until dispatchThreads).map { i ->
@@ -147,21 +103,23 @@ class OrionV2_1(
                 completions.incrementAndGet()
                 progressed = true
                 completedThisTick = true
-                tryReleaseNear(done, maxInFlight - heldCenters.size)
+                pending.reconsiderNear(done)
             }
 
-            // Frontier expansion for startup / sparsely-populated neighborhoods; each
-            // candidate is isSafe()-tested by the cursor at most once, ever.
-            while (heldCenters.size < maxInFlight && cursor < target.size) {
-                val candidate = target[cursor]
-                cursor++
-                if (candidate !in stillPending) continue
-                if (isSafe(candidate.first, candidate.second)) {
-                    removeFromGrid(candidate)
+            while (heldCenters.size < maxInFlight) {
+                var candidate = pending.takeEligible { isSafe(it.first, it.second) }
+                while (candidate == null && cursor < target.size) {
+                    val frontier = target[cursor++]
+                    if (pending.contains(frontier) && isSafe(frontier.first, frontier.second)) {
+                        pending.remove(frontier)
+                        candidate = frontier
+                    }
+                }
+                if (candidate != null) {
                     heldCenters.add(candidate)
                     releaseQueue.add(candidate)
                     progressed = true
-                }
+                } else break
             }
 
             val now = System.nanoTime()

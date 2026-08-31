@@ -33,19 +33,22 @@ That's the whole install.
 ./gradlew run
 ```
 
-Watch the logs for the mosaic fill — a gapless 80x80 block (6400 chunks) tiled across 256
+Watch the logs for the mosaic fill — a gapless 96x96 block (9216 chunks) tiled across 256
 phases, each one provably independent by construction (see `scientific-findings.md` #7-#8
 for why 16 is the magic modulus). Every run ends with two summary lines:
 
 ```
-Done: 6400 chunks generated, 0 failed in 235167ms across 256 phases (fastest=88ms, slowest=16208ms).
-MSPC (ms/chunk, n=6400): min=0.04 p1=1.57 p25=8.20 p50=35.80 p75=44.05 p99=137.03 max=1492.91
+Done: 9216 chunks generated, 0 failed in NNms across 256 phases (fastest=NNms, slowest=NNms).
+MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 ```
 
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-**In plain terms**: picture ordering 6,400 coffees one at a time and timing every single
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2`.
+Orion v2.1 uses raster target order; Orion v2.2 is the explicitly scatter-ordered variant.
+
+**In plain terms**: picture ordering 9,216 coffees one at a time and timing every single
 cup, from "I'll have a latte" to it hitting the counter. Most come out fast; a few get
 unlucky and land behind a rush. MSPC is that stopwatch, run per chunk instead of per
 coffee — reported as fastest, typical, and worst-1%, instead of one average that blurs
