@@ -1,4 +1,8 @@
-# WorldgenD: Findings From Committing Several Felonies Against `MinecraftServer`
+# WorldgenD: Findings #1-40 — Foundation & Orion Discovery
+
+**Archive: Findings 1-40.** Continue reading in [`scientific-findings-41-80.md`](scientific-findings-41-80.md) for Orion deep dives and further investigation.
+
+---
 
 Here's what happened when we pointed a `URLClassLoader` at Mojang's own jar, skipped past `initServer()` like a bouncer who owes us a favor, and started asking a `DedicatedServer` object that has never once been "started" to please make some chunks. It worked. It kept working. Then we got curious and started interrogating *why* it worked, with `jcmd` and bytecode disassembly instead of vibes, because "trust me bro" is not a methodology.
 
@@ -870,3 +874,26 @@ Charts: `findings/orion_tile6_percentiles.png` (full MSPC spread, log scale), `f
 - **#35's scatter-order fix is a real, large latency win (45-51% off MSPC p50) and a wash on total time** (+1.9% at 4 workers, -2.7% at 7 workers, both single runs near the noise floor) — so the reigning throughput champion is still plain 7-worker v2.1 with *no* scatter-order (#33's 132949ms). That number has never been through #32's interleaved-vs-Paper discipline — the natural next step, still not run. Also open: whether scatter-order's latency win traces back to smoother worker utilization (never re-sampled with `top -bH` under this config to check) or something else entirely.
 - **#36 closed v2.1's pending-candidate starvation hole** with an exact five-coordinate reproducer, 1,000 randomized irregular-target regressions, and a real 256-chunk integration run under `maxInFlight=2`. #37 then closed the obvious performance follow-up: under the actual 16GB champion flags, fixed v2.1 at tile 5 took 136763ms versus the pre-fix 132949ms champion (+2.87%, noise), with 6400/6400 chunks complete. Tiles 6 and 7 reached 20.84 and 20.99 effective ms/chunk respectively, confirming the normalized-throughput plateau continues above 5. The correctness repair has no measurable throughput cost in this sample.
 - **#38 promoted tile 6 to the runtime default and separated Orion v2.2 operationally from v2.1.** `scheduler=orion2.1` is now unconditionally raster ordered; `scheduler=orion2.2` is unconditionally scatter ordered. Both share the starvation-fixed scheduling core, so future scheduler changes still need version-aware A/B runs even though correctness fixes should normally remain shared.
+
+## 40. Rerunning #35 at tile 5: scatter-order 7w result replicates, 4w scatter outlier doesn't
+
+#35 flagged its 7-worker scatter-order result (+2.7% total time vs raster) as needing replication to confirm it wasn't noise. #38 also changed the operational split of v2.1 vs v2.2 from a flag to a true scheduler mode and promoted tile 6 to the default, making #35's tile-5 run no longer directly runnable without the pre-#38 flag path. Reran all four 2×2 combinations (workers 4/7 × scatter order off/on, same tile-5 config as #35) under the post-#38 `-Dscheduler=orion2.1/2.2` interface, ParallelGC, 16GB pretouched, 8 dispatch threads, `maxInFlight=64`:
+
+| Config | Original #35 | Rerun this session | Δ |
+|---|---|---|---|
+| 7w v2.1 (raster) | 132949ms | 130887ms | -1.6% |
+| 7w v2.2 (scatter) | 136583ms | 135616ms | -0.7% |
+| 4w v2.1 (raster) | 148775ms | 147001ms | -1.2% |
+| 4w v2.2 (scatter) | 146021ms | 153339ms | +5.0% |
+
+**Headline**: the 7-worker scatter result was real, not noise — the +2.7% total-time trend and latency distribution shape (p50 down ~52%, p99 up ~90-93%) both replicate. The 4-worker scatter variant was the outlier in #35 (+1.9%, inside noise), and this rerun drifts the opposite way (+5.0%, also inside noise). Neither is tight enough to trust after one pair each — noise, documented as such.
+
+**Latency stays the scatter-order win it was in #35**: both 7w and 4w show median ~45-51% lower under scatter order, with p99 concentrating near worst case instead of spreading. That pattern replicated cleanly.
+
+**The 7-worker total-time result's direction confirms the latency/throughput decoupling #35 predicted**: scatter order smooths dispatch (improving per-chunk latency) without touching aggregate work or CPU ceiling (leaving total time as a wash). Neither rerun closed that explanatory gap.
+
+Raw data: `findings/orion_results.csv` rows `orion2_1_7w_tile5_35rerun`, `orion2_2_7w_tile5_35rerun`, `orion2_1_4w_tile5_35rerun`, `orion2_2_4w_tile5_35rerun`. Charts via `python3 findings/plot_results.py`.
+
+---
+
+**Findings continue in [](scientific-findings-41-80.md)**

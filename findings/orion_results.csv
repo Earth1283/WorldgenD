@@ -14,3 +14,7 @@ orion2_2_4w_scatter,"Orion v2.2 (scatter order, 4 workers, #35)",orion2.1,5,6400
 orion2_2_7w_scatter,"Orion v2.2 (scatter order, 7 workers, #35)",orion2.1,5,6400,7,136583,1.20,4.47,23.66,115.88,489.40,3228.48,10730.10
 orion2_1_7w_tile6,"Orion v2.1 (7 workers, tile 6, #39)",orion2.1,6,9216,7,188157,0.45,5.93,84.70,324.11,844.71,2960.79,22311.08
 orion2_2_7w_tile6,"Orion v2.2 (7 workers, tile 6, #39)",orion2.2,6,9216,7,191976,1.49,8.35,39.62,128.56,535.02,5704.12,13027.86
+orion2_1_7w_tile5_35rerun,"Orion v2.1 7w (tile 5, #35 rerun)",orion2.1,5,6400,7,130887,0.23,2.63,64.28,233.97,556.66,2137.99,15471.00
+orion2_2_7w_tile5_35rerun,"Orion v2.2 7w (tile 5, #35 rerun)",orion2.2,5,6400,7,135616,1.40,4.53,21.32,104.92,470.74,3405.44,10334.68
+orion2_1_4w_tile5_35rerun,"Orion v2.1 4w (tile 5, #35 rerun)",orion2.1,5,6400,4,147001,0.26,2.62,73.70,258.00,645.26,2391.63,17946.87
+orion2_2_4w_tile5_35rerun,"Orion v2.2 4w (tile 5, #35 rerun)",orion2.2,5,6400,4,153339,1.07,4.06,21.96,146.73,496.65,3922.84,12861.80
