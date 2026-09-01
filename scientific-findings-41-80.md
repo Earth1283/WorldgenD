@@ -194,6 +194,69 @@ Identical correctness (9216/9216, zero failures, both) — the patch does not ch
 
 **Still open:** replication (n=1 so far, same caveat every first champion run in this project carries); whether the patch changes p99 tail behavior in a way that matters (2567 vs v2.1's 2164/v2.2's 3229 — inside both, no signal either way at n=1); and whether `OrionV3`'s multi-threaded admission is actually worth keeping now that it's merely at parity with the much simpler single-threaded v2.1/v2.2 — the original motivation (idea #4) was to see if decoupling admission from a single thread would beat them, and at champion scale, patched, it doesn't. If pursued further, the interesting next question isn't performance but whether patched `OrionV3` is more resilient to configurations that make v2.1/v2.2's single-threaded admission a bottleneck (much higher worker counts, say) — untested.
 
+## 50. First JFR look inside patched `OrionV3` at champion scale — scheduler overhead is real but small, tail latency is where the roadblocks are
+
+#49 established correctness and parity but never profiled patched `OrionV3` the way #16/#27/#29 profiled the mosaic and v2/v2.1/v2.2. Ran the same `-XX:StartFlightRecording=settings=profile,delay=45s` discipline against it for the first time, champion config at the current default tile (`-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC -Dmax.bg.threads=7 -Dmosaic.tile=6 -Dscheduler=orion3 -Dorion.dispatchthreads=8 -Dorion.maxinflight=64 -javaagent:build/libs/orion-agent.jar -Dorion.patchReentrancy=true`, via `run_direct.py`. `ok=9216 failed=0 totalMs=184660` (eMSPC 20.03, in line with #49's tile5 row), GC line confirmed ParallelGC. Recording: `findings/orion3_champion.jfr` (14.6MB); filed as `orion3_7w_tile6_champion_jfr` in `findings/orion_results.csv` / `findings/leaderboard_entries.csv`, leaderboard/plots regenerated.
+
+**Leaf-frame aggregation of `jdk.ExecutionSample` (29160 samples, same method #16 used — first stack line per sample, never a raw dump):** ~99% of CPU is exactly where every prior recording says it should be — `SimplexNoise.dot` (9.3%), `SurfaceRules$TestRule.tryApply` (5.1%), `BiomeManager.getBiome` (4.1%), `NoiseChunk`/`Climate$RTree`/`Aquifer` machinery below that — real vanilla generation work, not scheduler overhead. This is the first time that's been confirmed for `OrionV3` specifically rather than inferred from #49's parity numbers.
+
+**`OrionV3`'s own code (`eath1283.worldgend.*` leaf frames) accounts for 339 of 29160 samples — 1.16% of all CPU time**, all of it inside the coarse `synchronized`-free `ReentrantLock` critical section the class-doc comment describes:
+
+| frame | samples |
+|---|---|
+| `HeldCenterIndex.isSafe` (+ inlined via `claimOneLocked$lambda$2`/`fill$isSafe`) | 86 |
+| `OrionV3.fill$releaseLockedAndSignal` | 36 |
+| `PendingSpatialIndex.reconsiderNear` | 37 |
+| `OrionV3.fill$claimOneLocked` | 25 |
+| `PendingSpatialIndex.takeEligible` | 26 |
+| reflection (`Method.invoke`/`DirectMethodHandleAccessor.invoke`/`ReflectKt.call`) | 55 |
+| remaining `OrionV3`/index bookkeeping | ~74 |
+
+Two candidate micro-patches fall directly out of this, same shape as #45's bucketed-`isSafe` fix and #27's reflective-poll backoff, just smaller magnitude here because dispatch isn't a tight busy loop anymore:
+
+- **The per-chunk `getChunkFuture.call(...)` reflective dispatch (0.19% of total CPU, 55 samples) still goes through `Method.invoke` on every single chunk.** #27 already proved caching a resolved `MethodHandle` (or an `unreflect`'d, bound accessor built once at setup) is cheap and mechanical for exactly this shape of call. Never applied to `OrionV3`'s own dispatch path. Worth doing — free, no design risk — but at this scale it's a rounding error, not a lever.
+- **`isSafe`/`reconsiderNear`/`takeEligible` together are 55% of the scheduler's own 1.16% (≈0.64% of total CPU)**, all serialized through the one coarse lock every dispatch thread contends on for every claim and release. #45's bucketed grid already cut this once; a second pass (e.g. avoiding `reconsiderNear`'s full-neighborhood rescan when the released coordinate's own bucket had no pending neighbors, cheap to check first) could shave more, but the ceiling on the win is `Total CPU * 1.16%` — sub-1% of wall-clock at best, not worth chasing unless it's free.
+
+**The real roadblock is not CPU, it's idle time — and it's structural, not something a scheduler micro-patch fixes.** Aggregated `jdk.ThreadPark` durations (`park_stats.py`, grouping by thread-name prefix) over the ~165s profiled window (8 dispatch threads):
+
+| thread group | park count | total parked | mean park |
+|---|---|---|---|
+| `orion3-dispatch` (8 threads) | 30183 | 1131.3s | 37.5ms |
+| `Worker-Main` (7 real generation workers) | 16598 | 491.8s | 29.6ms |
+
+Dispatch threads spend roughly 1131s of parked time against ≈1320s of available thread-time in the window (~86%) — mean park duration (37.5ms, p50 45.9ms) sits right against `claimOrWait`'s 50ms timeout ceiling, meaning most parks are timing out rather than being woken by `signalAll()`: most of the time, releasing one candidate doesn't make another one eligible. `Worker-Main` itself — the real vanilla generator threads, not this project's own code — is idle ~42% of its own thread-time in the same window. This is the same dependency-ring starvation #6/#33/#35 already characterized (a chunk only becomes eligible once its radius-8 neighborhood clears a status, so only a thin wavefront is ever admissible at once); this run is the first time it's been measured directly for patched `OrionV3` via JFR rather than inferred from wall-clock parity with v2.1/v2.2. No lock-contention signal either — `jdk.JavaMonitorEnter` count is 0 for the whole recording, consistent with the design using `ReentrantLock`/`Condition` rather than `synchronized`, so the parking above is genuine work-unavailability, not lock queueing.
+
+**Bottom line:** the roadblocks worth chasing here are latency-tail ones (p99 3.11s, max 21.07s at tile6), not scheduler CPU — matching #49's "parity, not overhead" framing and now backed by a profile rather than just totalMs. The two micro-patches above (cached `MethodHandle`, cheaper `reconsiderNear`) are legitimate, low-risk, sub-1%-of-wall-clock cleanups in the same spirit as #27/#45, worth doing opportunistically but not worth a dedicated bench cycle on their own. The one lever left that could move wall-clock, not just tidy the scheduler, is the same one #42 already flagged and never fully closed out for v3: `claimOrWait`'s 50ms wait ceiling is a latency dial nobody has swept for `OrionV3` specifically (#42 only tuned `orion.maxinflight`) — since parked dispatch threads are hitting that ceiling on the majority of parks, a shorter ceiling (e.g. 10-20ms) trades a small amount of extra wakeup CPU for potentially tighter p99/max tail, cheap to test, not yet run.
+
+## 51. CPU-usage traces for v2.1/v2.2/v3, champion scale — confirms #50's parking finding directly, and catches #10's "process outlives the result file" note on camera for the first time
+
+Per `benching.md`'s SOP, ran all three live schedulers (v2.1, v2.2, patched v3) back-to-back at the same champion config, this time sampling each java process's own CPU% from `/proc/<pid>/stat` at 2Hz for the full run (`findings/orion2_1_cpu_trace.csv`, `orion2_2_cpu_trace.csv`, `orion3_cpu_trace.csv`; sampler and driver in-session, not checked in — plain `utime+stime` delta over wall-clock delta, no `psutil` dependency). Exact command per run:
+
+```
+python3 run_direct.py -Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC \
+  -Dmax.bg.threads=7 -Dmosaic.tile=5 -Dscheduler=<orion2.1|orion2.2|orion3> \
+  -Dorion.dispatchthreads=8 -Dorion.maxinflight=64 \
+  [-javaagent:build/libs/orion-agent.jar -Dorion.patchReentrancy=true]   # v3 only, per #49
+```
+
+GC line on every run confirmed `PS MarkSweep, PS Scavenge` = ParallelGC. All three completed clean (`failed=0`):
+
+| scheduler | ok | totalMs | eMSPC |
+|---|---|---|---|
+| v2.1 | 6400 | 139230 | 21.75 |
+| v2.2 | 6400 | 137340 | 21.46 |
+| v3 (patched) | 6400 | 132446 | 20.69 |
+
+All three inside the box's own ~9% run-to-run noise band (#16/#17) — not a ranking, consistent with #49's "parity" framing. Filed as `orion2_1_cpu_trace_51`/`orion2_2_cpu_trace_51`/`orion3_cpu_trace_51` in `findings/orion_results.csv` and `findings/leaderboard_entries.csv`; leaderboard and every `findings/*.png` regenerated (`findings/orion_cpu_traces.png` is the new chart).
+
+**The CPU trace itself is the finding.** All three engines show the identical shape: a sub-2-second single-threaded bootstrap spike to ~780% (world/registry init, not generation), a noisy climb-and-settle over the first ~30s as the dependency wavefront (radius-8, #6/#7) widens, then a long steady state oscillating **~250-400%** — nowhere near the 700% ceiling (dashed line on the chart) that 7 fully-busy workers would draw. That gap is a direct visual confirmation of #50's JFR-measured finding that dispatch/worker threads spend the large majority of their time parked waiting on dependency-ring eligibility, not computing — #50 measured that only for patched v3 via JFR; this run shows the same signature live, at a glance, for v2.1 and v2.2 too, with no profiler attached.
+
+**Unplanned second finding, confirming #10 directly for the first time:** every trace shows CPU dropping to ~0% around t=150-160s — well after `orion_result.txt`'s final line was already written and the "true" totalMs was locked in — then a brief second bump to ~80-100% around t=205-215s before the process actually exits. This is `benching.md` step 2's warning ("the process may outlive the result file... non-daemon `IO-Worker` threads") caught on the CPU trace rather than just inferred from the process outliving the file: whatever those threads are doing during that second bump is real, measurable CPU, not merely "still alive." Confirms the SOP's instruction to trust the result file's final line, not process exit, as the timing boundary — the tail is real work, but it is not part of `totalMs`.
+
+Not yet done: isolating what the t=205-215s bump actually is (`jcmd <pid> Thread.print` during that exact window would name the thread, same discipline as #13/#33's live thread-dump verification) — filed as an open question below rather than guessed at here.
+
+![CPU usage over time for Orion v2.1, v2.2, and patched v3 at champion config — three stacked line traces, all settling well below the 700% full-worker ceiling](findings/orion_cpu_traces.png)
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -204,4 +267,6 @@ Identical correctness (9216/9216, zero failures, both) — the patch does not ch
 - **#35's scatter-order latency win is real and large (45-51% off MSPC p50) but total time remains a wash** — the latency/throughput decoupling is confirmed as of #40. #41 found a plausible mechanism for the small, twice-replicated 7-worker total-time cost specifically (reflective `pollTask` calls firing more often under scatter order's smoother completion stream) and a single decoupled-poll run flipped the sign, but that flip needs its own replication before it's trusted over #35/#40's original direction. Worker utilization re-sample under scatter config, mentioned in #35, is still not done.
 - **#26's v2 win is a real measured champion-scale result (24-27% faster than mosaic at both worker counts).** `orion.maxinflight` is now tuned as of #42 for v2.1/v2.2 at tile 5/7 workers: it's a latency dial (up to 7x p50 swing), not a throughput lever (every value tested was inside the ~9% noise band on total time). Still open: whether v1/v2's own tail latency (p99 3.5-3.6s, #26) responds the same way — never re-tested with a lower cap.
 - **`OrionV3` is no longer permanently stuck as of #49** — the reentrancy bytecode patch (`OrionPatchAgent.kt`, `-javaagent`-gated) fixed #47/#48's deadlock, correctness-matched a v2.1 control at smoke-test scale, and completed cleanly at full champion scale (`ok=6400 failed=0`, filed to the CSVs/leaderboard) with eMSPC at parity (inside 1%) with the existing v2.1/v2.2 champion rows — a correctness fix, not a throughput win. Still open: replication (n=1 so far), and whether multi-threaded admission is worth keeping at all now that it's merely at parity with the simpler single-threaded schedulers.
+- **#50's JFR profile confirms `OrionV3`'s own scheduler code costs only ~1.16% of CPU** (reflective dispatch + coarse-lock bookkeeping) and finds no lock-contention signal (`JavaMonitorEnter` count 0) — the real ceiling is dispatch threads parking ~86% of their own thread-time (mean 37.5ms against `claimOrWait`'s 50ms timeout) and `Worker-Main` idling ~42% of its, the same dependency-ring starvation #6/#33/#35 already named, now measured directly for v3. Still open: sweeping `claimOrWait`'s 50ms wait ceiling the way #42 swept `orion.maxinflight`, and applying #50's two identified micro-patches (cached `MethodHandle` for `getChunkFuture.call`, cheaper `reconsiderNear`) — both cheap, neither expected to move wall-clock more than a rounding error.
+- **#51's CPU traces confirm #50's parking finding visually, live, across all three schedulers** (steady-state ~250-400% against a 700%-if-fully-busy ceiling) and catch `benching.md` #10's "process outlives the result file" note as a real, measurable second CPU bump (~t=205-215s) rather than just idle lingering. Still open: `jcmd <pid> Thread.print` during that specific post-result window to name the thread(s) responsible — not yet done, filed as a follow-up rather than guessed at.
 

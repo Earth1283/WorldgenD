@@ -463,6 +463,45 @@ def plot_orion_concurrency_trace(out_path):
     plt.close(fig)
 
 
+def plot_cpu_traces(out_path):
+    runs = [
+        ("orion2_1_cpu_trace.csv", "Orion v2.1", SERIES[0]),
+        ("orion2_2_cpu_trace.csv", "Orion v2.2", SERIES[1]),
+        ("orion3_cpu_trace.csv", "Orion v3 (patched)", SERIES[2]),
+    ]
+
+    fig, axes = plt.subplots(3, 1, figsize=(11, 9), sharex=True, sharey=True)
+    for ax, (fname, label, color) in zip(axes, runs):
+        with (HERE / fname).open() as f:
+            rows = list(csv.DictReader(f))
+        x = [float(r["t_seconds"]) for r in rows]
+        y = [float(r["cpu_pct"]) for r in rows]
+        ax.plot(x, y, color=color, linewidth=1.0, zorder=3)
+        ax.axhline(700, color=BASELINE, linewidth=0.8, linestyle="--", zorder=2)
+        ax.set_ylabel("java process CPU%")
+        ax.set_title(label, color=INK_SECONDARY, fontsize=10, loc="left", pad=4)
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        ax.spines["left"].set_color(BASELINE)
+        ax.spines["bottom"].set_color(BASELINE)
+
+    axes[-1].set_xlabel("wall-clock seconds since launch")
+    fig.suptitle(
+        "CPU usage over time: Orion v2.1 vs v2.2 vs v3, champion config (7 workers, 8 cores, tile 5)",
+        color=INK_PRIMARY, fontsize=13, y=0.995,
+    )
+    fig.text(
+        0.01, 0.965,
+        "Per-process %CPU from /proc/<pid>/stat, sampled at 2Hz (benching.md SOP, #51). "
+        "Dashed line = 700% (all 7 workers pegged). Tail-off is JVM exit, not workload.",
+        color=INK_SECONDARY, fontsize=8.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -589,6 +628,8 @@ def main():
         tile6_rows, HERE / "orion_tile6_summary.png",
         caption="#39: same tile (6) for both — v2.1 and v2.2 are a ~2% wash on total time, v2.2 still wins median latency",
     )
+
+    plot_cpu_traces(HERE / "orion_cpu_traces.png")
 
     print(f"Wrote charts to {HERE}")
 

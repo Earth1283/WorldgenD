@@ -31,3 +31,7 @@ orion2_2_7w_tile5_mif64,"Orion v2.2 7w tile5 maxInFlight=64 (#42)",orion2.2,5,64
 orion2_1_7w_tile5_bucketedisSafe,"Orion v2.1 7w tile5 bucketed isSafe (#43)",orion2.1,5,6400,7,132868,0.74,2.97,63.43,243.01,583.31,2105.37,15902.33
 orion2_2_7w_tile5_bucketedisSafe,"Orion v2.2 7w tile5 bucketed isSafe (#43)",orion2.2,5,6400,7,137036,1.12,4.28,23.51,139.51,490.27,3739.17,10768.74
 orion3_7w_tile5_champion_patched,"Orion v3 patched (7w, tile5, champion, #49)",orion3,5,6400,7,133585,1.02,3.11,67.35,238.25,567.39,2567.53,16799.64
+orion3_7w_tile6_champion_jfr,"Orion v3 patched (7w, tile6, champion, JFR profiled, #50)",orion3,6,9216,7,184660,0.28,6.47,78.49,293.28,778.03,3110.63,21071.62
+orion2_1_cpu_trace_51,"Orion v2.1 (7w, tile5, CPU-traced, #51)",orion2.1,5,6400,7,139230,1.05,2.33,63.53,246.74,642.43,2399.28,17182.05
+orion2_2_cpu_trace_51,"Orion v2.2 (7w, tile5, CPU-traced, #51)",orion2.2,5,6400,7,137340,1.28,4.20,23.25,115.11,487.59,3700.77,10367.78
+orion3_cpu_trace_51,"Orion v3 patched (7w, tile5, CPU-traced, #51)",orion3,5,6400,7,132446,1.03,2.47,66.79,225.01,564.24,2254.80,15892.86

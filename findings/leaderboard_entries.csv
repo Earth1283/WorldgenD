@@ -45,3 +45,7 @@ Orion v2.2,7w tile5 maxInFlight=64,132609,6400,#42
 Orion v2.1,7w tile5 bucketed isSafe,132868,6400,#43
 Orion v2.2,7w tile5 bucketed isSafe,137036,6400,#43
 Orion v3 (patched),7w tile5 champion (reentrancy patch),133585,6400,#49
+Orion v3 (patched),7 workers + tile6 + JFR profile,184660,9216,#50
+Orion v2.1,"7 workers + tile5, CPU-traced",139230,6400,#51
+Orion v2.2,"7 workers + tile5, CPU-traced",137340,6400,#51
+Orion v3 (patched),"7 workers + tile5, CPU-traced",132446,6400,#51

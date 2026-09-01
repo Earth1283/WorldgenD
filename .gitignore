@@ -54,3 +54,4 @@ server/
 *.jfr
 
 orion_result.txt
+*.log
