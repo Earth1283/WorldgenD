@@ -57,6 +57,15 @@ knowledge required. Full formal definition in `scientific-findings.md` #11.
 
 ![Typical milliseconds per chunk, naive solid-block fill vs the mosaic algorithm at two tile sizes — trending down](findings/mspc_progress.png)
 
+Zooming out past the mosaic to every scheduler generation this project has shipped —
+**effective MSPC** (`total_ms / chunks`, the same "true average" #18 introduced) has
+fallen ~44% from the original mosaic to patched Orion v3, favoring each scheduler's
+latest result rather than its first. Real Paper and Leaf, at each server's own best
+result on record, are plotted alongside for scale: WorldgenD now beats Paper's best
+run and sits just behind Leaf's.
+
+![Bar chart of effective MSPC across every WorldgenD scheduler generation, oldest to newest, plus Paper and Leaf's best real-server results — WorldgenD falls from 36.3 (mosaic) to 20.2 (Orion v3 patched), ahead of Paper's 21.0 and just behind Leaf's 19.8](findings/emspc_integration_progress.png)
+
 That's the whole point of building MSPC in the first place: a number you can watch go
 down as the fill algorithm improves, instead of an average that hides whether it
 actually did. See `scientific-findings.md` #13 for the thread-pool experiment that

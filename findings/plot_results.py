@@ -502,6 +502,94 @@ def plot_cpu_traces(out_path):
     plt.close(fig)
 
 
+def plot_emspc_integration_progress(out_path):
+    with (HERE / "leaderboard_entries.csv").open() as f:
+        board_rows = list(csv.DictReader(f))
+
+    def emspc(row):
+        return float(row["total_ms"]) / float(row["chunks"])
+
+    def finding_num(row):
+        return int(row["finding"].lstrip("#"))
+
+    # Our own arc: one bar per scheduler generation, favoring each one's
+    # latest result. Ties on finding number break to whichever row comes
+    # later in the file (later within the same finding write-up).
+    # "Orion v3" and "Orion v3 (patched)" are the same scheduler in two
+    # spellings across findings — only the patched build ever completes.
+    stages = [
+        ("Mosaic", ["Mosaic"]),
+        ("Orion v1", ["Orion v1"]),
+        ("Orion v2", ["Orion v2"]),
+        ("Orion v2.1", ["Orion v2.1"]),
+        ("Orion v2.2", ["Orion v2.2"]),
+        ("Orion v3 (patched)", ["Orion v3", "Orion v3 (patched)"]),
+    ]
+    progress = []
+    for label, engine_names in stages:
+        candidates = [(i, r) for i, r in enumerate(board_rows) if r["engine"] in engine_names]
+        idx, latest = max(candidates, key=lambda ir: (finding_num(ir[1]), ir[0]))
+        progress.append((label, emspc(latest), finding_num(latest)))
+
+    # Real servers: each one's single best (lowest) eMSPC on record, any run.
+    servers = []
+    for name in ["Paper", "Leaf"]:
+        candidates = [r for r in board_rows if r["engine"] == name]
+        best = min(candidates, key=emspc)
+        servers.append((name, emspc(best), finding_num(best), int(best["chunks"])))
+
+    # Ordinal blue ramp (dataviz skill palette.md, steps 250-550): our own
+    # progression is genuinely ordered (older -> newer integration).
+    ramp = ["#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#1c5cab"]
+    server_colors = [SERIES[1], SERIES[2]]  # categorical slots (orange, aqua) = Paper, Leaf
+
+    labels = [s for s, _, _ in progress] + [f"{s}\n(best result)" for s, _, _, c in servers]
+    values = [v for _, v, _ in progress] + [v for _, v, _, _ in servers]
+    findings = [f for _, _, f in progress] + [f for _, _, f, _ in servers]
+    colors = ramp + server_colors
+
+    fig, ax = plt.subplots(figsize=(11, 6))
+    x = list(range(len(labels)))
+    bars = ax.bar(x, values, color=colors, width=0.6, zorder=3)
+    ax.axvline(len(progress) - 0.5, color=BASELINE, linewidth=1, linestyle=":", zorder=2)
+
+    for bar, val, fnum in zip(bars, values, findings):
+        ax.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.1f}\n#{fnum}",
+                 ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY, linespacing=1.3)
+
+    ax.set_ylabel("effective MSPC (total_ms / chunks, ms/chunk) — lower is better")
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=9)
+    ax.set_ylim(0, max(values) * 1.22)
+
+    fig.suptitle(
+        "eMSPC has fallen ~44% since the mosaic — now ahead of Paper's own best run, still behind Leaf's",
+        color=INK_PRIMARY, fontsize=13, y=0.96,
+    )
+    ax.set_title(
+        "Each WorldgenD bar is that scheduler's latest champion-scale (6400-chunk) result (finding # labeled);\n"
+        "Paper/Leaf bars are each server's single best result on record — both from #19's larger 58081-chunk\n"
+        "sustained run, not the same scale as the WorldgenD bars. This box's own run-to-run noise is ~9% (#16/#17).",
+        color=INK_SECONDARY, fontsize=8.5, pad=10, loc="left",
+    )
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color(BASELINE)
+    ax.spines["bottom"].set_color(BASELINE)
+
+    legend_handles = [
+        plt.Rectangle((0, 0), 1, 1, color=ramp[-1], label="WorldgenD (own schedulers, oldest -> newest)"),
+        plt.Rectangle((0, 0), 1, 1, color=server_colors[0], label="Paper (best result on record)"),
+        plt.Rectangle((0, 0), 1, 1, color=server_colors[1], label="Leaf (best result on record)"),
+    ]
+    ax.legend(handles=legend_handles, frameon=False, loc="upper right", fontsize=9, labelcolor=INK_SECONDARY)
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -630,6 +718,8 @@ def main():
     )
 
     plot_cpu_traces(HERE / "orion_cpu_traces.png")
+
+    plot_emspc_integration_progress(HERE / "emspc_integration_progress.png")
 
     print(f"Wrote charts to {HERE}")
 
