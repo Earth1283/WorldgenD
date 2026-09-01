@@ -3,3 +3,6 @@ worldgend,"WorldgenD (headless, 4 workers)","WorldgenD",6400,229674,35.89,27.87
 paper,"Paper","Paper",6561,153770,23.44,42.67
 leaf,"Leaf","Leaf",6561,154670,23.57,42.42
 leaf_crack,"Leaf-with-crack (tick-frozen)","Leaf-with-crack",6561,151760,23.13,43.23
+paper_52,"Paper (drag race #52)","Paper",6561,154000,23.48,42.6
+leaf_52,"Leaf (drag race #52)","Leaf",6561,143000,21.78,45.9
+leafcrack_52,"Leaf-on-crack (drag race #52)","Leaf-on-crack",6561,160000,24.37,41.0

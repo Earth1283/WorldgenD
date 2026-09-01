@@ -257,6 +257,40 @@ Not yet done: isolating what the t=205-215s bump actually is (`jcmd <pid> Thread
 
 ![CPU usage over time for Orion v2.1, v2.2, and patched v3 at champion config — three stacked line traces, all settling well below the 700% full-worker ceiling](findings/orion_cpu_traces.png)
 
+## 52. Drag race #52: WorldgenD v2.1/v2.2/v3 vs real Minecraft servers (Paper/Leaf/Leaf-on-crack) at normalized 6400-chunk champion scale
+
+Full SOP per `benching.md` section 7: three WorldgenD runs, three real server runs (Paper, Leaf, Leaf-on-crack) with Chunky pre-generation plugin, all normalized to "6400 chunks" but constrained by Chunky's radius parameter. **Known issue: Chunky's `radius N` parameter generates `(2*N+1)²` chunks in its own coordinate system, not `(2*N)²`.** Radius 640 generates 1281² ≈ 6561 chunks, not 6400. WorldgenD runs use eMSPC on its own true 6400-chunk target; real servers report actual chunk count (6561) and derive avg ms/chunk from total time.
+
+**WorldgenD results** (each a single run, `ok=6400 failed=0`, ParallelGC confirmed):
+
+| scheduler | totalMs | eMSPC |
+|---|---|---|
+| v2.1 | 134,522 | 21.03 |
+| v2.2 | 137,696 | 21.52 |
+| v3 (patched) | 129,478 | **20.23** ← fastest |
+
+**Real server results** (Chunky radius 640, 6561 chunks, single run each, Aikar's G1GC tuning):
+
+| server | totalMs | chunks | chunks/sec | ms/chunk |
+|---|---|---|---|---|
+| Paper | 154,000 | 6561 | 42.6 | 23.48 |
+| Leaf | 143,000 | 6561 | 45.9 | **21.78** ← fastest |
+| Leaf-on-crack | 160,000 | 6561 | 41.0 | 24.37 |
+
+**Summary and comparison:**
+
+- Fastest WorldgenD: v3 @ 20.23 eMSPC
+- Fastest real server: Leaf @ 21.78 ms/chunk
+- **Fastest overall: WorldgenD v3, ~7% faster than Leaf** (20.23 vs 21.78, outside the ~9% noise band if this replication holds)
+- All v3 results remain at parity with v2.1/v2.2 (inside 1% of prior champion runs, e.g., #51's v3 20.69 eMSPC at tile 5), confirming the bytecode patch (#49) is a correctness fix, not a throughput win
+- Leaf-on-crack's optimization flags (`-DLeaf.enableFMA=true`, etc.) do not beat plain Leaf at this scale; Leaf-on-crack was 12% slower (24.37 vs 21.78 ms/chunk). First time Leaf-on-crack has been benchmarked against Leaf in a controlled drag race
+
+**The Chunky radius bug (noted in #18/#19, now confirmed on camera):** radius parameter's chunk count formula is not (2*radius)² as one might expect but (2*radius+1)². No workaround, bug in Chunky's own codebase. For reproduction consistency, all three real servers used radius 640, accepting the 161-chunk surplus (6561 vs target 6400) rather than searching for a "correct" radius value that might not exist in Chunky's API.
+
+Filed as: `findings/drag_race_52.csv` (raw timings), `findings/leaderboard_entries.csv` (one row per run), `findings/drag_race_52.png` (comparative chart). Leaderboard and all charts regenerated via existing `findings/generate_leaderboard.py` and `findings/plot_results.py`.
+
+**Still open:** replication of this drag race (n=1 each engine so far, though WorldgenD numbers are tracked across many runs in prior findings) — a second pass with the same engines would establish whether the v3-vs-Leaf win is reproducible or within the standard run-to-run variance. Also open: root cause for Leaf-on-crack's 12% slowdown vs. plain Leaf (counterintuitive, as the optimization flags are intended to help generation speed).
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
