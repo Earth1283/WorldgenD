@@ -35,3 +35,11 @@ orion3_7w_tile6_champion_jfr,"Orion v3 patched (7w, tile6, champion, JFR profile
 orion2_1_cpu_trace_51,"Orion v2.1 (7w, tile5, CPU-traced, #51)",orion2.1,5,6400,7,139230,1.05,2.33,63.53,246.74,642.43,2399.28,17182.05
 orion2_2_cpu_trace_51,"Orion v2.2 (7w, tile5, CPU-traced, #51)",orion2.2,5,6400,7,137340,1.28,4.20,23.25,115.11,487.59,3700.77,10367.78
 orion3_cpu_trace_51,"Orion v3 patched (7w, tile5, CPU-traced, #51)",orion3,5,6400,7,132446,1.03,2.47,66.79,225.01,564.24,2254.80,15892.86
+run,run,orion3,5,6400,7,128403,0.98,2.30,63.07,216.83,543.40,2317.41,16331.48
+orion3_53_control,"Orion v3 patched (control, #53 A/B)",orion3,5,6400,7,129467,0.5,3.14,65.61,227.87,523.4,2673.96,15650.7
+orion3_1_53,"Orion v3.1 (biome-memo patch, #53)",orion3,5,6400,7,130502,0.09,2.86,66.87,226.72,565.97,2333.66,15487.53
+orion3_54_wc50,"Orion v3 (#54, waitCeilingMs=50, MethodHandle dispatch)",orion3,5,6400,7,130484,0.76,3.15,61.64,227.29,552.37,3127.01,15119.68
+orion3_54_wc20,"Orion v3 (#54, waitCeilingMs=20)",orion3,5,6400,7,130578,0.25,2.77,64.67,231.74,566.21,2400.08,16018.72
+orion3_54_wc10,"Orion v3 (#54, waitCeilingMs=10)",orion3,5,6400,7,129373,0.98,3.19,65.17,227.22,555.29,2028.69,15731.76
+orion3_champion_10ms_default_1,"Orion v3 champion (10ms default confirm, run 1)",orion3,5,6400,7,130445,0.09,3.16,62.15,220.13,549.73,1817.43,15221.09
+orion3_champion_10ms_default_2,"Orion v3 champion (10ms default confirm, run 2)",orion3,5,6400,7,128431,0.31,2.57,65.65,218.96,566.47,2152.74,15344.19

@@ -55,3 +55,11 @@ Orion v3,champion scale drag race #52,129478,6400,#52
 Paper,champion scale drag race #52,154000,6561,#52
 Leaf,champion scale drag race #52,143000,6561,#52
 Leaf-on-crack,champion scale drag race #52,160000,6561,#52
+orion3,run,128403,6400,
+Orion v3 (patched),"champion scale, #53 A/B control",129467,6400,#53
+Orion v3.1,"champion scale, #53 A/B patched",130502,6400,#53
+Orion v3,"champion scale, #54 waitCeilingMs=50",130484,6400,#54
+Orion v3,"champion scale, #54 waitCeilingMs=20",130578,6400,#54
+Orion v3,"champion scale, #54 waitCeilingMs=10",129373,6400,#54
+Orion v3,"champion scale, 10ms default confirm run 1",130445,6400,#54
+Orion v3,"champion scale, 10ms default confirm run 2",128431,6400,#54

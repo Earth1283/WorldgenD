@@ -63,6 +63,7 @@ tasks.register<Jar>("agentJar") {
     archiveFileName.set("orion-agent.jar")
     from(sourceSets.main.get().output) {
         include("io/github/eath1283/worldgend/OrionPatchAgent*.class")
+        include("io/github/eath1283/worldgend/MemoizingPredicate*.class")
     }
     from({
         configurations.getByName("runtimeClasspath")

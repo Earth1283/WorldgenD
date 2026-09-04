@@ -617,6 +617,14 @@ def main():
         caption="4 workers this time (not 7), same 16GB pretouched heap, same mosaic — only the collector changes",
     )
 
+    with (HERE / "orion_results.csv").open() as f:
+        wc_rows = [r for r in csv.DictReader(f) if r["config"].startswith("orion3_54_wc")]
+    plot_percentiles(
+        wc_rows, HERE / "orion3_waitceiling_percentiles.png",
+        title="MSPC across claimOrWait's wait ceiling (#54)",
+        subtitle="Lower is better. Same champion config, only orion.waitceilingms changes — a tail-latency dial, not a throughput lever.",
+    )
+
     with (HERE / "jfr_ab_results.csv").open() as f:
         jfr_rows = list(csv.DictReader(f))
     plot_percentiles(

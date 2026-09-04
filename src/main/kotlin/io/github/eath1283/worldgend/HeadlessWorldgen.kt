@@ -53,6 +53,7 @@ fun main() {
     val orionLockRadius = System.getProperty("orion.lockradius", Orion.DEPENDENCY_RADIUS.toString()).toInt()
     val orionTelemetry = System.getProperty("orion.telemetry", "false").toBoolean()
     val orionDispatchThreads = System.getProperty("orion.dispatchthreads", "1").toInt()
+    val orionWaitCeilingMs = System.getProperty("orion.waitceilingms", "10").toLong()
 
     val serversDir = File(System.getProperty("user.dir"), "servers")
     val callTelemetry = if (System.getProperty("call.telemetry", "false").toBoolean())
@@ -433,7 +434,7 @@ fun main() {
         val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
         val orion = OrionV3(
             mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor,
-            orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile,
+            orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile, orionWaitCeilingMs,
         )
         val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
         println(

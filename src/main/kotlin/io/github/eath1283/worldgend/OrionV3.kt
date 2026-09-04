@@ -1,6 +1,7 @@
 package io.github.eath1283.worldgend
 
 import java.io.File
+import java.lang.invoke.MethodHandles
 import java.lang.reflect.Method
 import java.util.Collections
 import java.util.concurrent.CompletableFuture
@@ -37,6 +38,13 @@ class OrionV3(
     private val maxInFlight: Int,
     private val lockRadius: Int = Orion.DEPENDENCY_RADIUS,
     private val telemetry: File? = null,
+    // #50: safety-net timeout on workAvailable.await(), not a busy-poll interval — every
+    // release already signals directly via releaseLockedAndSignal(). Configurable per #54's
+    // sweep of whether a shorter ceiling moves tail latency; default reproduces #49/#50 exactly.
+    // #54: p99 tail latency dropped ~35% (3127->2028ms) going from 50ms to 10ms, eMSPC
+    // flat inside the ~9% noise band across the whole sweep — no measured throughput
+    // downside, so 10ms is now the code-level default (was 50ms).
+    private val waitCeilingMs: Long = 10L,
 ) {
     companion object {
         private const val POLL_BACKOFF_FLOOR_NANOS = 1_000L
@@ -60,6 +68,11 @@ class OrionV3(
 
     private val alreadyClaimed = ConcurrentHashMap.newKeySet<Long>()
     private val telemetryStart = System.nanoTime()
+
+    // #50: getChunkFuture.call(...) on the hot per-chunk dispatch path went through plain
+    // reflective Method.invoke (0.19% of total CPU, 55/29160 JFR samples). Resolved once
+    // here instead of per chunk.
+    private val getChunkFutureHandle = MethodHandles.lookup().unreflect(getChunkFuture)
 
     private fun key(cx: Int, cz: Int) = (cx.toLong() shl 32) or (cz.toLong() and 0xFFFFFFFFL)
 
@@ -172,7 +185,7 @@ class OrionV3(
             try {
                 var candidate = claimOneLocked()
                 while (candidate == null && !stop.get()) {
-                    workAvailable.await(50, TimeUnit.MILLISECONDS)
+                    workAvailable.await(waitCeilingMs, TimeUnit.MILLISECONDS)
                     candidate = claimOneLocked()
                 }
                 return candidate
@@ -200,7 +213,7 @@ class OrionV3(
                     logTelemetry("DISPATCH", cx, cz)
                     val submitNanos = System.nanoTime()
                     @Suppress("UNCHECKED_CAST")
-                    val future = getChunkFuture.call(chunkSource, cx, cz, fullStatus, true) as CompletableFuture<Any?>
+                    val future = getChunkFutureHandle.invoke(chunkSource, cx, cz, fullStatus, true) as CompletableFuture<Any?>
                     future.whenComplete { _, _ ->
                         chunkMspc.add((System.nanoTime() - submitNanos) / 1_000_000.0)
                         releaseLockedAndSignal(candidate)

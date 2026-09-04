@@ -28,9 +28,17 @@ import javassist.LoaderClassPath
 // Gated behind -Dorion.patchReentrancy=true so v2.1/v2.2 runs (no flag) load the
 // completely unmodified class — that's the vanilla control path for correctness
 // comparison, not a mode switch inside patched code.
+// #53: memoizes SurfaceRules$BiomeConditionSource.biomeNameTest (a Predicate<ResourceKey<Biome>>
+// derived once from the parsed surface-rule tree, config-invariant for the run) so the
+// per-column Holder.is(biomeNameTest) call in the BiomeCondition$1 local class hits a cache
+// instead of re-probing the backing Set every column. Patches the OUTER class's constructor,
+// not the local class — the per-column call site is untouched, only the Predicate it calls
+// into changes identity. Gated behind -Dorion.patchBiomeMemo=true, independent of
+// orion.patchReentrancy. See scientific-findings-41-80.md #53, static-analysis-findings.md.
 object OrionPatchAgent {
     private const val BLOCKABLE_EVENT_LOOP = "net.minecraft.util.thread.BlockableEventLoop"
     private const val SERVER_CHUNK_CACHE = "net.minecraft.server.level.ServerChunkCache"
+    private const val SURFACE_RULES_BIOME_CONDITION = "net.minecraft.world.level.levelgen.SurfaceRules\$BiomeConditionSource"
 
     // Straight-to-file, not println: #23's already-documented quirk where buffered stdout
     // doesn't reliably reach the redirected log until process exit — same fix as
@@ -43,15 +51,21 @@ object OrionPatchAgent {
 
     @JvmStatic
     fun premain(agentArgs: String?, inst: Instrumentation) {
-        if (System.getProperty("orion.patchReentrancy") != "true") {
-            System.err.println("[OrionPatchAgent] orion.patchReentrancy != true, not installing (vanilla control path)")
+        val patchReentrancy = System.getProperty("orion.patchReentrancy") == "true"
+        val patchBiomeMemo = System.getProperty("orion.patchBiomeMemo") == "true"
+        if (!patchReentrancy && !patchBiomeMemo) {
+            System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
-        System.err.println("[OrionPatchAgent] installed, will patch $BLOCKABLE_EVENT_LOOP and $SERVER_CHUNK_CACHE on load")
-        inst.addTransformer(Transformer())
+        if (patchReentrancy) System.err.println("[OrionPatchAgent] will patch $BLOCKABLE_EVENT_LOOP and $SERVER_CHUNK_CACHE on load")
+        if (patchBiomeMemo) System.err.println("[OrionPatchAgent] will patch $SURFACE_RULES_BIOME_CONDITION on load")
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo))
     }
 
-    private class Transformer : ClassFileTransformer {
+    private class Transformer(
+        private val patchReentrancy: Boolean,
+        private val patchBiomeMemo: Boolean,
+    ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
             className: String,
@@ -60,11 +74,16 @@ object OrionPatchAgent {
             classfileBuffer: ByteArray,
         ): ByteArray? {
             val dotted = className.replace('/', '.')
-            if (dotted != BLOCKABLE_EVENT_LOOP && dotted != SERVER_CHUNK_CACHE) return null
+            val handled = (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
+                (patchBiomeMemo && dotted == SURFACE_RULES_BIOME_CONDITION)
+            if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
-                val result = if (dotted == BLOCKABLE_EVENT_LOOP) patchBlockableEventLoop(loader, classfileBuffer)
-                    else patchServerChunkCache(loader, classfileBuffer)
+                val result = when (dotted) {
+                    BLOCKABLE_EVENT_LOOP -> patchBlockableEventLoop(loader, classfileBuffer)
+                    SERVER_CHUNK_CACHE -> patchServerChunkCache(loader, classfileBuffer)
+                    else -> patchBiomeConditionSource(loader, classfileBuffer)
+                }
                 debugLog("transform() of $dotted succeeded, ${result.size} bytes")
                 result
             } catch (t: Throwable) {
@@ -179,6 +198,34 @@ object OrionPatchAgent {
             val bytes = cc.toBytecode()
             if (System.getProperty("orion.patchDebugDump") == "true") {
                 java.io.File("/tmp/ServerChunkCache_patched.class").writeBytes(bytes)
+            }
+            cc.detach()
+            return bytes
+        }
+
+        // biomeNameTest is assigned once in the constructor (`Set.copyOf(biomes)::contains`,
+        // confirmed via javap) and never reassigned elsewhere — wrapping it right after that
+        // assignment makes every later Holder.is(biomeNameTest) call (in the BiomeCondition$1
+        // local class, untouched) hit the memo cache instead of the Set. Field is `private
+        // final`; javassist's own bytecode writer doesn't enforce final on a second putfield
+        // within the declaring class's own <init>, but strip the modifier anyway so a stricter
+        // verifier can't reject it.
+        private fun patchBiomeConditionSource(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+
+            val field = cc.getDeclaredField("biomeNameTest")
+            field.modifiers = field.modifiers and javassist.Modifier.FINAL.inv()
+
+            val ctor = cc.declaredConstructors[0]
+            ctor.insertAfter(
+                """{
+                    biomeNameTest = new io.github.eath1283.worldgend.MemoizingPredicate(biomeNameTest);
+                }"""
+            )
+
+            val bytes = cc.toBytecode()
+            if (System.getProperty("orion.patchDebugDump") == "true") {
+                java.io.File("/tmp/BiomeConditionSource_patched.class").writeBytes(bytes)
             }
             cc.detach()
             return bytes

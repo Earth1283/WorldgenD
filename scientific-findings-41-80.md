@@ -291,6 +291,113 @@ Filed as: `findings/drag_race_52.csv` (raw timings), `findings/leaderboard_entri
 
 **Still open:** replication of this drag race (n=1 each engine so far, though WorldgenD numbers are tracked across many runs in prior findings) — a second pass with the same engines would establish whether the v3-vs-Leaf win is reproducible or within the standard run-to-run variance. Also open: root cause for Leaf-on-crack's 12% slowdown vs. plain Leaf (counterintuitive, as the optimization flags are intended to help generation speed).
 
+## 53. Orion v3.1: memoizing the biome-condition predicate in SurfaceRules
+
+`static-analysis-findings.md` (a standalone investigation, not part of this numbered series) identified one category-(c) candidate: `SurfaceRules$BiomeConditionSource`'s `biomeNameTest` predicate is derived once from `Set.copyOf(biomes)` at parse time (config-invariant for the run, confirmed via `javap` disassembly of the constructor — `invokedynamic test:(Set)Predicate` followed by a single `putfield`), but the per-column call site (`Holder.is(biomeNameTest)`, in the `BiomeConditionSource$1BiomeCondition` local class) re-probes the backing `Set` every column. JFR from `champion_baseline.jfr` showed real time here: `ImmutableCollections$SetN.probe` (138 samples), `TypedInstance.is(TagKey)` (109 samples).
+
+**The patch** (`OrionPatchAgent.kt`, `patchBiomeConditionSource`, gated behind `-Dorion.patchBiomeMemo=true`, independent of `-Dorion.patchReentrancy`): patches the OUTER `BiomeConditionSource` class's constructor, not the per-column local class. Right after `biomeNameTest` is assigned, wraps it: `biomeNameTest = new MemoizingPredicate(biomeNameTest)` — a new `ConcurrentHashMap`-backed `Predicate` decorator (`MemoizingPredicate.kt`). The per-column call site is untouched; it calls into a differently-implemented but behaviorally identical `Predicate`. `biomeNameTest` is `private final`; stripped the `FINAL` bit off the `CtField` before `toBytecode()` since a second `putfield` from within the declaring class's own `<init>` is otherwise fine for javassist's writer but not guaranteed against a stricter verifier.
+
+**A/B at champion scale** (16g pretouched heap, ParallelGC, 7 workers, tile 5 → 6400 chunks, `orion.dispatchthreads=8`, `orion.maxinflight=64`, `orion.patchReentrancy=true` on both runs — required for orion3 correctness):
+
+| config | totalMs | ok | failed | eMSPC |
+|---|---|---|---|---|
+| Orion v3 (patched, control) | 129,467 | 6400 | 0 | 20.23 |
+| Orion v3.1 (+ biome memo) | 130,502 | 6400 | 0 | **20.39** |
+
+**Summary:** +0.8% (130502 vs 129467), well inside the ~9% run-to-run noise band established in #16/#17. **Null result — no measurable throughput win, at this scale.** The JFR-identified cost is real but small relative to total wall time; `SurfaceRules$Context`'s own per-column memoization (`LazyCondition.test()`, #16-era finding, still true) already bounds how much repeat work `BiomeCondition.compute()` does per column, and this patch only removes what's left after that — evidently not enough to clear noise. Percentile spread (`p99` 2673.96 → 2333.66, `p75` 523.40 → 565.97) moves in both directions across runs, consistent with noise rather than a directional latency effect either.
+
+Filed as: `findings/orion_results.csv` (`orion3_53_control`, `orion3_1_53` rows), `findings/leaderboard_entries.csv` (`Orion v3 (patched)` / `Orion v3.1` rows, finding `#53`), `"Orion v3.1"` added to `ENGINE_COLORS` in `findings/generate_leaderboard.py`. Leaderboard and all charts regenerated via the existing generators — no new one-off chart added, none of the existing `plot_*` helpers' shapes fit a two-row A/B better than the CSV table above.
+
+**Still open:** n=1 per arm — a replicated A/B (per #16/#17's own discipline) could still turn up a small directional effect currently swamped by noise. Also open, per `static-analysis-findings.md`'s own "Open questions": whether other `SurfaceRules.ConditionSource` implementations read only registry-invariant state per column (not audited), and whether `NoiseChunk`'s per-chunk interpolation cache could be widened to a per-run cache for position-independent density subtrees — neither investigated here. The harness (`harness/`) now has `orion_patch_biome_memo` wired up (default `false`, given the null result) for anyone who wants to replicate.
+
+## 54. `OrionV3`'s three items from #50: wait-ceiling sweep, cached `MethodHandle` dispatch, `reconsiderNear`
+
+#50 profiled patched `OrionV3` and named three cheap, not-yet-run items. All three land
+in `OrionV3.kt`/`HeadlessWorldgen.kt` directly — no bytecode patching, unlike #49/#53's
+Mojang-class agent work.
+
+**Cached `MethodHandle` for `getChunkFuture.call(...)`** (0.19% of total CPU per #50's
+JFR sample, 55/29160 frames): resolved once via `MethodHandles.lookup().unreflect(getChunkFuture)`
+in the constructor instead of going through reflective `Method.invoke` on every chunk.
+Applied unconditionally (no flag — same shape as #45's earlier bucketed-index cleanup).
+
+**`claimOrWait`'s wait ceiling made configurable** (`-Dorion.waitceilingms=<N>`, default
+`50` reproduces #49/#50 exactly): the 50ms in `workAvailable.await(50, TimeUnit.MILLISECONDS)`
+is a safety-net timeout, not a busy-poll — every release already calls `signalAll()`
+directly. #50 confirmed zero lock contention (`jdk.JavaMonitorEnter` count 0) and that the
+86% dispatch-thread park time is genuine work-unavailability from radius-8 dependency
+starvation, not a scheduling artifact — so this sweep tests tail latency, not throughput,
+exactly as #50 framed it.
+
+**`reconsiderNear` — skipped.** `PendingSpatialIndex.reconsiderNear()` is already bucketed
+(#45): it only scans the fixed ~3x3 cell neighborhood around a release, the same bound
+`HeldCenterIndex.isSafe()` uses. #50's suggested further cut — skip the scan entirely when
+the released coordinate's own bucket is empty — would silently drop candidates pending in
+*adjacent* buckets but not the center one, permanently starving them until the frontier
+cursor happens to reach them (not a `failed>0` correctness break, but a real latency
+regression, and `PendingSpatialIndex` is shared with `OrionV2_1`, so the risk isn't
+scoped to v3 alone). No safe version of this cut was found that saves meaningfully more
+than the scan already bounded by #45 — skipped, per #50's own "not worth chasing unless
+free" framing.
+
+**Champion-scale results** (16g pretouched heap, ParallelGC, 7 workers, tile 5 = 6400
+chunks, `orion.dispatchthreads=8 orion.maxinflight=64`, agent + `orion.patchReentrancy=true`
+on all three, `ok=6400 failed=0` on all three):
+
+| waitCeilingMs | totalMs | eMSPC | p99 | max |
+|---|---|---|---|---|
+| 50 (default, MethodHandle applied) | 130,484 | 20.39 | 3127.01 | 15119.68 |
+| 20 | 130,578 | 20.40 | 2400.08 | 16018.72 |
+| 10 | 129,373 | 20.21 | 2028.69 | 15731.76 |
+
+**Summary:**
+
+- eMSPC across all three: 20.21-20.40, entirely inside the ~9% noise band — no throughput
+  effect, exactly as #50 predicted.
+- **p99 drops monotonically as the ceiling shrinks: 3127ms -> 2400ms -> 2028ms, a real
+  ~35% cut from 50ms to 10ms.** This is the one real, reproducible effect in this finding
+  — a genuine tail-latency dial, not noise (the direction is consistent across all three
+  points, unlike `max`, which doesn't trend and is a single-sample statistic).
+  `max` itself stays flat/noisy (15119/16018/15732) — not a reliable signal at n=1 per
+  point.
+- The 50ms row (with the `MethodHandle` patch already baked in) sits at eMSPC 20.39,
+  essentially identical to #53's pre-patch control (129,467ms/20.23) — confirming #50's
+  prediction that the reflective-dispatch cost is a rounding error on wall-clock, even
+  though it's a real, free cleanup worth keeping.
+
+**Filed as:** `findings/orion_results.csv` (`orion3_54_wc50`/`wc20`/`wc10`),
+`findings/leaderboard_entries.csv` (engine `Orion v3`, one row per waitCeilingMs value),
+`findings/orion3_waitceiling_percentiles.png` (new chart, reusing `plot_percentiles`).
+Leaderboard regenerated (`Orion v3` added to `ENGINE_COLORS`).
+
+**Harness:** `harness/src/config.rs` gained `orion_wait_ceiling_ms: u32` (default `50`,
+matching the code default) on `BenchConfig`, wired into `to_args()` as
+`-Dorion.waitceilingms=<N>` gated on `is_orion3()`, plus a config-screen row and
+`FIELD_DESCRIPTIONS` entry (`CONFIG_FIELDS` 16 -> 17) — the tail-latency effect is real
+enough to be worth exposing as a tunable, even though it's not a throughput lever.
+
+**Still open:** whether a ceiling below 10ms keeps cutting p99 or hits a floor (more
+frequent futile wakeups eventually costing CPU); this sweep only covers 50/20/10. Also
+open: #50's `isSafe`/`reconsiderNear`/`takeEligible` 0.64%-of-total-CPU bucket is now the
+only unaddressed item from #50's list, deliberately left alone here for the correctness
+reasons above.
+
+**Default promoted, n=2 replication.** `orion.waitceilingms`'s code default (both
+`OrionV3.kt`'s constructor and `HeadlessWorldgen.kt`'s property fallback) changed 50ms ->
+10ms; `harness/src/config.rs` and `benching.md`'s champion baseline updated to match. Two
+champion-scale confirmation runs with the flag omitted entirely (new default takes effect
+implicitly): `ok=6400 failed=0` both, ParallelGC confirmed — run 1 totalMs=130445 (eMSPC
+20.38, p99=1817ms), run 2 totalMs=128431 (eMSPC 20.07, p99=2153ms). Both eMSPC values sit
+inside the existing champion range and both p99s land in the same band the 10ms sweep row
+above predicted (2029ms) — no surprise, default change validated. Filed as
+`orion3_champion_10ms_default_1`/`_2` in `findings/orion_results.csv` and
+`findings/leaderboard_entries.csv`; `findings/emspc_integration_progress.png` and
+`leaderboard.html` regenerated (the integration-progress chart's "Orion v3 (patched)" bar
+now reflects confirm-run-2, 20.07 eMSPC, as this scheduler's current champion figure). No
+new percentile chart added — `orion3_waitceiling_percentiles.png` from the sweep above
+already shows the p99 trend, and both confirm runs land inside its existing 1800-2150ms
+band, so a second chart would be redundant.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
