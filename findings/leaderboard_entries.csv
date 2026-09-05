@@ -63,3 +63,5 @@ Orion v3,"champion scale, #54 waitCeilingMs=20",130578,6400,#54
 Orion v3,"champion scale, #54 waitCeilingMs=10",129373,6400,#54
 Orion v3,"champion scale, 10ms default confirm run 1",130445,6400,#54
 Orion v3,"champion scale, 10ms default confirm run 2",128431,6400,#54
+Orion v3,"champion scale, #55 generate-structures=true (control)",126516,6400,#55
+Orion v3,"champion scale, #55 generate-structures=false",121397,6400,#55

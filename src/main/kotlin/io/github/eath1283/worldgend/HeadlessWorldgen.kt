@@ -73,7 +73,13 @@ fun main() {
     // silently defeating the pinned seed below.
     val runDir = File(serversDir, ".run").apply { deleteRecursively(); mkdirs() }
 
-    val propertiesFile = File(runDir, "server.properties").apply { writeText("level-seed=69\n") }
+    // #55: STRUCTURE_STARTS is the sole radius-8 requirement in ChunkPyramid
+    // (#7) -- every other requirement is radius 1. Toggle to test whether
+    // disabling structure search collapses the dependency radius and relieves
+    // the scarcity #50/#51/#54 pinned as the real ceiling.
+    val generateStructures = System.getProperty("worldgen.generateStructures", "true").toBoolean()
+    val propertiesFile = File(runDir, "server.properties")
+        .apply { writeText("level-seed=69\ngenerate-structures=$generateStructures\n") }
     val cDedicatedServerSettings = mc.c("net.minecraft.server.dedicated.DedicatedServerSettings")
     val dedicatedServerSettings = mc.new(
         cDedicatedServerSettings, arrayOf(Path::class.java), arrayOf(propertiesFile.toPath())

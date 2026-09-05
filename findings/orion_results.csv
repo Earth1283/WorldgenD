@@ -43,3 +43,5 @@ orion3_54_wc20,"Orion v3 (#54, waitCeilingMs=20)",orion3,5,6400,7,130578,0.25,2.
 orion3_54_wc10,"Orion v3 (#54, waitCeilingMs=10)",orion3,5,6400,7,129373,0.98,3.19,65.17,227.22,555.29,2028.69,15731.76
 orion3_champion_10ms_default_1,"Orion v3 champion (10ms default confirm, run 1)",orion3,5,6400,7,130445,0.09,3.16,62.15,220.13,549.73,1817.43,15221.09
 orion3_champion_10ms_default_2,"Orion v3 champion (10ms default confirm, run 2)",orion3,5,6400,7,128431,0.31,2.57,65.65,218.96,566.47,2152.74,15344.19
+orion3_55_structures_true,"Orion v3 champion (generate-structures=true, control)",orion3,5,6400,7,126516,0.11,2.39,59.89,216.16,560.73,2046.87,15086.66
+orion3_55_structures_false,Orion v3 champion (generate-structures=false),orion3,5,6400,7,121397,0.74,2.87,65.01,222.3,582.89,2080.14,11377.66
