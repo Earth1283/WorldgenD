@@ -45,3 +45,9 @@ orion3_champion_10ms_default_1,"Orion v3 champion (10ms default confirm, run 1)"
 orion3_champion_10ms_default_2,"Orion v3 champion (10ms default confirm, run 2)",orion3,5,6400,7,128431,0.31,2.57,65.65,218.96,566.47,2152.74,15344.19
 orion3_55_structures_true,"Orion v3 champion (generate-structures=true, control)",orion3,5,6400,7,126516,0.11,2.39,59.89,216.16,560.73,2046.87,15086.66
 orion3_55_structures_false,Orion v3 champion (generate-structures=false),orion3,5,6400,7,121397,0.74,2.87,65.01,222.3,582.89,2080.14,11377.66
+orion4_59_baseline_no_patches,"Orion v3 champion baseline (tile=6, origin, no structure/DFC patches)",orion3,6,9216,7,181639,1.59,5.71,79.74,293.58,744.90,3399.04,21003.02
+orion4_59_structure_patch_only,"Orion v4 champion (structure-gen fix only, DFC off, tile=6 origin)",orion4,6,9216,7,187663,0.65,6.76,78.39,297.79,806.79,3234.76,21310.56
+orion4_59_with_dfc,"Orion v4 + DFC (#59, measured regression, tile=6 origin)",orion4,6,9216,7,231184,0.08,5.78,72.56,336.83,953.03,4238.33,35956.10
+orion4_60_dfc_field_cache,"Orion v4 + DFC, real per-instance field cache (#60, still regression)",orion4,6,9216,7,218796,0.93,5.48,70.07,305.89,915.19,3850.84,31975.54
+orion4_61_dfc_interpreted,"Orion v4 + DFC, monomorphic interpreter class (#61, parity/noise-band)",orion4,6,9216,7,192627,0.09,5.87,72.40,268.11,819.26,3281.16,23272.91
+orion4_61_dfc_interpreted_run2,"Orion v4 + DFC, monomorphic interpreter, replication run 2 (#61)",orion4,6,9216,7,198734,0.77,5.78,76.37,286.33,848.99,3566.46,24205.36

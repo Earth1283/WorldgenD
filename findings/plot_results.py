@@ -590,6 +590,67 @@ def plot_emspc_integration_progress(out_path):
     plt.close(fig)
 
 
+def plot_orion_v4_arc(orion_rows_by_config, out_path):
+    # Orion v4's own arc (#59-#61): baseline -> structure-gen fix -> DFC attempts,
+    # each bar one specific champion-scale run, in the order they actually happened.
+    stages = [
+        ("orion3 baseline\n(no patches)", "orion4_59_baseline_no_patches", "#59"),
+        ("orion4\n(structure fix only)", "orion4_59_structure_patch_only", "#59"),
+        ("orion4 + DFC\n(hashmap cache)", "orion4_59_with_dfc", "#59"),
+        ("orion4 + DFC\n(field cache,\nbespoke classes)", "orion4_60_dfc_field_cache", "#60"),
+        ("orion4 + DFC\n(interpreter,\nrun 1)", "orion4_61_dfc_interpreted", "#61"),
+        ("orion4 + DFC\n(interpreter,\nrun 2)", "orion4_61_dfc_interpreted_run2", "#61"),
+    ]
+    labels = [s[0] for s in stages]
+    rows = [orion_rows_by_config[s[1]] for s in stages]
+    findings = [s[2] for s in stages]
+    values = [float(r["total_ms"]) / float(r["chunks"]) for r in rows]
+
+    baseline_emspc = values[1]  # orion4, structure fix only, DFC off — what DFC is measured against
+
+    # Regression bars in warm reds, the fixed/replicated bars back in the ordinal
+    # blue ramp #61's own text calls "parity" — color itself tells the arc's shape.
+    colors = [BASELINE, SERIES[2], "#c0392b", "#e0685a", SERIES[0], "#5598e7"]
+
+    fig, ax = plt.subplots(figsize=(11, 6))
+    x = list(range(len(labels)))
+    bars = ax.bar(x, values, color=colors, width=0.62, zorder=3)
+    ax.axhline(baseline_emspc, color=INK_MUTED, linewidth=1, linestyle="--", zorder=2)
+    ax.text(len(labels) - 0.4, baseline_emspc, f"orion4-no-DFC: {baseline_emspc:.2f}",
+            ha="right", va="bottom", fontsize=8.5, color=INK_MUTED)
+
+    for bar, val, fnum in zip(bars, values, findings):
+        pct = (val / baseline_emspc - 1) * 100
+        pct_label = f"{pct:+.1f}%" if bar is not bars[1] else "baseline"
+        ax.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.2f}\n{pct_label}\n{fnum}",
+                ha="center", va="bottom", fontsize=8, color=INK_SECONDARY, linespacing=1.35)
+
+    ax.set_ylabel("effective MSPC (total_ms / chunks, ms/chunk) — lower is better")
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=8.5)
+    ax.set_ylim(0, max(values) * 1.28)
+
+    fig.suptitle(
+        "Orion v4's DFC arc: two regressions, then a fix that lands at parity",
+        color=INK_PRIMARY, fontsize=13, y=0.97,
+    )
+    ax.set_title(
+        "All champion scale (9216 chunks, 16GB pretouched, ParallelGC, 7 workers), origin-centered. Percentages are\n"
+        "vs orion4 with the structure-gen fix alone (DFC off) — the dashed line. Both interpreter runs land inside\n"
+        "this box's own ~9% run-to-run noise band (#16/#17): parity, not a confirmed win.",
+        color=INK_SECONDARY, fontsize=8.5, pad=10, loc="left",
+    )
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color(BASELINE)
+    ax.spines["bottom"].set_color(BASELINE)
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -728,6 +789,8 @@ def main():
     plot_cpu_traces(HERE / "orion_cpu_traces.png")
 
     plot_emspc_integration_progress(HERE / "emspc_integration_progress.png")
+
+    plot_orion_v4_arc(orion_rows_by_config, HERE / "orion4_dfc_arc.png")
 
     print(f"Wrote charts to {HERE}")
 

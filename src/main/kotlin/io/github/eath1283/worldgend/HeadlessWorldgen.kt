@@ -67,6 +67,157 @@ fun main() {
     mc.method(mc.c("net.minecraft.SharedConstants"), "tryDetectVersion").call(null)
     mc.method(mc.c("net.minecraft.server.Bootstrap"), "bootStrap").call(null)
 
+    // Direct stress test, not a real-generation timing gamble: resetPieces() is the exact
+    // method that reassigns StrongholdPieces' racy static state (currentPieces/totalWeight/
+    // imposedPiece), needs nothing but Bootstrap.bootStrap() having run, and can be hammered
+    // millions of times a second from N threads — real chunk generation only ever triggers
+    // it once per stronghold, making timing-based detection near-impossible (see the three
+    // failed real-generation attempts this session). A genuine race here surfaces as an
+    // actual exception (ArrayIndexOutOfBounds/ConcurrentModification/NPE), not a maybe.
+    if (schedulerMode == "stress-stronghold") {
+        val cStrongholdPieces = mc.c("net.minecraft.world.level.levelgen.structure.structures.StrongholdPieces")
+        val resetPieces = mc.publicMethod(cStrongholdPieces, "resetPieces")
+        val threads = System.getProperty("stress.threads", "8").toInt()
+        val iterations = System.getProperty("stress.iterations", "200000").toLong()
+        val inCritical = java.util.concurrent.atomic.AtomicInteger(0)
+        val maxConcurrent = java.util.concurrent.atomic.AtomicInteger(0)
+        val exceptions = java.util.concurrent.atomic.AtomicLong(0)
+        val samples = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val workers = (1..threads).map {
+            Thread {
+                var i = 0L
+                while (i < iterations) {
+                    val cur = inCritical.incrementAndGet()
+                    maxConcurrent.updateAndGet { m -> maxOf(m, cur) }
+                    try {
+                        resetPieces.call(null)
+                    } catch (t: Throwable) {
+                        exceptions.incrementAndGet()
+                        val real = t.cause ?: t
+                        if (samples.size < 8) samples.add("${real.javaClass.name}: ${real.message}")
+                    } finally {
+                        inCritical.decrementAndGet()
+                    }
+                    i++
+                }
+            }
+        }
+        val start = System.nanoTime()
+        workers.forEach { it.start() }
+        workers.forEach { it.join() }
+        val elapsedMs = (System.nanoTime() - start) / 1_000_000
+        File(serversDir.parentFile, "stress_result.txt").writeText(
+            "stress-stronghold: threads=$threads iterations=$iterations totalCalls=${threads * iterations} " +
+                "maxConcurrent=${maxConcurrent.get()} exceptions=${exceptions.get()} elapsedMs=$elapsedMs\n" +
+                "samples: ${samples.joinToString(" | ")}\n"
+        )
+        return
+    }
+
+    // DFC Stage 1 proof-of-mechanism (see scientific-findings-41-80.md #56's follow-up
+    // section / Dfc.kt): does compiling a DensityFunction tree into one flat method
+    // actually beat vanilla's own polymorphic compute() dispatch, on this jar and JDK?
+    // Builds a synthetic tree from real DensityFunctions factories, not a toy — only
+    // needs Bootstrap.bootStrap(), same reasoning as stress-stronghold above.
+    if (schedulerMode == "dfc-bench") try {
+        val cDensityFunctions = mc.c("net.minecraft.world.level.levelgen.DensityFunctions")
+        val cDensityFunction = mc.c("net.minecraft.world.level.levelgen.DensityFunction")
+        val cFunctionContext = mc.c("net.minecraft.world.level.levelgen.DensityFunction\$FunctionContext")
+        val constant = mc.publicMethod(cDensityFunctions, "constant", Double::class.javaPrimitiveType!!)
+        val add = mc.publicMethod(cDensityFunctions, "add", cDensityFunction, cDensityFunction)
+        val mul = mc.publicMethod(cDensityFunctions, "mul", cDensityFunction, cDensityFunction)
+        val yClampedGradient = mc.publicMethod(
+            cDensityFunctions, "yClampedGradient",
+            Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Double::class.javaPrimitiveType!!, Double::class.javaPrimitiveType!!,
+        )
+        val realLeaves = System.getProperty("dfc.realleaves", "false").toBoolean()
+
+        val depth = System.getProperty("dfc.depth", "12").toInt()
+        val iterations = System.getProperty("dfc.iterations", "20000000").toLong()
+
+        val ctx = java.lang.reflect.Proxy.newProxyInstance(loader, arrayOf(cFunctionContext), InvocationHandler { _, method, margs ->
+            when (method.name) {
+                "blockX" -> 100
+                "blockY" -> 64
+                "blockZ" -> 100
+                else -> defaultInvoke(method, margs)
+            }
+        })
+
+        // Vanilla's own add()/mul() fold two Constant operands at construction time
+        // (confirmed: an all-constant tree collapsed to a single leaf, per a first
+        // pass of this benchmark). Non-foldable leaves keep the tree's real depth.
+        // Two leaf kinds: Proxy stand-ins (first pass — InvocationHandler dispatch
+        // dilutes the glue-removal signal we're actually trying to measure) vs real
+        // yClampedGradient instances (concrete vanilla class, real virtual call, no
+        // reflection tax on either the vanilla or compiled path) — dfc.realleaves
+        // picks which, so both numbers are on record.
+        fun newLeaf(seed: Int): Any = if (realLeaves) {
+            yClampedGradient.call(null, 0, 256, seed * 0.01, seed * 0.01 + 1.0)!!
+        } else {
+            java.lang.reflect.Proxy.newProxyInstance(loader, arrayOf(cDensityFunction), InvocationHandler { proxy, method, margs ->
+                when (method.name) {
+                    "compute" -> {
+                        val x = mc.publicMethod(cFunctionContext, "blockX").call(margs!![0]) as Int
+                        ((x + seed) % 7) * 0.1
+                    }
+                    "minValue" -> -1.0
+                    "maxValue" -> 1.0
+                    "hashCode" -> System.identityHashCode(proxy)
+                    "equals" -> proxy === margs?.get(0)
+                    "toString" -> "TestLeaf$seed"
+                    else -> defaultInvoke(method, margs)
+                }
+            })
+        }
+
+        // A lopsided tree of alternating add/mul over depth+1 leaves.
+        fun buildTree(d: Int): Any {
+            var acc = newLeaf(d)
+            for (i in 0 until d) {
+                val leaf = newLeaf(i)
+                acc = if (i % 2 == 0) add.call(null, acc, leaf)!! else mul.call(null, acc, leaf)!!
+            }
+            return acc
+        }
+        val tree = buildTree(depth)
+
+        val converter = DfcConverter(mc)
+        val ast = converter.toAst(tree)
+        val compiled = DfcCompilerGen.compile(loader, ast)
+        val leavesArray = converter.leaves.toTypedArray()
+
+        val computeMethod = mc.publicMethod(cDensityFunction, "compute", cFunctionContext)
+
+        // Warmup both paths equally before timing either.
+        var sink = 0.0
+        repeat(200_000) {
+            sink += computeMethod.call(tree, ctx) as Double
+            sink += compiled.eval(leavesArray, ctx)
+        }
+
+        val vanillaStart = System.nanoTime()
+        var i = 0L
+        while (i < iterations) { sink += computeMethod.call(tree, ctx) as Double; i++ }
+        val vanillaMs = (System.nanoTime() - vanillaStart) / 1_000_000
+
+        val compiledStart = System.nanoTime()
+        i = 0L
+        while (i < iterations) { sink += compiled.eval(leavesArray, ctx); i++ }
+        val compiledMs = (System.nanoTime() - compiledStart) / 1_000_000
+
+        File(serversDir.parentFile, "dfc_bench_result.txt").writeText(
+            "dfc-bench: depth=$depth iterations=$iterations leaves=${leavesArray.size} realLeaves=$realLeaves sink=$sink\n" +
+                "vanilla computeMs=$vanillaMs (${vanillaMs.toDouble() / iterations * 1_000_000}ns/call)\n" +
+                "compiled evalMs=$compiledMs (${compiledMs.toDouble() / iterations * 1_000_000}ns/call)\n" +
+                "speedup=${vanillaMs.toDouble() / compiledMs}x\n"
+        )
+        return
+    } catch (t: Throwable) {
+        File(serversDir.parentFile, "dfc_bench_result.txt").writeText("THREW: ${t.stackTraceToString()}\n")
+        return
+    }
+
     // A fresh .run every launch: createNewWorldData() always builds new world
     // data regardless of what's on disk, but a stale region file from a prior
     // (different-seed) run would still get loaded back instead of regenerated,
@@ -258,6 +409,57 @@ fun main() {
     val mosaicSide = MOSAIC_N * mosaicTile
     val base = -mosaicSide / 2
 
+    // One-off lookup so task #3 can target a chunk that actually exercises the structure-gen
+    // patches, instead of guessing a mosaic region large enough to reach a stronghold's ring.
+    if (schedulerMode == "locate") {
+        val structureLocationArg = System.getProperty("locate.structure", "minecraft:stronghold")
+        val cIdentifier = mc.c("net.minecraft.resources.Identifier")
+        val identifierOf = mc.publicMethod(cIdentifier, "parse", String::class.java).call(null, structureLocationArg)!!
+        val cRegistries = mc.c("net.minecraft.core.registries.Registries")
+        val structureKey = mc.staticField(cRegistries, "STRUCTURE")
+        val cRegistryAccess = mc.c("net.minecraft.core.RegistryAccess")
+        val registryAccess = mc.publicMethod(cMinecraftServer, "registryAccess").call(dedicatedServer)!!
+        val cRegistry = mc.c("net.minecraft.core.Registry")
+        val lookupOrThrow = mc.methodByReturn(cRegistryAccess, "lookupOrThrow", 1, cRegistry)
+        val structureRegistry = lookupOrThrow.call(registryAccess, structureKey)!!
+        @Suppress("UNCHECKED_CAST")
+        val holderOpt = mc.publicMethod(cRegistry, "get", cIdentifier).call(structureRegistry, identifierOf) as Optional<Any?>
+        val holder = holderOpt.orElseThrow { IllegalStateException("no such structure: $structureLocationArg") }!!
+        val cHolderSet = mc.c("net.minecraft.core.HolderSet")
+        val holderSet = mc.publicMethod(cHolderSet, "direct", java.util.List::class.java).call(null, java.util.List.of(holder))!!
+
+        val cChunkGenerator = mc.c("net.minecraft.world.level.chunk.ChunkGenerator")
+        val generator = mc.publicMethod(cServerChunkCache, "getGenerator").call(chunkSource)!!
+        val cBlockPos = mc.c("net.minecraft.core.BlockPos")
+        val originX = System.getProperty("locate.originx", "0").toInt()
+        val originZ = System.getProperty("locate.originz", "0").toInt()
+        val origin = mc.new(cBlockPos, arrayOf(Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!), arrayOf(originX, 0, originZ))
+        val cHolderSetIface = mc.c("net.minecraft.core.HolderSet")
+        val findNearestMapStructure = mc.publicMethod(
+            cChunkGenerator, "findNearestMapStructure", cServerLevel, cHolderSetIface, cBlockPos,
+            Int::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!,
+        )
+        val searchRadiusChunks = System.getProperty("locate.radius", "100").toInt()
+        val resultFile = File(serversDir.parentFile, "locate_result.txt")
+        val result = findNearestMapStructure.call(generator, overworld, holderSet, origin, searchRadiusChunks, false)
+        // File, not println: console output after Bootstrap.bootStrap() is unreliable here
+        // (same symptom as #23's Gradle relay issue, root cause still not isolated).
+        if (result == null) {
+            resultFile.writeText("locate: no $structureLocationArg found within $searchRadiusChunks chunks of origin\n")
+        } else {
+            val cPair = mc.c("com.mojang.datafixers.util.Pair")
+            val found = mc.publicMethod(cPair, "getFirst").call(result)!!
+            val getX = mc.publicMethod(cBlockPos, "getX")
+            val getY = mc.publicMethod(cBlockPos, "getY")
+            val getZ = mc.publicMethod(cBlockPos, "getZ")
+            val x = getX.call(found) as Int
+            val y = getY.call(found) as Int
+            val z = getZ.call(found) as Int
+            resultFile.writeText("locate: $structureLocationArg at block ($x, $y, $z) -> chunk (${x shr 4}, ${z shr 4})\n")
+        }
+        return
+    }
+
     if (schedulerMode == "probe") {
         val getChunkFutureMainThread = mc.method(
             cServerChunkCache, "getChunkFutureMainThread",
@@ -434,7 +636,25 @@ fun main() {
         return
     }
 
-    if (schedulerMode == "orion3") {
+    if (schedulerMode == "orion3" || schedulerMode == "orion4") {
+        // orion4 is orion3's scheduling code plus the structure-gen thread-safety patch
+        // (OrionPatchAgent) — it's the flag combo, not different scheduling logic, so it
+        // fails fast rather than silently running as orion3 without its defining patch.
+        // DFC (-Dorion.patchDfc=true) is deliberately NOT required here: finding #59
+        // measured it as a real ~23-27% champion-scale REGRESSION (231184ms/eMSPC 25.08
+        // vs orion4-without-DFC's 187663ms/20.36), root-caused via DfcRuntime's own
+        // compile/eval counters — a 99.95% cache hit rate rules out recompilation, so
+        // the cost is the per-call cache lookup (IdentityKey allocation + ConcurrentHashMap
+        // lookup) itself exceeding what a real Ap2 node's tiny original compute() body
+        // ever cost. Usable standalone for anyone who wants to reproduce or improve it.
+        if (schedulerMode == "orion4") {
+            require(System.getProperty("orion.patchReentrancy") == "true") {
+                "orion4 requires -Dorion.patchReentrancy=true (see OrionPatchAgent)"
+            }
+            require(System.getProperty("orion.patchStructureGenState") == "true") {
+                "orion4 requires -Dorion.patchStructureGenState=true (see OrionPatchAgent)"
+            }
+        }
         val telemetryFile = if (orionTelemetry) File(serversDir.parentFile, "orion_telemetry.log").apply { writeText("") } else null
         val pollTask = mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask")
         val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
@@ -442,13 +662,33 @@ fun main() {
             mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor,
             orionDispatchThreads, orionMaxInFlight, orionLockRadius, telemetryFile, orionWaitCeilingMs,
         )
-        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        // Independent of `base`'s origin-centering (other modes' SOP baselines depend on that) —
+        // task #3 needs to target a real stronghold, not spawn.
+        val centerX = System.getProperty("mosaic.centerx", "0").toInt()
+        val centerZ = System.getProperty("mosaic.centerz", "0").toInt()
+        val baseX = centerX - mosaicSide / 2
+        val baseZ = centerZ - mosaicSide / 2
+        var target = (baseX until baseX + mosaicSide).flatMap { cx -> (baseZ until baseZ + mosaicSide).map { cz -> cx to cz } }
+        // Optional second disjoint region in the SAME fill() call — needed to get two
+        // different structure-start events (e.g. two strongholds) racing on real worker
+        // threads at once; one region alone can only ever trigger one at a time.
+        val centerX2 = System.getProperty("mosaic.centerx2")?.toInt()
+        val centerZ2 = System.getProperty("mosaic.centerz2")?.toInt()
+        if (centerX2 != null && centerZ2 != null) {
+            val baseX2 = centerX2 - mosaicSide / 2
+            val baseZ2 = centerZ2 - mosaicSide / 2
+            val target2 = (baseX2 until baseX2 + mosaicSide).flatMap { cx -> (baseZ2 until baseZ2 + mosaicSide).map { cz -> cx to cz } }
+            // Interleaved, not concatenated: the scheduler admits off a FIFO by list order,
+            // so appending region 2 after region 1 would let region 1 finish first — no
+            // actual wall-clock overlap between the two structure-start events.
+            target = target.zip(target2).flatMap { (a, b) -> listOf(a, b) }
+        }
         println(
-            "Orion v3-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), $orionDispatchThreads workers, " +
-                "max $orionMaxInFlight in flight, lock radius $orionLockRadius, multi-threaded admission."
+            "Orion ${if (schedulerMode == "orion4") "v4" else "v3"}-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), " +
+                "$orionDispatchThreads workers, max $orionMaxInFlight in flight, lock radius $orionLockRadius, multi-threaded admission."
         )
 
-        File(serversDir.parentFile, "orion_result.txt").writeText("orion v3 fill() starting, target=${target.size}\n")
+        File(serversDir.parentFile, "orion_result.txt").writeText("orion ${schedulerMode.removePrefix("orion")} fill() starting, target=${target.size}\n")
         val overallStart = System.nanoTime()
         val result = try {
             orion.fill(target) { cx, cz, success, chunkResult, error ->
@@ -465,7 +705,7 @@ fun main() {
         }
         val totalMs = (System.nanoTime() - overallStart) / 1_000_000
         File(serversDir.parentFile, "orion_result.txt").writeText(
-            "scheduler=orion3 ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
+            "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n"
         )
 
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")

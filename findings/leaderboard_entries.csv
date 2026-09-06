@@ -65,3 +65,9 @@ Orion v3,"champion scale, 10ms default confirm run 1",130445,6400,#54
 Orion v3,"champion scale, 10ms default confirm run 2",128431,6400,#54
 Orion v3,"champion scale, #55 generate-structures=true (control)",126516,6400,#55
 Orion v3,"champion scale, #55 generate-structures=false",121397,6400,#55
+Orion v3,"champion baseline, tile=6 origin, no patches (#59 control)",181639,9216,#59
+Orion v4,"champion, structure-gen fix only, DFC off (#59)",187663,9216,#59
+Orion v4,"champion + DFC, measured regression (#59)",231184,9216,#59
+Orion v4,"champion + DFC, field-based cache, still a regression (#60)",218796,9216,#60
+Orion v4,"champion + DFC, monomorphic interpreter, +2.7% vs no-DFC (#61)",192627,9216,#61
+Orion v4,"champion + DFC, monomorphic interpreter, replication run 2, +5.9% vs no-DFC (#61)",198734,9216,#61

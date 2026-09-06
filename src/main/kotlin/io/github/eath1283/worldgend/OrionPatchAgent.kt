@@ -35,10 +35,60 @@ import javassist.LoaderClassPath
 // not the local class — the per-column call site is untouched, only the Predicate it calls
 // into changes identity. Gated behind -Dorion.patchBiomeMemo=true, independent of
 // orion.patchReentrancy. See scientific-findings-41-80.md #53, static-analysis-findings.md.
+// Detects actual concurrent entry into StrongholdPieces' unsafe-shared-state methods —
+// independent of whether the fix (OrionPatchAgent's own patchStructureGenState) is on.
+// With the fix ON, concurrent entry is expected and safe (state is thread-local); a
+// "violation" only means something with -Dorion.patchStructureGenState=false: proof the
+// race window is real and reachable, not proof the fix works.
+object StructureGenRaceDetector {
+    private val active = java.util.concurrent.ConcurrentHashMap<Any, MutableSet<Thread>>()
+    private val violations = java.util.concurrent.atomic.AtomicLong(0)
+    private val logFile = java.io.File("/tmp/orion_race_detector.log").apply { writeText("") }
+
+    @JvmStatic
+    fun enter(key: Any, label: String) {
+        val threads = active.computeIfAbsent(key) { java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap()) }
+        synchronized(threads) {
+            threads.add(Thread.currentThread())
+            if (threads.size > 1) {
+                violations.incrementAndGet()
+                val names = threads.joinToString(",") { it.name }
+                synchronized(logFile) { logFile.appendText("VIOLATION label=$label key=$key threads=[$names]\n") }
+            }
+        }
+    }
+
+    @JvmStatic
+    fun exit(key: Any) {
+        active[key]?.let { threads -> synchronized(threads) { threads.remove(Thread.currentThread()) } }
+    }
+
+    @JvmStatic
+    fun report(): String = "violations=${violations.get()}"
+}
+
+// Per-thread placeCount, keyed by PieceWeight instance identity. A real field added via
+// javassist wouldn't resolve at compile-time from a DIFFERENT class's patched bytecode
+// (each transform() call gets its own ClassPool); a static method on an already-compiled
+// class sidesteps that, same trick patchBiomeConditionSource already uses below.
+object OrionPlaceCount {
+    private val perThread = ThreadLocal.withInitial { java.util.IdentityHashMap<Any, Int>() }
+    @JvmStatic fun get(key: Any): Int = perThread.get()[key] ?: 0
+    @JvmStatic fun set(key: Any, value: Int) { perThread.get()[key] = value }
+}
+
+// Orion v4 prerequisite, ported from C2ME-fabric (MIT). Fixes races on StrongholdPieces'
+// static state and shared PieceWeight.placeCount when worker threads populate structures
+// concurrently. Gated behind -Dorion.patchStructureGenState=true.
 object OrionPatchAgent {
     private const val BLOCKABLE_EVENT_LOOP = "net.minecraft.util.thread.BlockableEventLoop"
     private const val SERVER_CHUNK_CACHE = "net.minecraft.server.level.ServerChunkCache"
     private const val SURFACE_RULES_BIOME_CONDITION = "net.minecraft.world.level.levelgen.SurfaceRules\$BiomeConditionSource"
+    private const val STRONGHOLD_PIECES = "net.minecraft.world.level.levelgen.structure.structures.StrongholdPieces"
+    private const val STRONGHOLD_PIECE_WEIGHT = "net.minecraft.world.level.levelgen.structure.structures.StrongholdPieces\$PieceWeight"
+    private const val NETHER_FORTRESS_PIECES = "net.minecraft.world.level.levelgen.structure.structures.NetherFortressPieces"
+    private const val NETHER_FORTRESS_PIECE_WEIGHT = "net.minecraft.world.level.levelgen.structure.structures.NetherFortressPieces\$PieceWeight"
+    private const val DENSITY_FUNCTIONS_AP2 = "net.minecraft.world.level.levelgen.DensityFunctions\$Ap2"
 
     // Straight-to-file, not println: #23's already-documented quirk where buffered stdout
     // doesn't reliably reach the redirected log until process exit — same fix as
@@ -53,18 +103,74 @@ object OrionPatchAgent {
     fun premain(agentArgs: String?, inst: Instrumentation) {
         val patchReentrancy = System.getProperty("orion.patchReentrancy") == "true"
         val patchBiomeMemo = System.getProperty("orion.patchBiomeMemo") == "true"
-        if (!patchReentrancy && !patchBiomeMemo) {
+        val patchStructureGenState = System.getProperty("orion.patchStructureGenState") == "true"
+        val detectStructureGenRaces = System.getProperty("orion.detectStructureGenRaces") == "true"
+        val patchDfc = System.getProperty("orion.patchDfc") == "true"
+        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
         if (patchReentrancy) System.err.println("[OrionPatchAgent] will patch $BLOCKABLE_EVENT_LOOP and $SERVER_CHUNK_CACHE on load")
         if (patchBiomeMemo) System.err.println("[OrionPatchAgent] will patch $SURFACE_RULES_BIOME_CONDITION on load")
-        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo))
+        if (patchStructureGenState) System.err.println(
+            "[OrionPatchAgent] will patch $STRONGHOLD_PIECES, $STRONGHOLD_PIECE_WEIGHT, " +
+                "$NETHER_FORTRESS_PIECES, $NETHER_FORTRESS_PIECE_WEIGHT on load"
+        )
+        if (detectStructureGenRaces) {
+            System.err.println("[OrionPatchAgent] will instrument race-detection probes on $STRONGHOLD_PIECES, $STRONGHOLD_PIECE_WEIGHT")
+            Runtime.getRuntime().addShutdownHook(Thread { System.err.println("[OrionPatchAgent] race detector: ${StructureGenRaceDetector.report()}") })
+            inst.addTransformer(RaceDetectorTransformer())
+        }
+        if (patchDfc) {
+            System.err.println("[OrionPatchAgent] will patch $DENSITY_FUNCTIONS_AP2 on load (DFC Stage 1, findings #57/#58)")
+            Runtime.getRuntime().addShutdownHook(Thread { debugLog("DfcRuntime report: ${DfcRuntime.report()}") })
+        }
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc))
+    }
+
+    private class RaceDetectorTransformer : ClassFileTransformer {
+        override fun transform(
+            loader: ClassLoader?,
+            className: String,
+            classBeingRedefined: Class<*>?,
+            protectionDomain: ProtectionDomain?,
+            classfileBuffer: ByteArray,
+        ): ByteArray? {
+            val dotted = className.replace('/', '.')
+            if (dotted != STRONGHOLD_PIECES && dotted != STRONGHOLD_PIECE_WEIGHT) return null
+            val pool = ClassPool(false).apply {
+                appendSystemPath()
+                if (loader != null) appendClassPath(LoaderClassPath(loader))
+            }
+            return try {
+                val cc = pool.makeClass(java.io.ByteArrayInputStream(classfileBuffer))
+                if (dotted == STRONGHOLD_PIECES) {
+                    for (m in listOf("resetPieces", "updatePieceWeight", "findAndCreatePieceFactory", "generatePieceFromSmallDoor", "generateAndAddPiece")) {
+                        val method = cc.getDeclaredMethod(m)
+                        method.insertBefore("""{ io.github.eath1283.worldgend.StructureGenRaceDetector.enter("stronghold-static", "$m"); }""")
+                        method.insertAfter("""{ io.github.eath1283.worldgend.StructureGenRaceDetector.exit("stronghold-static"); }""", true)
+                    }
+                } else {
+                    val doPlace = cc.getDeclaredMethod("doPlace")
+                    doPlace.insertBefore("""{ io.github.eath1283.worldgend.StructureGenRaceDetector.enter(${'$'}0, "doPlace"); }""")
+                    doPlace.insertAfter("""{ io.github.eath1283.worldgend.StructureGenRaceDetector.exit(${'$'}0); }""", true)
+                }
+                val bytes = cc.toBytecode()
+                cc.detach()
+                debugLog("race-detection probes installed on $dotted, ${bytes.size} bytes")
+                bytes
+            } catch (t: Throwable) {
+                debugLog("race-detection instrumentation of $dotted FAILED: $t\n${t.stackTraceToString()}")
+                null
+            }
+        }
     }
 
     private class Transformer(
         private val patchReentrancy: Boolean,
         private val patchBiomeMemo: Boolean,
+        private val patchStructureGenState: Boolean,
+        private val patchDfc: Boolean,
     ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
@@ -74,15 +180,23 @@ object OrionPatchAgent {
             classfileBuffer: ByteArray,
         ): ByteArray? {
             val dotted = className.replace('/', '.')
+            val structureGenTargets = setOf(STRONGHOLD_PIECES, STRONGHOLD_PIECE_WEIGHT, NETHER_FORTRESS_PIECES, NETHER_FORTRESS_PIECE_WEIGHT)
             val handled = (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
-                (patchBiomeMemo && dotted == SURFACE_RULES_BIOME_CONDITION)
+                (patchBiomeMemo && dotted == SURFACE_RULES_BIOME_CONDITION) ||
+                (patchStructureGenState && dotted in structureGenTargets) ||
+                (patchDfc && dotted == DENSITY_FUNCTIONS_AP2)
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
                 val result = when (dotted) {
                     BLOCKABLE_EVENT_LOOP -> patchBlockableEventLoop(loader, classfileBuffer)
                     SERVER_CHUNK_CACHE -> patchServerChunkCache(loader, classfileBuffer)
-                    else -> patchBiomeConditionSource(loader, classfileBuffer)
+                    SURFACE_RULES_BIOME_CONDITION -> patchBiomeConditionSource(loader, classfileBuffer)
+                    STRONGHOLD_PIECES -> patchStrongholdPieces(loader, classfileBuffer)
+                    STRONGHOLD_PIECE_WEIGHT -> patchPieceWeightPlaceCount(loader, classfileBuffer)
+                    NETHER_FORTRESS_PIECES -> patchOuterPlaceCountUsage(loader, classfileBuffer, NETHER_FORTRESS_PIECE_WEIGHT)
+                    DENSITY_FUNCTIONS_AP2 -> patchAp2Compute(loader, classfileBuffer)
+                    else -> patchPieceWeightPlaceCount(loader, classfileBuffer)
                 }
                 debugLog("transform() of $dotted succeeded, ${result.size} bytes")
                 result
@@ -229,6 +343,126 @@ object OrionPatchAgent {
             }
             cc.detach()
             return bytes
+        }
+
+        // currentPieces/totalWeight/imposedPiece are static, single-writer-assumed. Redirect
+        // to ThreadLocals. Also redirects this class's own reads/writes of PieceWeight.placeCount
+        // (findAndCreatePieceFactory etc touch it directly on shared instances).
+        private fun patchStrongholdPieces(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+
+            cc.addField(javassist.CtField.make("private static final ThreadLocal orionCurrentPieces = new ThreadLocal();", cc))
+            cc.addField(javassist.CtField.make("private static final ThreadLocal orionTotalWeight = new ThreadLocal();", cc))
+            cc.addField(javassist.CtField.make("private static final ThreadLocal orionImposedPiece = new ThreadLocal();", cc))
+
+            cc.instrument(object : javassist.expr.ExprEditor() {
+                override fun edit(f: javassist.expr.FieldAccess) {
+                    when (f.fieldName) {
+                        "currentPieces" -> f.replace(
+                            if (f.isReader) """{
+                                java.util.List v = (java.util.List) orionCurrentPieces.get();
+                                if (v == null) { v = new java.util.ArrayList(); orionCurrentPieces.set(v); }
+                                ${'$'}_ = v;
+                            }"""
+                            else "{ orionCurrentPieces.set(\$1); }"
+                        )
+                        "totalWeight" -> f.replace(
+                            if (f.isReader) "{ Object v = orionTotalWeight.get(); \$_ = v == null ? 0 : ((Integer) v).intValue(); }"
+                            else "{ orionTotalWeight.set(Integer.valueOf(\$1)); }"
+                        )
+                        "imposedPiece" -> f.replace(
+                            if (f.isReader) "{ \$_ = (Class) orionImposedPiece.get(); }"
+                            else "{ orionImposedPiece.set(\$1); }"
+                        )
+                    }
+                }
+            })
+            redirectPlaceCount(cc, STRONGHOLD_PIECE_WEIGHT)
+
+            val bytes = cc.toBytecode()
+            cc.detach()
+            return bytes
+        }
+
+        // Redirects placeCount access within this class's own methods (doPlace/isValid) to
+        // OrionPlaceCount.
+        private fun patchPieceWeightPlaceCount(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            redirectPlaceCount(cc, cc.name)
+            val bytes = cc.toBytecode()
+            cc.detach()
+            return bytes
+        }
+
+        // NetherFortressPieces' own static methods touch PieceWeight.placeCount directly,
+        // same as StrongholdPieces does — no static state of its own to redirect otherwise.
+        private fun patchOuterPlaceCountUsage(loader: ClassLoader?, original: ByteArray, pieceWeightFqcn: String): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            redirectPlaceCount(cc, pieceWeightFqcn)
+            val bytes = cc.toBytecode()
+            cc.detach()
+            return bytes
+        }
+
+        // DFC Stage 1 integration (findings #57/#58/#59). #59's first cut cached
+        // compiled entries in a ConcurrentHashMap keyed by an allocated identity
+        // wrapper — a real ~23-27% regression, because the lookup itself cost more
+        // than a real Ap2 node's tiny original compute() body. This version adds two
+        // real instance fields directly to Ap2 instead: a cache hit is a plain field
+        // read, no allocation, no hashmap. Fields deliberately not volatile — a
+        // first-access race across worker threads means at most a few redundant
+        // compiles (compileFor() is a pure function of an immutable DensityFunction
+        // subtree, so redoing it is wasteful, never wrong), which is cheaper than
+        // forcing every access through a memory barrier. Rename-and-wrap keeps
+        // vanilla's own arithmetic completely unreplicated for the fallback.
+        private fun patchAp2Compute(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            cc.addField(javassist.CtField.make("public Object orionDfcCompiled;", cc))
+            cc.addField(javassist.CtField.make("public Object orionDfcLeaves;", cc))
+            val compute = cc.getDeclaredMethod("compute")
+            compute.name = "computeOriginal"
+            val wrapper = javassist.CtNewMethod.make(
+                """public double compute(net.minecraft.world.level.levelgen.DensityFunction${'$'}FunctionContext ctx) {
+                    io.github.eath1283.worldgend.DfcRuntime.countEval();
+                    if (orionDfcCompiled == io.github.eath1283.worldgend.DfcRuntime.FAILED_MARKER) {
+                        return computeOriginal(ctx);
+                    }
+                    if (orionDfcCompiled != null) {
+                        return ((io.github.eath1283.worldgend.DfcCompiled) orionDfcCompiled).eval((Object[]) orionDfcLeaves, ctx);
+                    }
+                    Object[] result = io.github.eath1283.worldgend.DfcRuntime.compileFor(this);
+                    if (result == null) {
+                        orionDfcCompiled = io.github.eath1283.worldgend.DfcRuntime.FAILED_MARKER;
+                        return computeOriginal(ctx);
+                    }
+                    orionDfcCompiled = result[0];
+                    orionDfcLeaves = result[1];
+                    return ((io.github.eath1283.worldgend.DfcCompiled) result[0]).eval((Object[]) result[1], ctx);
+                }""",
+                cc,
+            )
+            cc.addMethod(wrapper)
+            val bytes = cc.toBytecode()
+            cc.detach()
+            return bytes
+        }
+
+        // Rewrites every `.placeCount` access on `ownerFqcn` instances found in `cc`'s bytecode
+        // to go through OrionPlaceCount, keyed by instance identity.
+        private fun redirectPlaceCount(cc: CtClass, ownerFqcn: String) {
+            var matches = 0
+            cc.instrument(object : javassist.expr.ExprEditor() {
+                override fun edit(f: javassist.expr.FieldAccess) {
+                    if (f.fieldName != "placeCount") return
+                    if (f.className != ownerFqcn) return
+                    matches++
+                    f.replace(
+                        if (f.isReader) "{ \$_ = io.github.eath1283.worldgend.OrionPlaceCount.get(\$0); }"
+                        else "{ io.github.eath1283.worldgend.OrionPlaceCount.set(\$0, \$1); }"
+                    )
+                }
+            })
+            debugLog("redirectPlaceCount: $ownerFqcn in ${cc.name}, $matches site(s)")
         }
     }
 }

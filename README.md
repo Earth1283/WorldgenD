@@ -45,7 +45,16 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2`.
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4`.
+Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
+required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see
+`scientific-findings-41-80.md` #56. A DFC (density-function compiler) Stage 1 prototype also
+exists (`-Dorion.patchDfc=true`, needs `--add-opens java.base/java.lang=ALL-UNNAMED`) but is
+**not** required by default — #59/#60 measured it as a real regression at champion scale in two
+cache designs (~23-27%, then ~16.6%; both root-caused to dispatch shape, not lookup cost), and
+#61 fixed the actual cause (one shared, parameterized interpreter class instead of one bespoke
+class per tree shape), landing at +2.7% vs. `orion4` without DFC — inside the ~9% noise band,
+parity rather than a confirmed win. Opt-in pending replication; see #61.
 Orion v2.1 uses raster target order; Orion v2.2 is the explicitly scatter-ordered variant.
 
 **In plain terms**: picture ordering 9,216 coffees one at a time and timing every single
