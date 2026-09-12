@@ -45,7 +45,23 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4`.
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5`.
+**Orion v5 is the current champion** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
+at champion scale (eMSPC 8.16-8.65 vs 20.68-20.80, interleaved, n=2 each), steady-state CPU
+~709% vs ~313%. The bottleneck v3/v4 hit was never Orion's scheduler or radius-8 scarcity: vanilla
+runs every chunk-generation step through one `ConsecutiveExecutor("worldgen")`, so surface,
+carvers, and features ran one at a time. v5's agent patch (`-Dorion.patchParallelSteps=true`)
+moves `ChunkMap.applyStep`'s step execution onto the background pool under Moonrise-style
+write-radius area locks (0 for noise/surface/carvers, 1 for features), with structure steps on
+one global lock per C2ME's known structure-piece races, and admission becomes a plain bounded
+window with no Orion-side exclusion. Requires the agent with `-Dorion.patchReentrancy=true
+-Dorion.patchStructureGenState=true -Dorion.patchParallelSteps=true`; `orion5` fails fast without
+them. Block-histogram diffs against v4 show only MC-55596-style vegetation/ore drift.
+In #63's interleaved drag race (3 rotating rounds) v5 ran **65% faster than stock Paper** and at
+**parity with Paper given the same 7 chunk workers** (8.61 vs 9.13 ms/chunk, inside the noise band):
+stock Paper ships 2 Moonrise workers, and once both engines parallelize chunk steps over 7 workers
+they converge. #64 extends that to Leaf and Leaf-on-crack: at 7 workers all four land within 8%
+(v5 8.84, Paper 9.07, Leaf 9.33, Leaf-on-crack 9.54 ms/chunk), inside the noise band.
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see
 `scientific-findings-41-80.md` #56. A DFC (density-function compiler) Stage 1 prototype also

@@ -651,6 +651,108 @@ def plot_orion_v4_arc(orion_rows_by_config, out_path):
     plt.close(fig)
 
 
+def plot_orion_v5(orion_rows_by_config, out_path):
+    # #62: interleaved champion A/B (v4, v5, v4, v5) on the left, one CPU trace per engine on the right.
+    runs = [
+        ("orion4\nrun 1", "orion5_62_v4_control_r1", SERIES[1]),
+        ("orion5\nrun 1", "orion5_62_v5_r1", SERIES[2]),
+        ("orion4\nrun 2", "orion5_62_v4_control_r2", SERIES[1]),
+        ("orion5\nrun 2", "orion5_62_v5_r2", SERIES[2]),
+    ]
+    values = [float(orion_rows_by_config[c]["total_ms"]) / float(orion_rows_by_config[c]["chunks"]) for _, c, _ in runs]
+    v4_mean = (values[0] + values[2]) / 2
+
+    fig, (left, right) = plt.subplots(1, 2, figsize=(13, 5.6), gridspec_kw={"width_ratios": [1, 1.6]})
+    x = list(range(len(runs)))
+    bars = left.bar(x, values, color=[r[2] for r in runs], width=0.62, zorder=3)
+    for bar, val in zip(bars, values):
+        left.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.2f}\n{(val / v4_mean - 1) * 100:+.1f}%",
+                  ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+    left.set_xticks(x)
+    left.set_xticklabels([r[0] for r in runs], fontsize=9)
+    left.set_ylabel("effective MSPC (total_ms / chunks) — lower is better")
+    left.set_ylim(0, max(values) * 1.25)
+    left.set_title("Interleaved champion runs, % vs orion4 mean", color=INK_SECONDARY, fontsize=9.5, loc="left")
+
+    for fname, label, color in [("orion4_62_cpu_trace.csv", "orion4", SERIES[1]), ("orion5_62_cpu_trace.csv", "orion5", SERIES[2])]:
+        with (HERE / fname).open() as f:
+            trace = list(csv.DictReader(f))
+        right.plot([float(r["t_seconds"]) for r in trace], [float(r["cpu_pct"]) for r in trace],
+                   color=color, linewidth=1.0, label=label, zorder=3)
+    right.axhline(800, color=BASELINE, linewidth=0.8, linestyle="--", zorder=2)
+    right.set_xlabel("wall-clock seconds since launch (includes ~20s server boot)")
+    right.set_ylabel("java process CPU%")
+    right.set_title("CPU over time, run 2 of each (dashed = all 8 cores)", color=INK_SECONDARY, fontsize=9.5, loc="left")
+    right.legend(frameon=False, fontsize=9)
+
+    for ax in (left, right):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        ax.spines["left"].set_color(BASELINE)
+        ax.spines["bottom"].set_color(BASELINE)
+
+    fig.suptitle(
+        "Orion v5: parallel chunk steps remove vanilla's serial worldgen lane",
+        color=INK_PRIMARY, fontsize=13, y=0.99,
+    )
+    fig.text(
+        0.01, 0.925,
+        "9216 chunks (tile 6, origin), 16GB pretouched, ParallelGC, 7 workers. orion4 = reentrancy + structure-gen patches; "
+        "orion5 adds -Dorion.patchParallelSteps=true and the v5 admission window.",
+        color=INK_SECONDARY, fontsize=8.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.91))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_dragrace3(rows, out_path, title="#63: drag race vs Orion v5 — interleaved, rotating order, 3 rounds",
+                   subtitle=None, reference="Paper"):
+    # #63: interleaved, rotating-order drag race. Bars are per-engine means, dots are the individual rounds.
+    colors = {
+        "Orion v5": "#0f9d8a", "Orion v4": "#c0392b", "Paper": "#eb6834",
+        "Paper (7 workers)": "#a8471d", "Leaf": "#e87ba4", "Leaf-on-crack": "#b6547a",
+        "Leaf (7 workers)": "#c2577f", "Leaf-on-crack (7 workers)": "#8d3a5c",
+    }
+    by_engine = {}
+    for r in rows:
+        if r["total_ms"].isdigit():
+            by_engine.setdefault(r["engine"], []).append(float(r["ms_per_chunk"]))
+    engines = sorted(by_engine, key=lambda e: sum(by_engine[e]) / len(by_engine[e]))
+    means = [sum(by_engine[e]) / len(by_engine[e]) for e in engines]
+    paper_mean = sum(by_engine[reference]) / len(by_engine[reference]) if reference in by_engine else None
+
+    fig, ax = plt.subplots(figsize=(10.5, 5.8))
+    x = list(range(len(engines)))
+    bars = ax.bar(x, means, color=[colors.get(e, BASELINE) for e in engines], width=0.62, zorder=3, alpha=0.9)
+    for xi, engine in zip(x, engines):
+        vals = by_engine[engine]
+        ax.scatter([xi] * len(vals), vals, color=INK_PRIMARY, s=14, zorder=4)
+    for bar, mean, engine in zip(bars, means, engines):
+        vs = f"\n{(mean / paper_mean - 1) * 100:+.0f}% vs {reference}" if paper_mean and engine != reference else ""
+        ax.text(bar.get_x() + bar.get_width() / 2, max(by_engine[engine]), f"{mean:.2f}{vs}",
+                ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+    ax.set_xticks(x)
+    ax.set_xticklabels(engines, fontsize=9)
+    ax.set_ylabel("ms/chunk (total_ms / chunks) — lower is better")
+    ax.set_ylim(0, max(max(v) for v in by_engine.values()) * 1.22)
+    fig.suptitle(title, color=INK_PRIMARY, fontsize=13, y=0.99)
+    ax.set_title(
+        subtitle or "Bars = mean of 3 rounds, dots = each round. WorldgenD: 6400 chunks, 7 workers, ParallelGC, no disk writes;\n"
+        "servers: Chunky radius 640 (6561 chunks), Aikar G1, Moonrise default 2 workers unless noted, real ticking + saving.",
+        color=INK_SECONDARY, fontsize=8.5, pad=10, loc="left",
+    )
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color(BASELINE)
+    ax.spines["bottom"].set_color(BASELINE)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -791,6 +893,20 @@ def main():
     plot_emspc_integration_progress(HERE / "emspc_integration_progress.png")
 
     plot_orion_v4_arc(orion_rows_by_config, HERE / "orion4_dfc_arc.png")
+
+    plot_orion_v5(orion_rows_by_config, HERE / "orion5_parallel_steps.png")
+
+    with (HERE / "dragrace3_results.csv").open() as f:
+        plot_dragrace3(list(csv.DictReader(f)), HERE / "dragrace3_summary.png")
+
+    with (HERE / "dragrace4_results.csv").open() as f:
+        plot_dragrace3(
+            list(csv.DictReader(f)), HERE / "dragrace4_summary.png",
+            title="#64: every Moonrise server at 7 workers vs Orion v5 — interleaved, rotating order, 3 rounds",
+            subtitle=("Bars = mean of 3 rounds, dots = each round. All servers: chunk-system.worker-threads=7 (log-confirmed), Chunky radius 640\n"
+                      "(6561 chunks), Aikar G1, ticking + saving. Orion v5: 6400 chunks, 7 workers, ParallelGC, no disk writes."),
+            reference="Paper (7 workers)",
+        )
 
     print(f"Wrote charts to {HERE}")
 

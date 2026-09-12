@@ -406,6 +406,29 @@ fun main() {
         return "[$cx,$cz] height=$height biome=$biomeName"
     }
 
+    // #62 correctness check: per-chunk block-state histogram, so runs can be diffed by which
+    // blocks moved (MC-55596 vegetation drift vs. real terrain corruption), not just whether.
+    val histogramFile = System.getProperty("describe.histogramfile")?.let { File(it).apply { writeText("") } }
+    val getSections = mc.publicMethod(cChunkAccess, "getSections")
+    val getStates = mc.publicMethod(mc.c("net.minecraft.world.level.chunk.LevelChunkSection"), "getStates")
+    val getAll = mc.publicMethod(mc.c("net.minecraft.world.level.chunk.PalettedContainer"), "getAll", java.util.function.Consumer::class.java)
+    val blockNames = java.util.IdentityHashMap<Any, String>()
+
+    fun recordHistogram(chunkResult: Any, cx: Int, cz: Int) {
+        val out = histogramFile ?: return
+        val chunk = mc.publicMethod(chunkResult.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
+        val counts = java.util.IdentityHashMap<Any, IntArray>()
+        for (section in getSections.call(chunk) as Array<*>) {
+            getAll.call(getStates.call(section), java.util.function.Consumer<Any> { counts.getOrPut(it) { IntArray(1) }[0]++ })
+        }
+        val byName = java.util.TreeMap<String, Int>()
+        for ((state, count) in counts) {
+            val name = blockNames.getOrPut(state) { state.toString().substringAfter('{').substringBefore('}') }
+            byName.merge(name, count[0], Int::plus)
+        }
+        out.appendText("$cx $cz ${byName.entries.joinToString(",") { "${it.key}=${it.value}" }}\n")
+    }
+
     val mosaicSide = MOSAIC_N * mosaicTile
     val base = -mosaicSide / 2
 
@@ -694,9 +717,12 @@ fun main() {
             orion.fill(target) { cx, cz, success, chunkResult, error ->
                 if (!success) {
                     println("[$cx,$cz] FAILED: $error")
-                } else if (describeAll) {
-                    val chunk = mc.publicMethod(chunkResult!!.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
-                    println(describe(chunk, cx, cz))
+                } else {
+                    recordHistogram(chunkResult!!, cx, cz)
+                    if (describeAll) {
+                        val chunk = mc.publicMethod(chunkResult.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
+                        println(describe(chunk, cx, cz))
+                    }
                 }
             }
         } catch (t: Throwable) {
@@ -710,6 +736,37 @@ fun main() {
 
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms. No network, no RCON, no tick loop ever ran.")
         println(mspcSummary(orion.chunkMspc))
+        saveWorldIfRequested()
+        return
+    }
+
+    if (schedulerMode == "orion5") {
+        for (flag in listOf("orion.patchReentrancy", "orion.patchStructureGenState", "orion.patchParallelSteps")) {
+            require(System.getProperty(flag) == "true") { "orion5 requires -D$flag=true (see OrionPatchAgent)" }
+        }
+        val pollTask = mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask")
+        val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
+        val orion = OrionV5(mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor, orionMaxInFlight)
+        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        println("Orion v5-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), max $orionMaxInFlight in flight, parallel steps.")
+
+        val resultFile = File(serversDir.parentFile, "orion_result.txt")
+        resultFile.writeText("orion 5 fill() starting, target=${target.size}\n")
+        val overallStart = System.nanoTime()
+        val result = try {
+            orion.fill(target) { cx, cz, success, chunkResult, error ->
+                if (success) recordHistogram(chunkResult!!, cx, cz) else println("[$cx,$cz] FAILED: $error")
+            }
+        } catch (t: Throwable) {
+            resultFile.writeText("THREW: ${t.stackTraceToString()}\n")
+            throw t
+        }
+        val totalMs = (System.nanoTime() - overallStart) / 1_000_000
+        resultFile.writeText(
+            "scheduler=orion5 ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
+                "parallelSteps ${OrionParallelSteps.report()}\n"
+        )
+        println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")
         saveWorldIfRequested()
         return
     }

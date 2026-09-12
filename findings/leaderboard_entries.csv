@@ -71,3 +71,48 @@ Orion v4,"champion + DFC, measured regression (#59)",231184,9216,#59
 Orion v4,"champion + DFC, field-based cache, still a regression (#60)",218796,9216,#60
 Orion v4,"champion + DFC, monomorphic interpreter, +2.7% vs no-DFC (#61)",192627,9216,#61
 Orion v4,"champion + DFC, monomorphic interpreter, replication run 2, +5.9% vs no-DFC (#61)",198734,9216,#61
+Orion v5,"Orion v5 smoke (tile 1, verify on, pre status-name fix)",4448,256,#62
+Orion v5,"Orion v5 smoke (tile 1, verify on)",4750,256,#62
+Orion v5,"Orion v5 smoke (tile 1, verify on)",4731,256,#62
+Orion v5,"Orion v5 smoke (tile 1, verify on)",4364,256,#62
+Orion v4,"Orion v4 correctness control A (tile 3, histogram-instrumented)",54636,2304,#62
+Orion v5,"Orion v5 correctness run A (tile 3, histogram-instrumented)",26157,2304,#62
+Orion v4,"Orion v4 correctness control B (tile 3, histogram-instrumented)",55585,2304,#62
+Orion v5,"Orion v5 correctness run B (tile 3, histogram + verify)",30465,2304,#62
+Orion v4,"Orion v4 champion control, interleaved run 1 (tile 6 origin, CPU-traced)",190632,9216,#62
+Orion v5,"Orion v5 champion, interleaved run 1 (tile 6 origin, CPU-traced)",79733,9216,#62
+Orion v4,"Orion v4 champion control, interleaved run 2 (tile 6 origin, CPU-traced)",191716,9216,#62
+Orion v5,"Orion v5 champion, interleaved run 2 (tile 6 origin, CPU-traced)",75203,9216,#62
+Orion v5,"Orion v5 champion + JFR profile (tile 6 origin, #62 lane breakdown)",78096,9216,#62
+Orion v5,"Orion v5 champion, orion.maxinflight=256 (tile 6 origin)",78741,9216,#62
+Orion v5,"Orion v5 champion, orion.maxinflight=16 (tile 6 origin)",74014,9216,#62
+Orion v5,"drag race #63, interleaved round 1 (leg 1)",54845,6400,#63
+Paper,"drag race #63, interleaved round 1 (leg 2)",160210,6561,#63
+Orion v4,"drag race #63, interleaved round 1 (leg 3)",131587,6400,#63
+Leaf,"drag race #63, interleaved round 1 (leg 4)",177320,6561,#63
+Paper (7 workers),"drag race #63, interleaved round 1 (leg 5)",55870,6561,#63
+Leaf-on-crack,"drag race #63, interleaved round 1 (leg 6)",165230,6561,#63
+Paper,"drag race #63, interleaved round 2 (leg 1)",171210,6561,#63
+Orion v4,"drag race #63, interleaved round 2 (leg 2)",133558,6400,#63
+Leaf,"drag race #63, interleaved round 2 (leg 3)",173240,6561,#63
+Paper (7 workers),"drag race #63, interleaved round 2 (leg 4)",60840,6561,#63
+Leaf-on-crack,"drag race #63, interleaved round 2 (leg 5)",174300,6561,#63
+Orion v5,"drag race #63, interleaved round 2 (leg 6)",56371,6400,#63
+Orion v4,"drag race #63, interleaved round 3 (leg 1)",137449,6400,#63
+Leaf,"drag race #63, interleaved round 3 (leg 2)",153180,6561,#63
+Paper (7 workers),"drag race #63, interleaved round 3 (leg 3)",62890,6561,#63
+Leaf-on-crack,"drag race #63, interleaved round 3 (leg 4)",178380,6561,#63
+Orion v5,"drag race #63, interleaved round 3 (leg 5)",54006,6400,#63
+Paper,"drag race #63, interleaved round 3 (leg 6)",153140,6561,#63
+Orion v5,"7-worker drag race #64, round 1 (leg 1)",52685,6400,#64
+Paper (7 workers),"7-worker drag race #64, round 1 (leg 2)",60850,6561,#64
+Leaf (7 workers),"7-worker drag race #64, round 1 (leg 3)",63890,6561,#64
+Leaf-on-crack (7 workers),"7-worker drag race #64, round 1 (leg 4)",62880,6561,#64
+Paper (7 workers),"7-worker drag race #64, round 2 (leg 1)",57810,6561,#64
+Leaf (7 workers),"7-worker drag race #64, round 2 (leg 2)",55810,6561,#64
+Leaf-on-crack (7 workers),"7-worker drag race #64, round 2 (leg 3)",62930,6561,#64
+Orion v5,"7-worker drag race #64, round 2 (leg 4)",57536,6400,#64
+Leaf (7 workers),"7-worker drag race #64, round 3 (leg 1)",63910,6561,#64
+Leaf-on-crack (7 workers),"7-worker drag race #64, round 3 (leg 2)",61920,6561,#64
+Orion v5,"7-worker drag race #64, round 3 (leg 3)",59425,6400,#64
+Paper (7 workers),"7-worker drag race #64, round 3 (leg 4)",59840,6561,#64

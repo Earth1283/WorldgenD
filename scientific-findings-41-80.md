@@ -555,6 +555,119 @@ The field-based cache is a real, measurable ~5.4% improvement over the hashmap v
 
 **Verdict:** DFC is no longer disqualified by a measured regression, replicated at n=2 (the same bar #49's own reentrancy-fix confirmation was held to). It's not a demonstrated win either — #58's own static projection (3.5-4.8% from the glue fraction alone) was always going to be hard to distinguish from this box's noise floor, and that's exactly what happened both times: parity, neither confirming nor refuting the projection. Whether it's worth re-enabling as `orion4`'s default depends on extending node coverage (per #58's node-type analysis) to see if a larger compiled fraction pushes the number past noise in either direction. Left off by default; the mechanism (and the interpreter class as the correct dispatch shape for it) is proven, replicated, and reusable.
 
+## 62. Orion v5: the "radius-8 scarcity" was vanilla's serial worldgen lane all along — parallel chunk steps, ~2.5x v4
+
+#50, #51, #54, and #55 all read the same symptom (dispatch threads parked ~86%, `Worker-Main` idle ~42%, CPU plateauing at 250-400% of 700%) as radius-8 dependency scarcity baked into `ChunkPyramid`, and #55 closed the book on it as "structurally load-bearing." This entry reopens it from the bytecode and the existing `findings/orion3_champion.jfr`, and the scarcity turns out to be a single-threaded executor, not the dependency graph.
+
+**Bytecode (`javap -c -p`, 26.1.1 jar).** `ChunkMap.<init>` (offsets 316-360) builds `new ConsecutiveExecutor(executor, "worldgen")` and wraps it in `ChunkTaskDispatcher` as `worldgenTaskDispatcher`; `light` gets its own identical pair. `ChunkMap.runGenerationTask` submits every `ChunkGenerationTask.runUntilWait()` to that dispatcher, and `runUntilWait` -> `scheduleLayer` -> `GenerationChunkHolder.applyStep` -> `ChunkMap.applyStep` calls `ChunkStep.apply` **synchronously**. `AbstractConsecutiveExecutor.run()` pops one task at a time. Only `NoiseBasedChunkGenerator.fillFromNoise`/`createBiomes` hop to `Util.backgroundExecutor()`; `generateSurface`, `generateCarvers`, `generateFeatures`, structure starts/references, and spawn all execute inside the one consecutive lane, for the whole level. Every scheduler since v1 was feeding a pipeline with a one-lane toll booth in the middle.
+
+**The existing v3 JFR agrees.** Re-mined `orion3_champion.jfr` (#50's recording) by stack, not leaf frame: 11,964 of 29,160 samples (41%) sit under `AbstractConsecutiveExecutor.run` — `generateSurface` 5857, `generateFeatures` 3218, light engine 1555, `generateCarvers` 738. Per steady-state second, `Worker-Main` samples split **69.9 serial-worldgen / 9.6 serial-light / 113.3 parallel**: at the profile's 10ms period that's ~0.7 of one core pinned on the serial lane while noise (the only parallel stage) waits on it. #33's "workers ~55% utilized" and #50's parking are the same fact seen from the other side.
+
+**Prior art, checked locally rather than assumed.** Paper 26.1.2's Moonrise (`control/versions/26.1.2/paper-26.1.2.jar`): `ChunkTaskScheduler`'s static init marks every status parallel-capable and sets `moonrise$setWriteRadius` to 0 for all except FEATURES=1 and LIGHT=2; `ChunkUpgradeGenericStatusTask` queues parallel-capable steps into `AreaDependentQueue.createTask(x, z, writeRadius, ...)`. Vanilla's own `ChunkPyramid` lambdas carry the same numbers (`blockStateWriteRadius`: NOISE/SURFACE/CARVERS 0, FEATURES 1). C2ME's `fixes-worldgen-threading-issues` `threading` package is 30 mixins, almost all structure pieces (stronghold, mineshaft, fortress, monument, mansion, temples, swamp hut) plus `StructureStart`, `StructurePalettedBlockInfoList`, `StructurePlacementData`, `StructureChecker` — i.e. structure placement is where threaded worldgen actually races. This is also a credible (untested) explanation for #18/#19's unexplained Paper/Leaf edge: Moonrise never had the serial lane.
+
+**The patch (`OrionPatchAgent.patchChunkMapApplyStep`, gated `-Dorion.patchParallelSteps=true`).** One javassist `ExprEditor` swap inside `ChunkMap.applyStep`: the `ChunkStep.apply(ctx, cache, chunk)` call becomes `OrionParallelSteps.apply(step, ctx, cache, chunk, x, z, status, writeRadius)`, which returns an incomplete future — the exact path `ChunkGenerationTask` already handles for vanilla's async NOISE step, so no other vanilla code changes. `OrionParallelSteps.kt`:
+- **Lanes by status.** `empty`/`initialize_light`/`light`/`full` run inline as before (light has its own lane; FULL hops to the main thread itself). `structure_starts`/`structure_references`/`spawn` take a radius-0 area lock plus one global structure lock. Everything else (biomes, noise, surface, carvers, features) takes a radius-`max(writeRadius, 0)` area lock and runs on `Util.backgroundExecutor()`.
+- **Area lock.** Per-chunk FIFO queues; a task joins every queue its square covers under one monitor, in submission order, and runs once it heads all of them. Joins are atomic and ordered, so no wait cycle can form. The lock is held until the step's returned future completes (noise's lives on the background pool), then released before the caller's future completes, so callbacks never run under it.
+- **Structures.** `patchStructureStartPlacement` brackets `StructureStart.placeInChunk` with the same global lock, covering C2ME's piece/template/placement-data races in one place instead of 30 mixins. JFR puts structure starts/references/spawn at ~0.3% of samples under v3 and ~1.4% under v5, so serializing them is cheap.
+
+**Orion v5's scheduler (`OrionV5.kt`, `-Dscheduler=orion5`) is deliberately dumb.** v3/v4 kept held centers `2 * 8` chunks apart; with steps parallel, vanilla's own `GenerationChunkHolder` bookkeeping (`acquireStatusBump` CAS, per-layer dependency waits) already resolves overlapping requests, as it does for any real server with players. v5 is one submitter thread behind a `Semaphore(orion.maxinflight)` in raster order, plus the same single `pollTask()` caller (#34). `orion5` `require()`s the reentrancy, structure-gen, and parallel-steps flags.
+
+**Two bugs caught before any number was trusted.** (1) The first tile-1 smoke run hung: `orion5-poll` died with its stack trace eaten by #56's vanishing-stderr issue. The poller now hands its `Throwable` to `fill()`, which throws it into `orion_result.txt`. It hasn't recurred in the 11 v5 runs since. Bug (2) was live in that run, but also in smoke run 2, which didn't hang, so the cause is unconfirmed. (2) `ChunkStatus.getName()` returns the registry key (`minecraft:features`, `javap` confirms `DefaultedRegistry.getKey(...).toString()`), so the lane `when` matched nothing and structure steps ran unserialized. The `inline=0` counter exposed it on the second smoke run; fixed with `substringAfter(':')`. Smoke runs 3-5 after the fix: `ok=256 failed=0`, `overlapViolations=0` (`-Dorion.parallelSteps.verify=true` scans running squares on every task start), `leakedCells=0`.
+
+**Correctness: block-state histograms, not just `failed=0`.** New `-Ddescribe.histogramfile` writes every generated chunk's full block-state histogram (all sections, via `PalettedContainer.getAll`). Tile 3 (2304 chunks), interleaved v4/v5/v4/v5, diffed by which blocks moved (`histdiff.py`-style count deltas):
+
+| comparison | chunks differing | blocks moved | non-vegetation moved |
+|---|---|---|---|
+| v4 A vs v4 B (MC-55596 floor) | 979 (42.5%) | 5890 | 212 |
+| v5 A vs v5 B (v5's own floor) | 1077 (46.7%) | 6043 | - |
+| v4 A vs v5 A | 1369 (59.4%) | 8295 | 341 |
+| v4 B vs v5 A | 1349 (58.6%) | 8549 | 309 |
+| v4 A vs v5 B | 1396 (60.6%) | 8502 | - |
+
+Every comparison has the same composition: birch/oak leaves, leaf litter, red mushroom blocks, and logs make up ~70% of moved blocks. The non-vegetation remainder is ores, water, pointed dripstone, andesite/diorite, and dirt, all feature-placed and all present in the v4-vs-v4 floor too. No stone/deepslate/air bulk shift, no noise-stage terrain drift. Each engine's run-to-run noise is the same size (42.5% vs 46.7%). Cross-engine diffs are ~1.4x that, consistent with v5 interleaving neighboring feature placement differently than the serial lane rather than corrupting anything: MC-55596 (#22) is exactly order-dependent feature placement. `failed=0`, `overlapViolations=0`, `leakedCells=0` on the verified run. Honest limit: this proves "no block-count corruption beyond order drift," not bit-identical output, which vanilla itself can't give (#22).
+
+**Champion scale, interleaved** (9216 chunks, tile 6 origin — same shape as #59-#61's orion4 rows; 16g pretouched, ParallelGC confirmed from the log, 7 workers, `orion.maxinflight=64`, CPU traced at 2Hz):
+
+| run | totalMs | eMSPC | p50 | p99 | max | steady CPU |
+|---|---|---|---|---|---|---|
+| orion4 run 1 | 190632 | 20.68 | 295.65 | 3156.02 | 23004.43 | ~313% |
+| **orion5 run 1** | **79733** | **8.65** | 479.37 | 1745.38 | 7947.80 | ~709% |
+| orion4 run 2 | 191716 | 20.80 | 295.74 | 3407.73 | 22556.17 | |
+| **orion5 run 2** | **75203** | **8.16** | 456.96 | 1483.43 | 7130.18 | |
+
+**-59.5% total time (2.47x), replicated n=2, both pairs far outside the ~9% noise band.** p99 and max tail roughly halve and third. p50 rises because v5 admits a 64-chunk window of overlapping requests that all finish together, rather than v4's sparse, fast singletons. CPU climbs from ~313% to ~709% of 800% (right panel below): the idle headroom #51 photographed was the serial lane. Filed as `orion5_62_*` in `findings/orion_results.csv` / `findings/leaderboard_entries.csv` (tile-1 smoke and tile-3 histogram runs included and labeled; their timings include histogram overhead), leaderboard and plots regenerated.
+
+![Left: interleaved champion eMSPC bars, orion4 at 20.68/20.80 and orion5 at 8.65/8.16. Right: CPU% over time, orion4 oscillating around 300% for ~205s, orion5 holding ~700% and finishing near 95s](findings/orion5_parallel_steps.png)
+
+**Follow-ups at the same config.**
+- `orion.maxinflight` sweep: 16 -> `totalMs=74014` (p50 101.87, p99 646.11, max 4709.65); 256 -> 78741 (p50 1726.43, p99 16057.40). Total time is flat across 16/64/256, inside noise, so #42's "latency dial, not throughput lever" holds for v5 too. 16 is the best latency seen by any Orion at this scale (n=1).
+- JFR on v5 (`findings/orion5_champion.jfr`, `settings=profile,delay=20s`, `totalMs=78096`): steady-state `Worker-Main` samples per second are **407.5 parallel / 16.8 serial-light / 5.0 serial-worldgen**, against v3's 113.3 / 9.6 / 69.9. `orion5-poll` is 207 of ~30k samples, so the main thread isn't the new ceiling. `generateStructureStarts` shows 325 samples (v3: 32), plausibly more of them now landing in the same window. Unexamined.
+
+**Verdict.** Radius-8 scarcity was never the ceiling. #55's five misses were all aimed at the wrong target. The dependency graph was fine; the executor under it was serial. Orion v5 is ~2.5x v4 at champion scale, correctness-checked against a block-level histogram, and now CPU-bound (~709% of 800%). That makes generator math itself the lever for the first time since #9, which in turn makes #55's compute-side ideas and DFC (#57-#61) worth revisiting, since their share of wall-clock just more than doubled.
+
+## 63. Drag race #63: Orion v5 vs Paper/Leaf/Leaf-on-crack, interleaved, and the Paper control nobody had run: matched worker count
+
+#62 closed with "re-run #32's interleaved Paper/Leaf drag race with v5, since Moonrise's lack of a serial lane is now the leading explanation for #18's gap." Every past drag race ran the servers at their defaults, and every Paper log in `findings/` says the same thing: `[MoonriseCommon] Paper is using 2 worker threads, 1 I/O threads` (`chunk-system.worker-threads: -1` on this 8-core box), against WorldgenD's 7. If v5 wins by running steps in parallel, the fair control is Moonrise given the same parallelism. So this race adds a sixth leg, **Paper (7 workers)**: `paper-global.yml` `worker-threads: 7` for that leg only, confirmed from its own log (`Paper is using 7 worker threads`) and restored to `-1` afterward.
+
+**Method.** 3 rounds x 6 legs, **leg order rotated every round** (a stronger version of #32's A,B,A,B) so time drift can't systematically favor any engine. Driver: `dragrace3.sh`, reusing `benching.md`'s `run_direct.py` recipe for WorldgenD and `control/run-drag-race.sh` for servers.
+- **WorldgenD:** `orion5`/`orion4` at tile 5 (6400 chunks), champion config (16g pretouched, ParallelGC confirmed from the log, 7 workers, `orion.maxinflight=64`, agent + patch flags per #62).
+- **Servers:** stock scripts (16g, Aikar G1), fresh world every leg, Chunky square radius 640 (6561 chunks), timed from RCON `chunky start` to the `Task finished` line. Chunky's own `Total time` agrees within ~2s on every leg.
+- **Cleanup:** worlds deleted after every leg.
+- **Environment snag:** the first launch died at Paper's boot with `Failed to bind to port`. `server-port=9090` is held by something outside this sandbox's network namespace: `ss` shows nothing listening, but a plain `bind()` returns `EADDRINUSE`. The partial run was discarded. The race was rerun from scratch on 25565, and `server.properties` was restored to 9090 on exit. All 18 legs completed, 0 failures.
+
+**Results** (ms/chunk = total_ms / chunks; `findings/dragrace3_results.csv`):
+
+| engine | round 1 | round 2 | round 3 | mean | round spread | vs Paper |
+|---|---|---|---|---|---|---|
+| **Orion v5** | 8.57 | 8.81 | 8.44 | **8.61** | 4.3% | **-65.0%** |
+| Paper (7 workers) | 8.52 | 9.27 | 9.59 | 9.13 | 11.7% | -62.9% |
+| Orion v4 | 20.56 | 20.87 | 21.48 | 20.97 | 4.4% | -14.8% |
+| Paper (default, 2 workers) | 24.42 | 26.10 | 23.34 | 24.62 | 11.2% | - |
+| Leaf (default) | 27.03 | 26.40 | 23.35 | 25.59 | 14.4% | +4.0% |
+| Leaf-on-crack (default) | 25.18 | 26.57 | 27.19 | 26.31 | 7.6% | +6.9% |
+
+Totals: v5 54,845 / 56,371 / 54,006 ms. Paper-7w 55,870 / 60,840 / 62,890 ms. Paper default 160,210 / 171,210 / 153,140 ms. v5 MSPC p99 1408-2018ms across the three rounds (v4: 2374-2818ms), max 9.8-10.7s (v4: 16.2-16.5s).
+
+![Drag race #63: mean ms/chunk bars with per-round dots, sorted: Orion v5 8.61, Paper 7 workers 9.13, Orion v4 20.97, Paper 24.62, Leaf 25.59, Leaf-on-crack 26.31](findings/dragrace3_summary.png)
+
+**What it says, one level past the numbers.**
+- **v5 vs Moonrise at matched workers is parity, not a win.** v5's mean is 5.7% lower than Paper-7w, inside the ~9% noise band (#16/#17). Paper-7w's own round spread (11.7%) is wider than the gap, and Paper-7w won round 1 outright (8.52 vs 8.57). v5 is the more consistent engine (4.3% spread vs 11.7%), plausibly because it does no disk IO or ticking. Two independent designs converge on the same ~8.5-9 ms/chunk once both run chunk steps in parallel over 7 workers: v5 patches one call site in vanilla, Moonrise is a full chunk-system rewrite. That's the strongest external confirmation #62's diagnosis could get.
+- **#18's long-open "~53% gap to Paper" is now explained in both directions.** Paper was ahead because Moonrise parallelizes steps and vanilla's lane doesn't (#62), even with just 2 workers against WorldgenD's 4-7. Stock Paper is now 2.86x slower than v5 because Paper *ships* 2 workers: giving it 7 makes it 2.70x faster (24.62 -> 9.13). The generator-patch theory #18 leaned on was never needed. `moonrise-diff-findings.md` Part 1 already found no generator-math advantage in Paper/Leaf, and this race gets Paper's whole gain from one thread-count setting.
+- **v4 beating stock Paper by 14.8%** is consistent with #52's v3-vs-Leaf ordering. With v5 in the race, it matters less.
+- **Leaf and Leaf-on-crack at defaults sit behind Paper** (+4.0%, +6.9%), both inside the noise band. #52's "Leaf fastest real server" and "crack 12% slower than Leaf" don't replicate in magnitude: crack vs Leaf is now +2.8%, noise. Neither Leaf variant was run at 7 workers.
+
+**Normalization caveats, unchanged from #52 and all cutting against the servers:** 6561 vs 6400 chunks (normalized per chunk, but a slightly larger square), real tick loop and disk saves (`sync-chunk-writes=true`, 1 I/O thread), G1 vs ParallelGC, and 26.1.2 servers vs WorldgenD's 26.1.1 jar. WorldgenD discards chunks instead of saving them. That makes "parity at matched workers" the conservative reading: Paper-7w pays for IO that v5 never does.
+
+**Filed.** `findings/dragrace3_results.csv` (round, leg order, engine, total, chunks, ms/chunk, Chunky total), 18 `#63` rows in `findings/leaderboard_entries.csv`, the 6 WorldgenD legs as `dragrace3_orion{4,5}_r{1,2,3}` in `findings/orion_results.csv`, all 12 server logs in `findings/dragrace3_logs/`, and `findings/dragrace3_summary.png` (new `plot_dragrace3` helper). Leaderboard and charts regenerated.
+
+## 64. Leaf and Leaf-on-crack at 7 workers: once thread count matches, every Moonrise server and Orion v5 land inside one noise band
+
+#63 left two legs untested: Leaf and Leaf-on-crack given the same 7 chunk workers Paper-7w and WorldgenD had. Both Leaf variants read Moonrise's worker count from the same `config/paper-global.yml` (their logs print `[MoonriseCommon] Paper is using N worker threads`), so the same override applies.
+
+**Method.** Same harness as #63 (`dragrace4.sh`), 3 rounds x 4 legs, order rotated every round.
+- **Legs:** Leaf-7w and Leaf-on-crack-7w, with Paper-7w and Orion v5 re-run as same-session anchors, so the comparison doesn't lean on #63's numbers from a different hour.
+- **Override:** `worker-threads: 7` set once for the whole run and confirmed from every server leg's own log (the `workers` column in the CSV). `-1` restored on exit, along with `server-port=9090` (race on 25565, per #63's port finding).
+- **Everything else:** unchanged from #63 (Chunky radius 640 = 6561 chunks, Aikar G1, fresh world deleted after each leg; v5 at tile 5 = 6400 chunks, champion flags). 12/12 legs, 0 failures.
+
+| engine (all 7 workers) | round 1 | round 2 | round 3 | mean | round spread | vs Paper-7w |
+|---|---|---|---|---|---|---|
+| **Orion v5** | 8.23 | 8.99 | 9.29 | **8.84** | 12.0% | -2.5% |
+| Paper | 9.27 | 8.81 | 9.12 | 9.07 | 5.1% | - |
+| Leaf | 9.74 | 8.51 | 9.74 | 9.33 | 13.2% | +2.9% |
+| Leaf-on-crack | 9.58 | 9.59 | 9.44 | 9.54 | 1.6% | +5.2% |
+
+(ms/chunk; `findings/dragrace4_results.csv`.)
+
+![Drag race #64: all four engines at 7 workers, mean ms/chunk bars with per-round dots: Orion v5 8.84, Paper 9.07, Leaf 9.33, Leaf-on-crack 9.54, all within ~8% of each other](findings/dragrace4_summary.png)
+
+**Reading.**
+- **All four engines sit within 8% of each other.** Every pairwise gap is smaller than at least one of the two engines' own round spreads. There's no ranking here, only parity. Orion v5 is nominally first again (-2.5% vs Paper-7w), but it's the smallest margin it has posted, and v5's own spread this session (12.0%, 8.23-9.29) is its widest yet.
+- **Paper-7w replicates across sessions:** 9.13 in #63, 9.07 here (0.7% apart). v5: 8.61 in #63, 8.84 here (2.7% apart). Pooled over n=6 each, v5 at 8.72 vs Paper-7w at 9.10 is -4.2%, still inside the ~9% band (#16/#17). The defensible claim is "v5 matches Moonrise," not "v5 beats Moonrise."
+- **Leaf's fork patches buy nothing measurable for bulk generation at matched workers.** Leaf-7w is +2.9% vs Paper-7w; Leaf-on-crack-7w +5.2% (its FMA/profiler flags, #52). Both are noise, and the crack flags' direction matches #52 and #63 (slightly slower than plain Leaf, +2.3% here) without ever reaching significance. Consistent with `moonrise-diff-findings.md` Part 1: the generator math is the same code in all three servers.
+- **Thread count, not fork, was the variable.** At defaults (#63), Paper/Leaf/Leaf-on-crack spanned 24.6-26.3 ms/chunk. At 7 workers they span 9.07-9.54: each got ~2.7x faster from one config line, and the ordering among them collapses into noise. #18-#52's server rankings were rankings of a 2-worker default.
+
+**Filed.** `findings/dragrace4_results.csv` (with the log-confirmed `workers` column), 12 `#64` rows in `findings/leaderboard_entries.csv`, 8 server logs in `findings/dragrace4_logs/`, `findings/dragrace4_summary.png` (the #63 helper, generalized with a reference engine). Leaderboard and charts regenerated. Not filed: the three v5 legs' MSPC percentile rows for `orion_results.csv`. The scratch result files were cleared before that step, so only their totals survive (in the CSV above and the leaderboard). A process slip, not a data problem for this finding, which only uses totals.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -571,4 +684,6 @@ The field-based cache is a real, measurable ~5.4% improvement over the hashmap v
 - **#60's megamorphic-dispatch diagnosis was fixed and replicated in #61**: one shared, parameterized interpreter class brought DFC from a 16.6% regression to +2.7%/+5.9% across two runs (both inside the ~9% noise band) at champion scale. Still open: whether extending node coverage past `Constant`/`Ap2` (per #58's glue-fraction analysis) pushes the number past noise into a confirmed win rather than parity. `orion4` still doesn't require DFC by default.
 - **#57's open questions are closed by #58**: real-leaf speedup is 2.04-3.12x (confirmed the Proxy-dilution theory), and the compilable glue is only 4.6-7.1% of champion-scale CPU — projected wall-clock win (3.5-4.8%) sits inside this box's own ~9% noise band. DFC parked at Stage 1; not worth extending into Stage 2/3 as originally scoped. Still open: whether the 9-18% "ambiguous" bucket (interpolation/aquifer/material-rules) is worth a materially bigger, separately-scoped extension — not investigated.
 - **#56's NetherFortressPieces half of the structure-gen port is unverifiable by construction** — this project only ever generates the overworld, so that code path can never execute here. Fine to leave as-is (correctness, zero cost either way per the champion-scale check), but worth remembering if the project ever adds Nether generation.
-
+- **#62 overturns #55's verdict**: the "radius-8 scarcity" ceiling was vanilla's serial `ConsecutiveExecutor("worldgen")` lane, and Orion v5 (parallel chunk steps under write-radius area locks) is ~2.5x v4 at champion scale, replicated n=2, histogram-checked. Still open: (a) the one unexplained first-smoke-run poller death, uncaptured and not recurred in 11 runs; (b) whether the light lane (16.8 serial samples/s under v5) or the global structure lock is the next serial ceiling; (c) `orion.maxinflight=16`'s best-ever latency (p50 102ms, p99 646ms) at flat throughput is n=1, worth replicating before it becomes v5's default; (d) re-running #32's interleaved Paper/Leaf drag race with v5, since Moonrise's lack of a serial lane is now the leading explanation for #18's gap; (e) DFC (#61) and #55's compute-side ideas on top of v5, now that the run is CPU-bound.
+- **#63 answers #62's item (d) and #18's gap**: at matched 7 workers, Orion v5 (8.61 ms/chunk) and Paper/Moonrise (9.13) are at parity inside noise; stock Paper's 24.62 comes from shipping 2 Moonrise workers. Still open: Leaf/Leaf-on-crack at 7 workers; Paper-7w with IO ruled out (e.g. a ramdisk world or ParallelGC) to see whether its wider 11.7% spread and 5.7% deficit are disk/GC; v5 at `orion.maxinflight=16` in the same race for a latency comparison.
+- **#64 closes #63's Leaf question**: at 7 workers Orion v5 (8.84), Paper (9.07), Leaf (9.33), and Leaf-on-crack (9.54) all sit inside one noise band; pooled n=6, v5 vs Paper-7w is -4.2%, parity. Still open: anything that would separate them, now that thread count doesn't — e.g. Paper-7w on a ramdisk or with ParallelGC to remove IO/GC differences, or all four at a larger scale where v5's no-disk-writes advantage should compound if it is real.

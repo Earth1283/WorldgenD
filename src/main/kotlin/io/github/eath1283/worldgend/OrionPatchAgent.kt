@@ -89,6 +89,8 @@ object OrionPatchAgent {
     private const val NETHER_FORTRESS_PIECES = "net.minecraft.world.level.levelgen.structure.structures.NetherFortressPieces"
     private const val NETHER_FORTRESS_PIECE_WEIGHT = "net.minecraft.world.level.levelgen.structure.structures.NetherFortressPieces\$PieceWeight"
     private const val DENSITY_FUNCTIONS_AP2 = "net.minecraft.world.level.levelgen.DensityFunctions\$Ap2"
+    private const val CHUNK_MAP = "net.minecraft.server.level.ChunkMap"
+    private const val STRUCTURE_START = "net.minecraft.world.level.levelgen.structure.StructureStart"
 
     // Straight-to-file, not println: #23's already-documented quirk where buffered stdout
     // doesn't reliably reach the redirected log until process exit — same fix as
@@ -106,7 +108,8 @@ object OrionPatchAgent {
         val patchStructureGenState = System.getProperty("orion.patchStructureGenState") == "true"
         val detectStructureGenRaces = System.getProperty("orion.detectStructureGenRaces") == "true"
         val patchDfc = System.getProperty("orion.patchDfc") == "true"
-        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc) {
+        val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
+        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
@@ -125,7 +128,11 @@ object OrionPatchAgent {
             System.err.println("[OrionPatchAgent] will patch $DENSITY_FUNCTIONS_AP2 on load (DFC Stage 1, findings #57/#58)")
             Runtime.getRuntime().addShutdownHook(Thread { debugLog("DfcRuntime report: ${DfcRuntime.report()}") })
         }
-        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc))
+        if (patchParallelSteps) {
+            System.err.println("[OrionPatchAgent] will patch $CHUNK_MAP and $STRUCTURE_START on load (parallel steps, finding #62)")
+            Runtime.getRuntime().addShutdownHook(Thread { debugLog("OrionParallelSteps report: ${OrionParallelSteps.report()}") })
+        }
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps))
     }
 
     private class RaceDetectorTransformer : ClassFileTransformer {
@@ -171,6 +178,7 @@ object OrionPatchAgent {
         private val patchBiomeMemo: Boolean,
         private val patchStructureGenState: Boolean,
         private val patchDfc: Boolean,
+        private val patchParallelSteps: Boolean,
     ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
@@ -184,7 +192,8 @@ object OrionPatchAgent {
             val handled = (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
                 (patchBiomeMemo && dotted == SURFACE_RULES_BIOME_CONDITION) ||
                 (patchStructureGenState && dotted in structureGenTargets) ||
-                (patchDfc && dotted == DENSITY_FUNCTIONS_AP2)
+                (patchDfc && dotted == DENSITY_FUNCTIONS_AP2) ||
+                (patchParallelSteps && (dotted == CHUNK_MAP || dotted == STRUCTURE_START))
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
@@ -196,6 +205,8 @@ object OrionPatchAgent {
                     STRONGHOLD_PIECE_WEIGHT -> patchPieceWeightPlaceCount(loader, classfileBuffer)
                     NETHER_FORTRESS_PIECES -> patchOuterPlaceCountUsage(loader, classfileBuffer, NETHER_FORTRESS_PIECE_WEIGHT)
                     DENSITY_FUNCTIONS_AP2 -> patchAp2Compute(loader, classfileBuffer)
+                    CHUNK_MAP -> patchChunkMapApplyStep(loader, classfileBuffer)
+                    STRUCTURE_START -> patchStructureStartPlacement(loader, classfileBuffer)
                     else -> patchPieceWeightPlaceCount(loader, classfileBuffer)
                 }
                 debugLog("transform() of $dotted succeeded, ${result.size} bytes")
@@ -211,6 +222,46 @@ object OrionPatchAgent {
             pool.appendSystemPath()
             if (loader != null) pool.appendClassPath(LoaderClassPath(loader))
             return pool
+        }
+
+        // #62: ChunkMap.applyStep runs inside the serial "worldgen" ConsecutiveExecutor and calls
+        // ChunkStep.apply synchronously. Swapping that one call for OrionParallelSteps.apply
+        // returns an incomplete future instead, which ChunkGenerationTask already handles
+        // (it is the same path vanilla's async NOISE step takes).
+        private fun patchChunkMapApplyStep(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            var matches = 0
+            cc.getDeclaredMethod("applyStep").instrument(object : javassist.expr.ExprEditor() {
+                override fun edit(m: javassist.expr.MethodCall) {
+                    if (m.className == "net.minecraft.world.level.chunk.status.ChunkStep" && m.methodName == "apply") {
+                        matches++
+                        m.replace(
+                            """{
+                                ${'$'}_ = io.github.eath1283.worldgend.OrionParallelSteps.apply(
+                                    ${'$'}0, ${'$'}1, ${'$'}2, ${'$'}3,
+                                    ${'$'}3.getPos().x(), ${'$'}3.getPos().z(),
+                                    ${'$'}0.targetStatus().getName(), ${'$'}0.blockStateWriteRadius());
+                            }"""
+                        )
+                    }
+                }
+            })
+            check(matches == 1) { "expected exactly one ChunkStep.apply call in ChunkMap.applyStep, found $matches" }
+            val bytes = cc.toBytecode()
+            cc.detach()
+            return bytes
+        }
+
+        // #62: placeInChunk mutates shared piece/template state, so it takes the same global
+        // structure lock OrionParallelSteps holds for structure_starts/references/spawn.
+        private fun patchStructureStartPlacement(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            val placeInChunk = cc.getDeclaredMethod("placeInChunk")
+            placeInChunk.insertBefore("{ io.github.eath1283.worldgend.OrionParallelSteps.lockStructures(); }")
+            placeInChunk.insertAfter("{ io.github.eath1283.worldgend.OrionParallelSteps.unlockStructures(); }", true)
+            val bytes = cc.toBytecode()
+            cc.detach()
+            return bytes
         }
 
         // isSameThread() gates executeBlocking()/submitAsync().join() on

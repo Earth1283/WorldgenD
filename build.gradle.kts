@@ -64,6 +64,7 @@ tasks.register<Jar>("agentJar") {
     from(sourceSets.main.get().output) {
         include("io/github/eath1283/worldgend/OrionPatchAgent*.class")
         include("io/github/eath1283/worldgend/MemoizingPredicate*.class")
+        include("io/github/eath1283/worldgend/OrionParallelSteps*.class")
     }
     from({
         configurations.getByName("runtimeClasspath")

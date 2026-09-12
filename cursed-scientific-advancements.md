@@ -288,6 +288,8 @@ version bump, and we're naming it that instead of pretending otherwise.
 | Orion v2.1 (+ spatial index, 4 workers) | 23.25-23.98 | ~34% faster than mosaic |
 | **Orion v2.1 (+ 7 workers)** | **20.77** | **~43% faster than mosaic, reigning champion** |
 | Orion v2.2 (v2.1 + scatter order) | 20.77-22.81 | same throughput, ~half the median latency |
+| Orion v3/v4 (multi-threaded admission, patched; `scientific-findings-41-80.md` #49-#61) | 19.71-20.80 | parity with v2.1: the ceiling wasn't the scheduler |
+| **Orion v5 (parallel chunk steps, #62)** | **8.16-8.65** | **~2.5x v4, ~77% faster than mosaic: vanilla's serial worldgen lane was the ceiling all along** |
 | *(for reference) Paper, interleaved same-session mean* | 24.02 | *genuine parity with v2.1 @ 4 workers, per Act 8* |
 
 The last row is deliberately not compared against the champion row above it — the 7-worker
