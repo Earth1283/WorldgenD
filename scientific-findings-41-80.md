@@ -737,6 +737,51 @@ Files:
 - **Data:** `findings/determinism65_pairs.csv`, `determinism65_mushrooms.csv`, `determinism65_hist/` (gzipped histograms for the headline pairs); tile-6 rows `det65_t6_*` in `orion_results.csv`.
 - **Chart:** `determinism65.png`.
 
+## 66. Orion v5.1: SIMD density batches are real at the microbenchmark, invisible at champion scale, and correctness-clean — plus the fix to #65's palette-only checker
+
+#65 left an open item: its correctness check hashed vanilla's chunk-palette output, which can't see two blocks of the same type swapping position. `compare_orion51_blocks.py` replaces it with a full block-position digest (SHA-256 of every one of the 16*16*384 positions in a chunk, not just the type counts) and re-runs the v5-vs-v5.1 comparison on top of it.
+
+**Correctness: 0/1024 chunks differ, either backend.** Tile 2 (1024 chunks), same deterministic-features + unlit-light flags as #65, `orion.simd.verify=true` so every batch call is counted:
+
+| Reference | Candidate | Chunks | Hash mismatches | Count mismatches |
+|---|---|---|---|---|
+| v5 vanilla | v5.1 vector | 1024 | 0 | 0 |
+| v5 vanilla | v5.1 scalar | 1024 | 0 | 0 |
+
+Both v5.1 backends are bit-identical to v5 down to block position, replicated across the correctness and blocks runs (`simd66_correctness_*`, `simd66_blocks_*` in `orion51_block_pairs.csv`). SIMD batching changes nothing observable: no FMA (`DensityVector.apply` uses separate `mul`/`add`, matching `DensityBatch.scalar`'s rounding order per operation), same NaN/inf edge handling (`min`/blend order preserved from the scalar switch).
+
+**The vector backend really is AVX2.** `System.getProperty("orion.simd")` defaults to `auto`, which picks the vector backend whenever `jdk.incubator.vector` is on the module path (`DensityBatch.selectVector`). At runtime `DensityVector.SPECIES = DoubleVector.SPECIES_PREFERRED` resolves to lanes=4 on this box (confirmed in every `.result` file's `densitySimd` line, e.g. `backend=vector lanes=4`), and decoding the C2-compiled `DensityVector.apply` nmethod (`decode_density_assembly.py`, `orion51_micro/simd66/density_vector.asm`) shows `vbroadcastsd`/`vmulpd` on `ymm` registers — genuine 256-bit AVX2, not autovectorized SSE. A probe with the vector module absent (`fallback.probe.gz`) confirms the reported fallback path is `backend=scalar lanes=1`, matching `-Dorion.simd=scalar`'s explicit control.
+
+**Isolated microbenchmark: vectorization wins 1.4-1.7x, but only past a length threshold.** `run_density_batch_bench.py`, 3 JVM forks x 5 rounds x 100k batches of a fixed operation mix, median ns/element:
+
+| Length | vanilla (inline scalar) | v5.1 vector | v5.1 scalar batch |
+|---|---|---|---|
+| 49 | 0.754 | 0.769 | 1.875 |
+| 128 | 0.579 | 0.466 | 0.671 |
+| 256 | 0.607 | 0.465 | 0.620 |
+| 1024 | 0.652 | 0.380 | 0.656 |
+
+At length 49 (12 vector iterations of 4 lanes plus a scalar tail), vector is a wash with vanilla and the batched *scalar* path is 2.5x worse — the switch-dispatch overhead of routing every element through `DensityBatch.apply` costs more than looping the same math inline, and there aren't enough elements to amortize it. From length 128 up, vector pulls ahead of both by 20-42%; scalar-batch stays close to vanilla once dispatch overhead is amortized. `density_vector.asm` confirms why 49 is the crossover: the loop bound is `SPECIES.loopBound(length)`, and 49 rounds down to 48.
+
+**At champion scale, that win is real but noise-floor-adjacent, same pattern as #57/#58's DFC.** Real generation calls `DensityBatch` 2,075,187 times per 1024-chunk fill, only at length 49 (33,697 calls) or 128 (2,041,490 calls) — never the 256/1024 lengths the microbenchmark also swept, and length 128 accounts for 99.4% of all elements processed. Weighting the microbenchmark's per-length medians by that real call mix: vector's own compute time is ~123ms vs vanilla's ~153ms and scalar-batch's ~178ms across the whole 1024-chunk fill — about 20-55us saved or lost per chunk, against chunks that each take tens to hundreds of milliseconds end to end.
+
+Tile 5 (6400 chunks), n=3 each, rotated order (`simd66_t5_*` in `orion_results.csv`), effective MSPC:
+
+| Mode | Rounds | Mean | vs v5 vanilla |
+|---|---|---|---|
+| v5 vanilla | 10.13 / 9.83 / 9.66 | 9.87 | — |
+| v5.1 vector | 8.64 / 8.93 / 9.81 | 9.12 | -7.6% |
+| v5.1 scalar | 9.72 / 9.16 / 8.89 | 9.26 | -6.2% |
+
+Both v5.1 backends land inside the ~9% noise band the box has carried since #16/#17 — vector and scalar-batch (the latter with no vectorization at all) show the *same* direction and similar magnitude, which is the tell that this is run-to-run noise, not a SIMD effect. The microbenchmark's own math says it should be too small to see: ~20-55us/chunk against a noise band whose round-to-round swing is itself hundreds of milliseconds per chunk at this scale.
+
+**Verdict:** v5.1 is a correctness-neutral, real-but-invisible-at-scale change. Ship it as the harness default (it already is) for the isolated win and the AVX2 confirmation; don't cite champion-scale numbers as evidence it's faster than v5 — they aren't distinguishable from noise.
+
+Files:
+- **Data:** `findings/orion51_results.csv`, `orion51_block_pairs.csv`, `orion51_micro/simd66/*fork*.csv` (isolated benchmark), `orion51_micro/simd66/*.probe.gz` + `density_vector.asm` (JIT/AVX confirmation).
+- **Chart:** `orion51_simd.png`.
+- **Scripts:** `run_orion51.py`, `compare_orion51_blocks.py`, `run_density_batch_bench.py`, `decode_density_assembly.py`.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -757,3 +802,4 @@ Files:
 - **#63 answers #62's item (d) and #18's gap**: at matched 7 workers, Orion v5 (8.61 ms/chunk) and Paper/Moonrise (9.13) are at parity inside noise; stock Paper's 24.62 comes from shipping 2 Moonrise workers. Still open: Leaf/Leaf-on-crack at 7 workers; Paper-7w with IO ruled out (e.g. a ramdisk world or ParallelGC) to see whether its wider 11.7% spread and 5.7% deficit are disk/GC; v5 at `orion.maxinflight=16` in the same race for a latency comparison.
 - **#64 closes #63's Leaf question**: at 7 workers Orion v5 (8.84), Paper (9.07), Leaf (9.33), and Leaf-on-crack (9.54) all sit inside one noise band; pooled n=6, v5 vs Paper-7w is -4.2%, parity. Still open: anything that would separate them, now that thread count doesn't — e.g. Paper-7w on a ramdisk or with ParallelGC to remove IO/GC differences, or all four at a larger scale where v5's no-disk-writes advantage should compound if it is real.
 - **#65 makes v5 deterministic**: ordering overlapping FEATURES steps by a 3x3 color key plus an unlit light view in `WorldGenRegion` gives bit-identical block states across repeat runs (0/2304 chunks), and `closure` mode across overlapping targets too (0/1024). Cost: region +6.7% (noise), closure +19.3% (extra border chunks). Still open: the unlit view cuts brown mushrooms ~4x vs plain v5 (a heightmap-based light model might keep them); spawn-prep chunks generated before ordering is enabled; closure cost at champion-plus scale, where the border share should shrink.
+- **#66 fixes #65's palette-only correctness checker (full block-position digest, 0/1024 mismatches either v5.1 backend) and finds v5.1's SIMD win is real but too small to see at champion scale**: isolated microbenchmark shows AVX2 vectorization at 1.4-1.7x past a ~48-element threshold, confirmed genuine 256-bit `ymm` via decoded C2 assembly, but real generation's own call-length mix (99.4% of elements at length 128) projects to only ~20-55us/chunk saved — inside the ~9% noise band, and champion-scale v5.1 numbers (-6 to -8% vs v5) shouldn't be read as a confirmed win. Still open: whether a batch API that groups multiple density arrays per call (rather than one call per 49- or 128-element array) would amortize dispatch overhead enough to clear the noise floor; no such grouping exists in vanilla's own call sites today.

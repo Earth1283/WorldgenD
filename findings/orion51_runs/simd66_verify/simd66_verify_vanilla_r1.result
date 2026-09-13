@@ -1,0 +1,3 @@
+scheduler=orion5 ok=1024 failed=0 totalMs=18957
+MSPC (ms/chunk, n=1024): min=7.87 p1=44.72 p25=253.96 p50=1109.28 p75=1387.08 p99=5784.70 max=5812.61
+parallelSteps scheduled=12584 deferred=8 inline=3215 maxRunning=150 leakedCells=0 overlapViolations=0 gated=1001 kicks=1002 kickFailures=0 featuresDone=1156 stuckGates=0 orderViolations=0 []

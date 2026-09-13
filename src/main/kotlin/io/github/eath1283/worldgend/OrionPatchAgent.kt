@@ -8,39 +8,6 @@ import javassist.CtClass
 import javassist.LoaderClassPath
 import javassist.CtNewMethod
 
-// #47/#49: OrionV3's deadlock traces to BlockableEventLoop.isSameThread(), which gates
-// executeBlocking()/submitAsync().join() on `Thread.currentThread() == getRunningThread()`
-// — a fixed field (ServerChunkCache.mainThread etc.), not "is this thread already inside
-// doRunTask() on this instance." orion3-poll's own nested calls (a task it is running via
-// doRunTask() recursively needs the executor polled again) therefore take the
-// async-enqueue-and-join branch instead of running inline: it blocks on a future only it
-// can service, from inside the one call stack that could service it. #34's single-caller
-// requirement on pendingGenerationTasks rules out just handing a second thread the
-// permission to call pollTask() (tried and reverted in #48) — that's concurrent access to
-// an unsynchronized ArrayList, a correctness bug, not a fix.
-//
-// The invariant this patch changes: isSameThread() additionally treats "the thread
-// currently executing doRunTask() on THIS BlockableEventLoop instance" as same-thread.
-// In vanilla (and v2.1/v2.2) exactly one physical thread ever calls doRunTask() at all,
-// so this is a no-op there by construction — not just untested, structurally unreachable.
-// It only changes behavior for a thread recursing into its own doRunTask() call, which
-// only OrionV3's architecture can produce.
-//
-// Gated behind -Dorion.patchReentrancy=true so v2.1/v2.2 runs (no flag) load the
-// completely unmodified class — that's the vanilla control path for correctness
-// comparison, not a mode switch inside patched code.
-// #53: memoizes SurfaceRules$BiomeConditionSource.biomeNameTest (a Predicate<ResourceKey<Biome>>
-// derived once from the parsed surface-rule tree, config-invariant for the run) so the
-// per-column Holder.is(biomeNameTest) call in the BiomeCondition$1 local class hits a cache
-// instead of re-probing the backing Set every column. Patches the OUTER class's constructor,
-// not the local class — the per-column call site is untouched, only the Predicate it calls
-// into changes identity. Gated behind -Dorion.patchBiomeMemo=true, independent of
-// orion.patchReentrancy. See scientific-findings-41-80.md #53, static-analysis-findings.md.
-// Detects actual concurrent entry into StrongholdPieces' unsafe-shared-state methods —
-// independent of whether the fix (OrionPatchAgent's own patchStructureGenState) is on.
-// With the fix ON, concurrent entry is expected and safe (state is thread-local); a
-// "violation" only means something with -Dorion.patchStructureGenState=false: proof the
-// race window is real and reachable, not proof the fix works.
 object StructureGenRaceDetector {
     private val active = java.util.concurrent.ConcurrentHashMap<Any, MutableSet<Thread>>()
     private val violations = java.util.concurrent.atomic.AtomicLong(0)
@@ -112,7 +79,9 @@ object OrionPatchAgent {
         val patchDfc = System.getProperty("orion.patchDfc") == "true"
         val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
         val patchWorldgenLight = System.getProperty("orion.patchWorldgenLight") == "true"
-        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight) {
+        val patchDensitySimd = System.getProperty("scheduler") == "orion5.1" ||
+            System.getProperty("orion.patchDensitySimd") == "true"
+        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
@@ -136,7 +105,8 @@ object OrionPatchAgent {
             Runtime.getRuntime().addShutdownHook(Thread { debugLog("OrionParallelSteps report: ${OrionParallelSteps.report()}") })
         }
         if (patchWorldgenLight) System.err.println("[OrionPatchAgent] will patch $WORLD_GEN_REGION light reads on load (finding #65)")
-        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight))
+        if (patchDensitySimd) System.err.println("[OrionPatchAgent] density batches: ${DensityBatch.report()}")
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd))
     }
 
     private class RaceDetectorTransformer : ClassFileTransformer {
@@ -184,6 +154,7 @@ object OrionPatchAgent {
         private val patchDfc: Boolean,
         private val patchParallelSteps: Boolean,
         private val patchWorldgenLight: Boolean,
+        private val patchDensitySimd: Boolean,
     ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
@@ -199,11 +170,12 @@ object OrionPatchAgent {
                 (patchStructureGenState && dotted in structureGenTargets) ||
                 (patchDfc && dotted == DENSITY_FUNCTIONS_AP2) ||
                 (patchParallelSteps && (dotted == CHUNK_MAP || dotted == STRUCTURE_START)) ||
-                (patchWorldgenLight && dotted == WORLD_GEN_REGION)
+                (patchWorldgenLight && dotted == WORLD_GEN_REGION) ||
+                (patchDensitySimd && dotted in DensitySimdPatch.targets)
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
-                val result = when (dotted) {
+                val result = if (dotted in DensitySimdPatch.targets) DensitySimdPatch.transform(loader, classfileBuffer) else when (dotted) {
                     BLOCKABLE_EVENT_LOOP -> patchBlockableEventLoop(loader, classfileBuffer)
                     SERVER_CHUNK_CACHE -> patchServerChunkCache(loader, classfileBuffer)
                     SURFACE_RULES_BIOME_CONDITION -> patchBiomeConditionSource(loader, classfileBuffer)

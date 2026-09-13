@@ -116,3 +116,19 @@ Leaf (7 workers),"7-worker drag race #64, round 3 (leg 1)",63910,6561,#64
 Leaf-on-crack (7 workers),"7-worker drag race #64, round 3 (leg 2)",61920,6561,#64
 Orion v5,"7-worker drag race #64, round 3 (leg 3)",59425,6400,#64
 Paper (7 workers),"7-worker drag race #64, round 3 (leg 4)",59840,6561,#64
+Orion v5,simd66_verify_vanilla_r1 (worker-count diagnostic),18957,1024,#66
+Orion v5,simd66_correctness_vanilla_r1,18266,1024,#66
+Orion v5.1,simd66_correctness_vector_r1,21649,1024,#66
+Orion v5.1,simd66_correctness_scalar_r1,17552,1024,#66
+Orion v5,simd66_blocks_vanilla_r1,22253,1024,#66
+Orion v5.1,simd66_blocks_vector_r1,20830,1024,#66
+Orion v5.1,simd66_blocks_scalar_r1,18605,1024,#66
+Orion v5,simd66_t5_vanilla_r1,64801,6400,#66
+Orion v5.1,simd66_t5_vector_r1,55265,6400,#66
+Orion v5.1,simd66_t5_scalar_r1,62213,6400,#66
+Orion v5.1,simd66_t5_vector_r2,57128,6400,#66
+Orion v5.1,simd66_t5_scalar_r2,58612,6400,#66
+Orion v5,simd66_t5_vanilla_r2,62877,6400,#66
+Orion v5.1,simd66_t5_scalar_r3,56893,6400,#66
+Orion v5,simd66_t5_vanilla_r3,61812,6400,#66
+Orion v5.1,simd66_t5_vector_r3,62756,6400,#66

@@ -81,3 +81,19 @@ det65_t6_region_r3,"Orion v5 deterministic region+light #65 round 3 (tile 6, rot
 det65_t6_closure_r1,"Orion v5 deterministic closure+light #65 round 1 (tile 6, rotating order)",orion5,6,9216,7,92955,1.92,11.87,48.68,162.93,1124.33,3304.93,12406.77
 det65_t6_closure_r2,"Orion v5 deterministic closure+light #65 round 2 (tile 6, rotating order)",orion5,6,9216,7,98321,1.83,13.62,57.09,158.02,1078.28,3117.70,18464.54
 det65_t6_closure_r3,"Orion v5 deterministic closure+light #65 round 3 (tile 6, rotating order)",orion5,6,9216,7,94989,2.68,11.92,49.70,170.84,1070.87,2975.05,16960.69
+simd66_verify_vanilla_r1,simd66_verify_vanilla_r1 (worker-count diagnostic),orion5,2,1024,7,18957,7.87,44.72,253.96,1109.28,1387.08,5784.70,5812.61
+simd66_correctness_vanilla_r1,simd66_correctness_vanilla_r1,orion5,2,1024,7,18266,6.98,18.58,180.09,786.19,1102.44,7582.14,7612.85
+simd66_correctness_vector_r1,simd66_correctness_vector_r1,orion5.1,2,1024,7,21649,6.11,21.40,270.87,713.62,982.36,11532.22,11575.76
+simd66_correctness_scalar_r1,simd66_correctness_scalar_r1,orion5.1,2,1024,7,17552,7.97,30.62,202.26,795.07,1015.03,7069.09,7073.25
+simd66_blocks_vanilla_r1,simd66_blocks_vanilla_r1,orion5,2,1024,7,22253,7.72,23.96,263.89,870.25,1105.83,6316.31,6349.32
+simd66_blocks_vector_r1,simd66_blocks_vector_r1,orion5.1,2,1024,7,20830,5.41,11.81,231.38,750.77,957.46,7175.39,7215.37
+simd66_blocks_scalar_r1,simd66_blocks_scalar_r1,orion5.1,2,1024,7,18605,4.85,20.30,171.48,771.39,923.40,4800.44,4832.22
+simd66_t5_vanilla_r1,simd66_t5_vanilla_r1,orion5,5,6400,7,64801,0.16,302.97,462.89,521.61,606.82,1857.44,10140.14
+simd66_t5_vector_r1,simd66_t5_vector_r1,orion5.1,5,6400,7,55265,0.30,247.49,357.76,398.66,469.62,1352.84,12614.34
+simd66_t5_scalar_r1,simd66_t5_scalar_r1,orion5.1,5,6400,7,62213,1.81,232.00,403.10,454.38,548.21,2165.51,13489.21
+simd66_t5_vector_r2,simd66_t5_vector_r2,orion5.1,5,6400,7,57128,0.10,265.85,371.94,422.29,496.07,2268.45,11571.71
+simd66_t5_scalar_r2,simd66_t5_scalar_r2,orion5.1,5,6400,7,58612,0.11,241.57,397.51,445.64,538.55,2192.10,9889.42
+simd66_t5_vanilla_r2,simd66_t5_vanilla_r2,orion5,5,6400,7,62877,0.20,293.67,421.57,470.90,555.33,3227.20,12193.71
+simd66_t5_scalar_r3,simd66_t5_scalar_r3,orion5.1,5,6400,7,56893,0.47,257.00,407.15,458.13,531.52,1724.37,9041.64
+simd66_t5_vanilla_r3,simd66_t5_vanilla_r3,orion5,5,6400,7,61812,0.38,296.12,416.73,468.67,553.97,2625.66,11566.31
+simd66_t5_vector_r3,simd66_t5_vector_r3,orion5.1,5,6400,7,62756,0.50,259.02,375.33,422.78,495.43,3098.06,17024.11

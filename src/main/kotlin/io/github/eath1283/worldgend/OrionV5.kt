@@ -10,11 +10,6 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
 
-// #62: v3/v4 held in-flight centers 2*8 chunks apart and funneled admission through a coarse
-// lock, but the real ceiling was vanilla's serial "worldgen" lane, not neighbor conflicts.
-// With OrionParallelSteps (-Dorion.patchParallelSteps=true) executing steps concurrently,
-// vanilla's own GenerationChunkHolder bookkeeping (acquireStatusBump CAS, per-layer dependency
-// waits) already resolves overlapping requests, so admission is just a bounded window.
 class OrionV5(
     private val mc: Mc,
     private val dedicatedServer: Any,

@@ -1,0 +1,5 @@
+scheduler=orion5.1 ok=6400 failed=0 totalMs=58612
+MSPC (ms/chunk, n=6400): min=0.11 p1=241.57 p25=397.51 p50=445.64 p75=538.55 p99=2192.10 max=9889.42
+parallelSteps scheduled=59488 deferred=4751 inline=19524 maxRunning=113 leakedCells=0
+backgroundPool parallelism=7 poolSize=79
+densitySimd backend=scalar lanes=1 mode=scalar verify=false calls=0 elements=0

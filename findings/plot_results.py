@@ -821,6 +821,59 @@ def plot_dragrace3(rows, out_path, title="#63: drag race vs Orion v5 — interle
     plt.close(fig)
 
 
+def plot_orion51(out_path):
+    import statistics
+
+    results_path = HERE / "orion51_results.csv"
+    micro_dir = HERE / "orion51_micro" / "simd66"
+    if not results_path.exists() or not micro_dir.exists():
+        return
+    with results_path.open() as source:
+        world = [row for row in csv.DictReader(source) if row["verify"] == "False" and row["tile"] == "5"]
+    micro = []
+    for path in sorted(micro_dir.glob("*fork*.csv")):
+        with path.open() as source:
+            micro.extend(dict(row, fork=path.stem.rsplit("fork", 1)[1]) for row in csv.DictReader(source))
+    modes = [("vanilla", "Orion v5", SERIES[0]), ("vector", "v5.1 vector", SERIES[2]), ("scalar", "v5.1 scalar", SERIES[1])]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.8))
+    lengths = [49, 128, 256, 1024]
+    for mode, label, color in modes:
+        medians = []
+        for index, length in enumerate(lengths):
+            samples = [float(row["ns_per_element"]) for row in micro if row["mode"] == mode and int(row["length"]) == length]
+            medians.append(statistics.median(samples))
+            for fork in ("1", "2", "3"):
+                values = [float(row["ns_per_element"]) for row in micro
+                          if row["mode"] == mode and int(row["length"]) == length and row["fork"] == fork]
+                axes[0].scatter(index, statistics.median(values), color=color, alpha=0.35, s=22)
+        axes[0].plot(range(len(lengths)), medians, marker="o", color=color, label=label, linewidth=1.3)
+    axes[0].set_xticks(range(len(lengths)), [str(length) for length in lengths])
+    axes[0].set_xlabel("Density array length")
+    axes[0].set_ylabel("Nanoseconds / element (lower is better)")
+    axes[0].set_title("Isolated fillArray: median of 3 forks x 5 samples", fontsize=10)
+    axes[0].legend(frameon=False, fontsize=9)
+    for index, (mode, label, color) in enumerate(modes):
+        samples = [row for row in world if row["mode"] == mode]
+        for offset, row in enumerate(samples):
+            value = float(row["total_ms"]) / int(row["chunks"])
+            x = index + (offset - 1) * 0.13
+            axes[1].scatter(x, value, color=color, s=40)
+            axes[1].annotate(f"{value:.2f}", (x, value), xytext=(0, 8), textcoords="offset points", ha="center", fontsize=8)
+    axes[1].set_xticks(range(len(modes)), [label for _, label, _ in modes])
+    axes[1].set_ylabel("Effective milliseconds / chunk")
+    axes[1].set_title("6,400 chunks: every run, rotated order", fontsize=10)
+    axes[1].set_ylim(bottom=0)
+    for ax in axes:
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#66: Orion v5.1 SIMD density batches", fontsize=14, x=0.06, ha="left")
+    fig.text(0.06, 0.01, "AMD EPYC Milan / Java 25.0.4. World runs: 16 GiB pretouched, ParallelGC, parallelism 7, in-flight 64. No verification overhead.", fontsize=8, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.95))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -977,6 +1030,8 @@ def main():
         )
 
     plot_determinism65(orion_rows_by_config, HERE / "determinism65.png")
+
+    plot_orion51(HERE / "orion51_simd.png")
 
     print(f"Wrote charts to {HERE}")
 

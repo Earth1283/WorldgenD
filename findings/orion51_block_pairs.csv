@@ -1,0 +1,3 @@
+reference,candidate,chunks,hash_mismatches,count_mismatches
+simd66_blocks_vanilla_r1.hist.gz,simd66_blocks_vector_r1.hist.gz,1024,0,0
+simd66_blocks_vanilla_r1.hist.gz,simd66_blocks_scalar_r1.hist.gz,1024,0,0

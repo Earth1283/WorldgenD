@@ -62,6 +62,7 @@ fun main() {
     println("Hammering ${discovered.jar} (${discovered.classpath.size} bundled libraries)")
 
     val loader = discovered.newClassLoader()
+    if (schedulerMode == "orion5.1") DensitySimdPatch.requireInstalled(loader)
     val mc = Mc(loader)
 
     mc.method(mc.c("net.minecraft.SharedConstants"), "tryDetectVersion").call(null)
@@ -406,33 +407,18 @@ fun main() {
         return "[$cx,$cz] height=$height biome=$biomeName"
     }
 
-    // #62 correctness check: per-chunk block-state histogram, so runs can be diffed by which
-    // blocks moved (MC-55596 vegetation drift vs. real terrain corruption), not just whether.
     val histogramFile = System.getProperty("describe.histogramfile")?.let { File(it).apply { writeText("") } }
     val getSections = mc.publicMethod(cChunkAccess, "getSections")
-    val getStates = mc.publicMethod(mc.c("net.minecraft.world.level.chunk.LevelChunkSection"), "getStates")
-    val getAll = mc.publicMethod(mc.c("net.minecraft.world.level.chunk.PalettedContainer"), "getAll", java.util.function.Consumer::class.java)
-    val blockNames = java.util.IdentityHashMap<Any, String>()
-    val stateHashes = java.util.IdentityHashMap<Any, Int>()
+    val snapshot = histogramFile?.let {
+        BlockStateSnapshot(mc.publicMethod(mc.c("net.minecraft.world.level.chunk.LevelChunkSection"),
+            "getBlockState", Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!))
+    }
 
     fun recordHistogram(chunkResult: Any, cx: Int, cz: Int) {
         val out = histogramFile ?: return
         val chunk = mc.publicMethod(chunkResult.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
-        val counts = java.util.IdentityHashMap<Any, IntArray>()
-        // #65: counts miss moved-but-same-count blocks, so also hash states in storage order.
-        var positional = 0L
-        for (section in getSections.call(chunk) as Array<*>) {
-            getAll.call(getStates.call(section), java.util.function.Consumer<Any> {
-                counts.getOrPut(it) { IntArray(1) }[0]++
-                positional = positional * 1_000_003L + stateHashes.getOrPut(it) { it.toString().hashCode() }
-            })
-        }
-        val byName = java.util.TreeMap<String, Int>()
-        for ((state, count) in counts) {
-            val name = blockNames.getOrPut(state) { state.toString().substringAfter('{').substringBefore('}') }
-            byName.merge(name, count[0], Int::plus)
-        }
-        out.appendText("$cx $cz ${java.lang.Long.toHexString(positional)} ${byName.entries.joinToString(",") { "${it.key}=${it.value}" }}\n")
+        val sections = getSections.call(chunk) as Array<*>
+        out.appendText("$cx $cz ${snapshot!!.describe(sections)}\n")
     }
 
     val mosaicSide = MOSAIC_N * mosaicTile
@@ -746,12 +732,15 @@ fun main() {
         return
     }
 
-    if (schedulerMode == "orion5") {
+    if (schedulerMode == "orion5" || schedulerMode == "orion5.1") {
         for (flag in listOf("orion.patchReentrancy", "orion.patchStructureGenState", "orion.patchParallelSteps")) {
-            require(System.getProperty(flag) == "true") { "orion5 requires -D$flag=true (see OrionPatchAgent)" }
+            require(System.getProperty(flag) == "true") { "$schedulerMode requires -D$flag=true (see OrionPatchAgent)" }
         }
         val pollTask = mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask")
         val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
+        val backgroundExecutor = mc.publicMethod(mc.c("net.minecraft.util.Util"), "backgroundExecutor").call(null)!!
+        val backgroundPool = mc.publicMethod(backgroundExecutor.javaClass, "service").call(backgroundExecutor) as java.util.concurrent.ForkJoinPool
+        fun poolReport() = "backgroundPool parallelism=${backgroundPool.parallelism} poolSize=${backgroundPool.poolSize}"
         val orion = OrionV5(mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor, orionMaxInFlight)
         // #65: shifting the target lets two runs overlap partially, to test position-only determinism.
         val shift = Integer.getInteger("orion.targetShift", 0)
@@ -778,10 +767,10 @@ fun main() {
                 }
             }, "orion5-progress").apply { isDaemon = true; start() }
         }
-        println("Orion v5-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), max $orionMaxInFlight in flight, parallel steps.")
+        println("Orion v${schedulerMode.removePrefix("orion")}-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), max $orionMaxInFlight in flight, parallel steps.")
 
         val resultFile = File(serversDir.parentFile, "orion_result.txt")
-        resultFile.writeText("orion 5 fill() starting, target=${target.size}\n")
+        resultFile.writeText("$schedulerMode fill() starting, target=${target.size}\n${poolReport()}\n")
         val overallStart = System.nanoTime()
         val result = try {
             orion.fill(target) { cx, cz, success, chunkResult, error ->
@@ -793,8 +782,9 @@ fun main() {
         }
         val totalMs = (System.nanoTime() - overallStart) / 1_000_000
         resultFile.writeText(
-            "scheduler=orion5 ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
-                "parallelSteps ${OrionParallelSteps.report()}\n"
+            "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
+                "parallelSteps ${OrionParallelSteps.report()}\n${poolReport()}\n" +
+                if (schedulerMode == "orion5.1") "densitySimd ${DensityBatch.report()}\n" else ""
         )
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")
         saveWorldIfRequested()

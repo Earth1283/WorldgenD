@@ -45,7 +45,7 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5`.
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1`.
 **Orion v5 is the current champion** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
 at champion scale (eMSPC 8.16-8.65 vs 20.68-20.80, interleaved, n=2 each), steady-state CPU
 ~709% vs ~313%. The bottleneck v3/v4 hit was never Orion's scheduler or radius-8 scarcity: vanilla
@@ -62,9 +62,20 @@ In #63's interleaved drag race (3 rotating rounds) v5 ran **65% faster than stoc
 stock Paper ships 2 Moonrise workers, and once both engines parallelize chunk steps over 7 workers
 they converge. #64 extends that to Leaf and Leaf-on-crack: at 7 workers all four land within 8%
 (v5 8.84, Paper 9.07, Leaf 9.33, Leaf-on-crack 9.54 ms/chunk), inside the noise band.
-#65 makes v5 deterministic, which vanilla and Paper aren't (MC-55596): `-Dorion.deterministicFeatures=region` plus
-`-Dorion.patchWorldgenLight=true` generates bit-identical blocks across repeat runs at +6.7% (inside noise), and
-`closure` keeps each chunk identical no matter what's generated around it, at +19.3%. The light view thins brown mushrooms.
+#65 introduced deterministic feature scheduling: `-Dorion.deterministicFeatures=region` plus
+`-Dorion.patchWorldgenLight=true` was measured at +6.7% (inside noise), and
+`closure` at +19.3%. Its original block-equality and mushroom-count claims used a palette-only checker;
+finding #66 corrects that measurement. The light-view change can affect mushroom placement.
+**Orion v5.1** (`-Dscheduler=orion5.1`) adds SIMD batches for `Mapped`, `MulOrAdd`, and
+`Clamp` density arrays. It keeps v5's scheduler and requires the same three safety patches
+and agent. `run_direct.py` and the harness enable `jdk.incubator.vector` automatically and
+rebuild the agent before use. Direct Java launches should add
+`--add-modules=jdk.incubator.vector`; without that module, `auto` falls back to scalar batches.
+`-Dorion.simd=scalar` selects the scalar batch control. The result file reports the actual
+backend and lane count. All operations retain vanilla's rounding order; FMA is not substituted.
+The harness defaults to v5.1 and retains v5 for comparisons. See finding #66 for correctness,
+measured performance, and the correction to earlier palette-based world checks.
+
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see
 `scientific-findings-41-80.md` #56. A DFC (density-function compiler) Stage 1 prototype also

@@ -45,7 +45,12 @@ tasks.named<JavaExec>("run") {
     findProperty("gcArgs")?.let { jvmArgs((it as String).split(" ")) }
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.addAll(listOf("--add-modules", "jdk.incubator.vector"))
+}
+
 tasks.test {
+    jvmArgs("--add-modules=jdk.incubator.vector")
     useJUnitPlatform()
 }
 
@@ -65,6 +70,7 @@ tasks.register<Jar>("agentJar") {
         include("io/github/eath1283/worldgend/OrionPatchAgent*.class")
         include("io/github/eath1283/worldgend/MemoizingPredicate*.class")
         include("io/github/eath1283/worldgend/OrionParallelSteps*.class")
+        include("io/github/eath1283/worldgend/Density*.class")
     }
     from({
         configurations.getByName("runtimeClasspath")

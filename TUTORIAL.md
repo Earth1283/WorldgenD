@@ -140,3 +140,30 @@ Also: don't redirect this experiment's stdout to a file and then panic when the 
 Want a bigger fill? Bump `MOSAIC_TILE`. Want a specific dimension instead of the overworld? Swap `overworld()` for `getLevel(ResourceKey)` and look up `Level.NETHER` / `Level.END`. Want to actually inspect block data instead of just height + biome? `chunk` in the generation loop is a real `ChunkAccess` — reflectively call `getBlockState(BlockPos)` on it same as everything else here. The whole file is just "look up the method, call the method." You already know how to do that now.
 
 Go make some land.
+
+## Orion v5.1 CPU batches
+
+Build and run the SIMD variant with Java 25:
+
+```bash
+./gradlew test agentJar
+python3 run_direct.py -Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC \
+  -Dmax.bg.threads=7 -Dmosaic.tile=5 -Dscheduler=orion5.1 \
+  -Dorion.maxinflight=64 -javaagent:build/libs/orion-agent.jar \
+  -Dorion.patchReentrancy=true -Dorion.patchStructureGenState=true \
+  -Dorion.patchParallelSteps=true
+```
+
+The launcher adds the Vector API module and rebuilds the agent. The Rust harness exposes
+`orion5.1` and a scalar-batch checkbox. Use `-Dorion.simd=scalar` to compare the same bulk
+algorithm without explicit vectors, or `-Dscheduler=orion5` for the original implementation.
+`orion_result.txt` includes `densitySimd backend=... lanes=...` and the actual background
+pool parallelism. Spare fork-join threads can make the live thread count exceed parallelism.
+
+For correctness, use a smaller tile with `-Dorion.deterministicFeatures=region`,
+`-Dorion.patchWorldgenLight=true`, `-Dorion.targetShift=100`,
+`-Dorion.parallelSteps.verify=true`, `-Dorion.simd.verify=true`, and
+`-Ddescribe.histogramfile=/tmp/blocks.hist`. The corrected checker visits every block position
+and emits SHA-256 digests plus actual block counts. Its output cannot be compared with the
+older palette-only histograms. Verification and digesting add work; leave them out of timing runs.
+See [finding #66](scientific-findings-41-80.md) and `findings/run_orion51.py` for the experiment.
