@@ -668,6 +668,75 @@ Totals: v5 54,845 / 56,371 / 54,006 ms. Paper-7w 55,870 / 60,840 / 62,890 ms. Pa
 
 **Filed.** `findings/dragrace4_results.csv` (with the log-confirmed `workers` column), 12 `#64` rows in `findings/leaderboard_entries.csv`, 8 server logs in `findings/dragrace4_logs/`, `findings/dragrace4_summary.png` (the #63 helper, generalized with a reference engine). Leaderboard and charts regenerated. Not filed: the three v5 legs' MSPC percentile rows for `orion_results.csv`. The scratch result files were cleared before that step, so only their totals survive (in the CSV above and the leaderboard). A process slip, not a data problem for this finding, which only uses totals.
 
+## 65. Deterministic Orion v5: MC-55596 drift is two races, feature order and light reads, and closing both gives bit-identical worlds
+
+#62's diff noise floor was two v5 runs of the same seed disagreeing on ~47% of chunks (vegetation and ore, the MC-55596 signature). v5 owns the step scheduler now, so the question was whether that drift can be scheduled away, and what it costs.
+
+**Mechanism 1: order overlapping FEATURES steps.** FEATURES writes radius 1, so two FEATURES steps conflict iff their chunks are within Chebyshev distance 2, and their relative order changes the blocks. Every other step writes only its own chunk.
+- **Key:** `3 * floorMod(x, 3) + floorMod(z, 3)`. Two chunks within distance 2 always have different keys, so "lower key runs first" orients every conflicting pair. Given that orientation, the result no longer depends on scheduling.
+- **Where:** a gate in `OrionParallelSteps` in front of the area lock. A FEATURES step waits until every lower-key neighbor within 2 has finished FEATURES.
+- **Kicks:** a waited-on neighbor that hasn't started gets `getChunkFuture(x, z, FEATURES)`. Without it, v5's 64-request window (less than one row of the fill) deadlocks on neighbors whose requests haven't been submitted.
+- **Two scopes** (`-Dorion.deterministicFeatures`):
+  - **`region`** waits only on chunks the fill will run FEATURES on (target plus its 1-ring).
+  - **`closure`** waits on every lower-key neighbor and generates it if needed. Keys strictly decrease along a wait chain, so the closure is at most 8 hops x 2 chunks = 16 deep. Measured: +578 to +919 extra FEATURES chunks around a 48x48 fill, varying with position mod 3.
+
+**First attempt deadlocked.** Every worker idled until the 400s timeout. Boot's spawn prep generates a handful of chunks near the origin before ordering is enabled, so those chunks never pass the gate and never mark themselves done. Fix: completion of the kick future is also a done signal. After that every run finished with `stuckGates=0 kickFailures=0`. The verify checker (`-Dorion.parallelSteps.verify=true`) logged 26 order violations per origin-centered run, every one next to a spawn-prep chunk, and 0 once the target was shifted away.
+
+**Ordering alone removes almost all drift, but not all.** Tile 3 (2304 chunks), positional hash of every block state per chunk (added to `describe.histogramfile` for this finding; counts alone miss moved blocks), spawn-prep chunks within 4 of origin excluded:
+
+| Runs compared | Plain v5 | region | closure |
+|---|---|---|---|
+| Origin target, repeat runs | 1279 | 3 / 6 / 9 (three pairs) | 9 |
+| Target shifted to 100, repeat runs | 1038 | — | 17 |
+
+Every leftover was a brown mushroom (±1), sometimes with a knock-on block like 2 spruce leaves displaced.
+
+**Mechanism 2: light reads.** `MushroomBlock.canSurvive` requires `getRawBrightness(pos, 0) < 13`, and `WorldGenRegion.getLightEngine()` is the level's live light engine.
+- **The race:** lower-key neighbors finish FEATURES first, then initialize light on the async light lane. Whether that light is visible when the next chunk places mushrooms into them is timing.
+- **The fix:** `-Dorion.patchWorldgenLight=true` (new agent flag) adds `getRawBrightness`/`getBrightness` overrides to `WorldGenRegion`. They answer as an uninitialized column does: sky 15, block 0.
+- **Why that's a vanilla-reachable world:** it is exactly what the chunk being decorated always sees for its own column, and what any chunk sees whenever light lags behind features.
+
+**Both together: bit-identical.** Tile 3, target shifted to 100 (spawn-prep chunks 70+ chunks away), positional hash, `determinism65_pairs.csv`:
+
+| Runs compared | Plain v5 | region+light | closure+light |
+|---|---|---|---|
+| Same target, repeat runs | 1038 / 2304 (45%) | **0 / 2304** | **0 / 2304** |
+| Overlapping targets (shift 100 vs 116, 32x32 overlap) | 385 and 429 / 1024 | 46 / 1024 | **0 / 1024** (vs both repeats) |
+
+- **`region`:** "same job, same world". Its 46 cross-target differences all sit within 3 chunks of either target's edge (26 on the edge row).
+- **`closure`:** "same chunk, same blocks, whatever you generate around it or in what order". Edge chunks included.
+
+**The price in content.** The unlit view pins light-dependent placement at its low end. Brown mushrooms in the 48x48 shifted fill, `determinism65_mushrooms.csv`:
+
+| Run | Brown mushrooms |
+|---|---|
+| Plain v5 | 348 |
+| closure only | 194 |
+| closure+light | 78 |
+
+Plain v5 has lots because its fast light lane usually lit neighbors first; ordering alone already halves that; the unlit view keeps the ones that survive without darkness (grow blocks). Vanilla's count is scheduling-dependent too, so there is no single "correct" number, but a determinism flag that visibly thins mushrooms has to say so. A heightmap-based light model (dark below the surface heightmap) would keep more of them; not tried.
+
+**Cost.** Tile 6 (9216 chunks, origin, champion flags), 3 rounds, order rotated every round (`det65_t6_*` in `orion_results.csv`), effective MSPC:
+
+| Mode | Rounds | Mean | vs plain v5 | FEATURES chunks run |
+|---|---|---|---|---|
+| Plain v5 | 9.11 / 8.97 / 7.97 | 8.68 | — | — |
+| region+light | 9.36 / 8.92 / 9.52 | 9.27 | +6.7% | 9603 |
+| closure+light | 10.09 / 10.67 / 10.31 | 10.35 | +19.3% | 11339 |
+
+- **region:** inside the ~9% noise band. v5's own spread was 13% (round 3 ran fast), and against v5's first two rounds alone region is +2.5%. The gate is cheap: ~8400 of 9216 FEATURES steps wait at least once, and nothing holds a thread while waiting.
+- **closure:** a real cost, clear of every v5 round. It runs FEATURES on 18% more chunks, each dragging in its own carvers/noise dependencies, so most of the 19% is extra terrain outside the target rather than scheduling overhead. At a larger target the border share shrinks (the closure grows with the perimeter; the target grows with the area).
+
+**Caveats.**
+- **Blocks only:** only block states are compared, not entities, block-entity NBT, light, heightmaps or biomes.
+- **Sample size:** correctness is tile 3 with n=2 per mode (plus the cross-target run).
+- **Distance-2+ reads:** feature reads at distance 2-8 (WorldGenRegion hands out whatever state those chunks are in) are still theoretically racy. None showed up in any diff.
+- **Spawn prep:** chunks generated during boot stay unordered; targets that include spawn keep a handful of drifting chunks there.
+
+Files:
+- **Data:** `findings/determinism65_pairs.csv`, `determinism65_mushrooms.csv`, `determinism65_hist/` (gzipped histograms for the headline pairs); tile-6 rows `det65_t6_*` in `orion_results.csv`.
+- **Chart:** `determinism65.png`.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -687,3 +756,4 @@ Totals: v5 54,845 / 56,371 / 54,006 ms. Paper-7w 55,870 / 60,840 / 62,890 ms. Pa
 - **#62 overturns #55's verdict**: the "radius-8 scarcity" ceiling was vanilla's serial `ConsecutiveExecutor("worldgen")` lane, and Orion v5 (parallel chunk steps under write-radius area locks) is ~2.5x v4 at champion scale, replicated n=2, histogram-checked. Still open: (a) the one unexplained first-smoke-run poller death, uncaptured and not recurred in 11 runs; (b) whether the light lane (16.8 serial samples/s under v5) or the global structure lock is the next serial ceiling; (c) `orion.maxinflight=16`'s best-ever latency (p50 102ms, p99 646ms) at flat throughput is n=1, worth replicating before it becomes v5's default; (d) re-running #32's interleaved Paper/Leaf drag race with v5, since Moonrise's lack of a serial lane is now the leading explanation for #18's gap; (e) DFC (#61) and #55's compute-side ideas on top of v5, now that the run is CPU-bound.
 - **#63 answers #62's item (d) and #18's gap**: at matched 7 workers, Orion v5 (8.61 ms/chunk) and Paper/Moonrise (9.13) are at parity inside noise; stock Paper's 24.62 comes from shipping 2 Moonrise workers. Still open: Leaf/Leaf-on-crack at 7 workers; Paper-7w with IO ruled out (e.g. a ramdisk world or ParallelGC) to see whether its wider 11.7% spread and 5.7% deficit are disk/GC; v5 at `orion.maxinflight=16` in the same race for a latency comparison.
 - **#64 closes #63's Leaf question**: at 7 workers Orion v5 (8.84), Paper (9.07), Leaf (9.33), and Leaf-on-crack (9.54) all sit inside one noise band; pooled n=6, v5 vs Paper-7w is -4.2%, parity. Still open: anything that would separate them, now that thread count doesn't — e.g. Paper-7w on a ramdisk or with ParallelGC to remove IO/GC differences, or all four at a larger scale where v5's no-disk-writes advantage should compound if it is real.
+- **#65 makes v5 deterministic**: ordering overlapping FEATURES steps by a 3x3 color key plus an unlit light view in `WorldGenRegion` gives bit-identical block states across repeat runs (0/2304 chunks), and `closure` mode across overlapping targets too (0/1024). Cost: region +6.7% (noise), closure +19.3% (extra border chunks). Still open: the unlit view cuts brown mushrooms ~4x vs plain v5 (a heightmap-based light model might keep them); spawn-prep chunks generated before ordering is enabled; closure cost at champion-plus scale, where the border share should shrink.

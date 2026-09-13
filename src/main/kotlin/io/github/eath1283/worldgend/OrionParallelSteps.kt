@@ -10,6 +10,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
+import java.util.function.BiFunction
 
 // #62: vanilla submits every ChunkGenerationTask to one ConsecutiveExecutor("worldgen"), so
 // surface/carvers/features for the whole level run one at a time. The agent reroutes
@@ -57,9 +58,122 @@ object OrionParallelSteps {
             }
             "structure_starts", "structure_references", "spawn" ->
                 schedule(Task(x, z, 0), serial = true, handle, step, context, cache, chunk)
+            "features" -> featureOrder?.let { order ->
+                scheduleFeaturesInOrder(order, x, z) {
+                    schedule(Task(x, z, maxOf(writeRadius, 0)), serial = false, handle, step, context, cache, chunk)
+                }
+            } ?: schedule(Task(x, z, maxOf(writeRadius, 0)), serial = false, handle, step, context, cache, chunk)
             else -> schedule(Task(x, z, maxOf(writeRadius, 0)), serial = false, handle, step, context, cache, chunk)
         }
     }
+
+    // #65, MC-55596: two FEATURES steps within Chebyshev distance 2 touch a shared chunk, so which
+    // runs first changes the blocks. Orienting every such pair by a fixed 3x3 color key (lower key
+    // first) makes each chunk's blocks a function of positions, not of scheduling.
+    // bounds (minX, minZ, maxX, maxZ inclusive) limits waits to chunks the caller will generate to
+    // FEATURES; null waits on every lower-key neighbor, pulling in a bounded closure (depth <= 16).
+    class FeatureOrder(val bounds: IntArray?, val kick: BiFunction<Int, Int, CompletableFuture<*>>) {
+        fun covers(x: Int, z: Int) =
+            bounds == null || (x >= bounds[0] && z >= bounds[1] && x <= bounds[2] && z <= bounds[3])
+    }
+
+    @Volatile private var featureOrder: FeatureOrder? = null
+
+    @JvmStatic fun orderFeatures(order: FeatureOrder) { featureOrder = order }
+
+    private class Gate(var pending: Int, val begin: Runnable)
+
+    private val featuresLock = Any()
+    private val featuresStarted = HashSet<Long>()
+    private val featuresDone = HashSet<Long>()
+    private val featuresKicked = HashSet<Long>()
+    private val gatesWaitingOn = HashMap<Long, ArrayList<Gate>>()
+    private val gated = AtomicLong()
+    private val kicks = AtomicLong()
+    private val orderViolations = AtomicLong()
+    private val kickFailures = AtomicLong()
+    private val violationSample = ArrayList<String>()
+
+    private fun colorKey(x: Int, z: Int) = 3 * Math.floorMod(x, 3) + Math.floorMod(z, 3)
+
+    private fun scheduleFeaturesInOrder(order: FeatureOrder, x: Int, z: Int, run: () -> CompletableFuture<Any?>): CompletableFuture<Any?> {
+        val self = pack(x, z)
+        val key = colorKey(x, z)
+        val result = CompletableFuture<Any?>()
+        val begin = Runnable {
+            if (verify) checkOrder(order, x, z)
+            run().whenComplete { value, error ->
+                markFeaturesDone(self)
+                if (error != null) result.completeExceptionally(error) else result.complete(value)
+            }
+        }
+        val waitingOn = ArrayList<Long>()
+        val toKick = ArrayList<Long>()
+        synchronized(featuresLock) {
+            featuresStarted.add(self)
+            for (dx in -2..2) {
+                for (dz in -2..2) {
+                    val px = x + dx
+                    val pz = z + dz
+                    if (colorKey(px, pz) >= key || !order.covers(px, pz)) continue
+                    val p = pack(px, pz)
+                    if (p in featuresDone) continue
+                    waitingOn.add(p)
+                    if (p !in featuresStarted && featuresKicked.add(p)) toKick.add(p)
+                }
+            }
+            if (waitingOn.isNotEmpty()) {
+                val gate = Gate(waitingOn.size, begin)
+                for (p in waitingOn) gatesWaitingOn.getOrPut(p) { ArrayList(4) }.add(gate)
+            }
+        }
+        if (waitingOn.isEmpty()) {
+            begin.run()
+        } else {
+            gated.incrementAndGet()
+            kicks.addAndGet(toKick.size.toLong())
+            // Chunks that reached FEATURES before ordering was enabled (spawn prep) never pass
+            // through here, so the kicked future completing is also a done signal.
+            for (p in toKick) {
+                order.kick.apply((p shr 32).toInt(), p.toInt()).whenComplete { _, error ->
+                    if (error != null) kickFailures.incrementAndGet()
+                    markFeaturesDone(p)
+                }
+            }
+        }
+        return result
+    }
+
+    private fun markFeaturesDone(self: Long) {
+        val ready = ArrayList<Gate>()
+        synchronized(featuresLock) {
+            featuresDone.add(self)
+            gatesWaitingOn.remove(self)?.forEach { if (--it.pending == 0) ready.add(it) }
+        }
+        for (gate in ready) gate.begin.run()
+    }
+
+    private fun checkOrder(order: FeatureOrder, x: Int, z: Int) = synchronized(featuresLock) {
+        val key = colorKey(x, z)
+        for (dx in -2..2) {
+            for (dz in -2..2) {
+                if ((dx == 0 && dz == 0) || !order.covers(x + dx, z + dz)) continue
+                val done = pack(x + dx, z + dz) in featuresDone
+                if (done != (colorKey(x + dx, z + dz) < key) && orderViolations.incrementAndGet() <= 6) {
+                    violationSample.add("${x + dx},${z + dz}->$x,$z")
+                }
+            }
+        }
+    }
+
+    @JvmStatic
+    fun stuckSample(limit: Int): String = synchronized(featuresLock) {
+        gatesWaitingOn.keys.take(limit).joinToString(" ") { p ->
+            "[${p shr 32},${p.toInt()} started=${p in featuresStarted} kicked=${p in featuresKicked} gates=${gatesWaitingOn[p]?.size}]"
+        }
+    }
+
+    private fun pack(x: Int, z: Int) = (x.toLong() shl 32) or (z.toLong() and 0xFFFFFFFFL)
 
     @Synchronized
     private fun resolve(step: Any): MethodHandle {
@@ -150,5 +264,7 @@ object OrionParallelSteps {
     fun report(): String =
         "scheduled=${scheduled.get()} deferred=${deferred.get()} inline=${inline.get()} " +
             "maxRunning=${maxRunning.get()} leakedCells=${synchronized(cells) { cells.size }}" +
-            if (verify) " overlapViolations=${overlapViolations.get()}" else ""
+            (if (verify) " overlapViolations=${overlapViolations.get()}" else "") +
+            (if (featureOrder != null) " gated=${gated.get()} kicks=${kicks.get()} kickFailures=${kickFailures.get()} featuresDone=${synchronized(featuresLock) { featuresDone.size }} " +
+                "stuckGates=${synchronized(featuresLock) { gatesWaitingOn.size }}" + (if (verify) " orderViolations=${orderViolations.get()} ${synchronized(featuresLock) { violationSample.toString() }}" else "") else "")
 }

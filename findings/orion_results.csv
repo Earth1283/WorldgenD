@@ -72,3 +72,12 @@ dragrace3_orion4_r3,"Orion v4 drag race #63 round 3 (tile 5, interleaved vs Pape
 dragrace3_orion5_r1,"Orion v5 drag race #63 round 1 (tile 5, interleaved vs Paper/Leaf)",orion5,5,6400,7,54845,0.10,264.61,386.34,432.80,501.23,1471.42,9802.12
 dragrace3_orion5_r2,"Orion v5 drag race #63 round 2 (tile 5, interleaved vs Paper/Leaf)",orion5,5,6400,7,56371,0.38,255.21,377.23,431.14,516.21,2018.49,10654.47
 dragrace3_orion5_r3,"Orion v5 drag race #63 round 3 (tile 5, interleaved vs Paper/Leaf)",orion5,5,6400,7,54006,1.07,263.79,370.35,414.37,485.81,1408.06,9869.64
+det65_t6_base_r1,"Orion v5 control #65 round 1 (tile 6, rotating order)",orion5,6,9216,7,83925,1.31,313.85,425.10,481.30,562.17,1789.60,11214.53
+det65_t6_base_r2,"Orion v5 control #65 round 2 (tile 6, rotating order)",orion5,6,9216,7,82681,5.06,314.13,431.52,478.82,548.54,1438.18,11090.16
+det65_t6_base_r3,"Orion v5 control #65 round 3 (tile 6, rotating order)",orion5,6,9216,7,73435,0.10,257.98,372.20,422.60,497.86,1654.50,8894.66
+det65_t6_region_r1,"Orion v5 deterministic region+light #65 round 1 (tile 6, rotating order)",orion5,6,9216,7,86231,0.25,13.84,60.66,120.25,881.33,3032.46,12040.41
+det65_t6_region_r2,"Orion v5 deterministic region+light #65 round 2 (tile 6, rotating order)",orion5,6,9216,7,82197,0.26,14.20,58.21,117.71,796.32,2441.19,13012.24
+det65_t6_region_r3,"Orion v5 deterministic region+light #65 round 3 (tile 6, rotating order)",orion5,6,9216,7,87768,2.73,14.11,58.31,120.11,848.52,2769.39,13093.57
+det65_t6_closure_r1,"Orion v5 deterministic closure+light #65 round 1 (tile 6, rotating order)",orion5,6,9216,7,92955,1.92,11.87,48.68,162.93,1124.33,3304.93,12406.77
+det65_t6_closure_r2,"Orion v5 deterministic closure+light #65 round 2 (tile 6, rotating order)",orion5,6,9216,7,98321,1.83,13.62,57.09,158.02,1078.28,3117.70,18464.54
+det65_t6_closure_r3,"Orion v5 deterministic closure+light #65 round 3 (tile 6, rotating order)",orion5,6,9216,7,94989,2.68,11.92,49.70,170.84,1070.87,2975.05,16960.69

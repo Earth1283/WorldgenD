@@ -62,6 +62,9 @@ In #63's interleaved drag race (3 rotating rounds) v5 ran **65% faster than stoc
 stock Paper ships 2 Moonrise workers, and once both engines parallelize chunk steps over 7 workers
 they converge. #64 extends that to Leaf and Leaf-on-crack: at 7 workers all four land within 8%
 (v5 8.84, Paper 9.07, Leaf 9.33, Leaf-on-crack 9.54 ms/chunk), inside the noise band.
+#65 makes v5 deterministic, which vanilla and Paper aren't (MC-55596): `-Dorion.deterministicFeatures=region` plus
+`-Dorion.patchWorldgenLight=true` generates bit-identical blocks across repeat runs at +6.7% (inside noise), and
+`closure` keeps each chunk identical no matter what's generated around it, at +19.3%. The light view thins brown mushrooms.
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see
 `scientific-findings-41-80.md` #56. A DFC (density-function compiler) Stage 1 prototype also

@@ -707,6 +707,74 @@ def plot_orion_v5(orion_rows_by_config, out_path):
     plt.close(fig)
 
 
+def plot_determinism65(orion_rows_by_config, out_path):
+    # #65: left = chunks that differ between two runs per mode (log scale, 0 drawn at the floor); right = tile-6 cost.
+    with (HERE / "determinism65_pairs.csv").open() as f:
+        pairs = list(csv.DictReader(f))
+    groups = [
+        ("same target, repeat run", "shift100", ["v5", "closure", "region+light", "closure+light"]),
+        ("overlapping targets (100 vs 116)", "shift100 vs 116", ["v5", "region+light", "closure+light"]),
+    ]
+    colors = {"v5": SERIES[1], "closure": SERIES[3], "region+light": SERIES[4], "closure+light": SERIES[2]}
+
+    fig, (left, right) = plt.subplots(1, 2, figsize=(13, 5.6), gridspec_kw={"width_ratios": [1.5, 1]})
+    x, labels, floor = 0, [], 0.5
+    for group_label, target, modes in groups:
+        start = x
+        for mode in modes:
+            rows = [r for r in pairs if r["target"] == target and r["mode"] == mode]
+            pcts = [float(r["pct_elsewhere"]) for r in rows]
+            mean = sum(pcts) / len(pcts)
+            left.bar(x, max(mean, floor / 10), color=colors[mode], width=0.7, zorder=3)
+            text = "0 chunks" if mean == 0 else f"{mean:.2f}%"
+            left.text(x, max(mean, floor / 10) * 1.15, text, ha="center", va="bottom", fontsize=8.5, color=INK_SECONDARY)
+            labels.append((x, mode))
+            x += 1
+        left.text((start + x - 1) / 2, 160, group_label, ha="center", fontsize=9, color=INK_PRIMARY)
+        x += 0.8
+    left.set_yscale("log")
+    left.set_ylim(floor / 10, 250)
+    left.set_xticks([p for p, _ in labels])
+    left.set_xticklabels([m for _, m in labels], fontsize=8.5)
+    left.set_ylabel("% of chunks with any block different (positional hash)")
+    left.set_title("Drift between runs, tile 3 (2304 chunks), spawn chunks excluded", color=INK_SECONDARY, fontsize=9.5, loc="left")
+
+    modes = [("v5", "base", SERIES[1]), ("region+light", "region", SERIES[4]), ("closure+light", "closure", SERIES[2])]
+    means = []
+    for i, (label, key, color) in enumerate(modes):
+        vals = [float(orion_rows_by_config[f"det65_t6_{key}_r{r}"]["total_ms"]) / float(orion_rows_by_config[f"det65_t6_{key}_r{r}"]["chunks"])
+                for r in (1, 2, 3)]
+        mean = sum(vals) / len(vals)
+        means.append(mean)
+        right.bar(i, mean, color=color, width=0.62, zorder=3)
+        right.scatter([i] * len(vals), vals, color=INK_PRIMARY, s=12, zorder=4)
+        right.text(i, max(vals) * 1.02, f"{mean:.2f}\n{(mean / means[0] - 1) * 100:+.1f}%", ha="center", va="bottom",
+                   fontsize=8.5, color=INK_SECONDARY)
+    right.set_xticks(range(len(modes)))
+    right.set_xticklabels([m[0] for m in modes], fontsize=9)
+    right.set_ylabel("effective MSPC (total_ms / chunks) — lower is better")
+    right.set_ylim(0, max(means) * 1.35)
+    right.set_title("Cost at tile 6 (9216 chunks), 3 rotating rounds", color=INK_SECONDARY, fontsize=9.5, loc="left")
+
+    for ax in (left, right):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        ax.spines["left"].set_color(BASELINE)
+        ax.spines["bottom"].set_color(BASELINE)
+
+    fig.suptitle("#65: deterministic Orion v5 — ordered FEATURES plus an unlit light view", color=INK_PRIMARY, fontsize=13, y=0.99)
+    fig.text(
+        0.01, 0.925,
+        "region = order FEATURES within the fill; closure = also generate lower-key neighbors outside it; +light = WorldGenRegion "
+        "answers light reads as an unlit column.",
+        color=INK_SECONDARY, fontsize=8.5,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.91))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def plot_dragrace3(rows, out_path, title="#63: drag race vs Orion v5 — interleaved, rotating order, 3 rounds",
                    subtitle=None, reference="Paper"):
     # #63: interleaved, rotating-order drag race. Bars are per-engine means, dots are the individual rounds.
@@ -907,6 +975,8 @@ def main():
                       "(6561 chunks), Aikar G1, ticking + saving. Orion v5: 6400 chunks, 7 workers, ParallelGC, no disk writes."),
             reference="Paper (7 workers)",
         )
+
+    plot_determinism65(orion_rows_by_config, HERE / "determinism65.png")
 
     print(f"Wrote charts to {HERE}")
 

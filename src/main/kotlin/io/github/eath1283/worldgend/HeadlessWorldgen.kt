@@ -413,20 +413,26 @@ fun main() {
     val getStates = mc.publicMethod(mc.c("net.minecraft.world.level.chunk.LevelChunkSection"), "getStates")
     val getAll = mc.publicMethod(mc.c("net.minecraft.world.level.chunk.PalettedContainer"), "getAll", java.util.function.Consumer::class.java)
     val blockNames = java.util.IdentityHashMap<Any, String>()
+    val stateHashes = java.util.IdentityHashMap<Any, Int>()
 
     fun recordHistogram(chunkResult: Any, cx: Int, cz: Int) {
         val out = histogramFile ?: return
         val chunk = mc.publicMethod(chunkResult.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
         val counts = java.util.IdentityHashMap<Any, IntArray>()
+        // #65: counts miss moved-but-same-count blocks, so also hash states in storage order.
+        var positional = 0L
         for (section in getSections.call(chunk) as Array<*>) {
-            getAll.call(getStates.call(section), java.util.function.Consumer<Any> { counts.getOrPut(it) { IntArray(1) }[0]++ })
+            getAll.call(getStates.call(section), java.util.function.Consumer<Any> {
+                counts.getOrPut(it) { IntArray(1) }[0]++
+                positional = positional * 1_000_003L + stateHashes.getOrPut(it) { it.toString().hashCode() }
+            })
         }
         val byName = java.util.TreeMap<String, Int>()
         for ((state, count) in counts) {
             val name = blockNames.getOrPut(state) { state.toString().substringAfter('{').substringBefore('}') }
             byName.merge(name, count[0], Int::plus)
         }
-        out.appendText("$cx $cz ${byName.entries.joinToString(",") { "${it.key}=${it.value}" }}\n")
+        out.appendText("$cx $cz ${java.lang.Long.toHexString(positional)} ${byName.entries.joinToString(",") { "${it.key}=${it.value}" }}\n")
     }
 
     val mosaicSide = MOSAIC_N * mosaicTile
@@ -747,7 +753,31 @@ fun main() {
         val pollTask = mc.method(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "pollTask")
         val mainThreadProcessor = mc.field(cServerChunkCache, "mainThreadProcessor", chunkSource)!!
         val orion = OrionV5(mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor, orionMaxInFlight)
-        val target = (base until base + mosaicSide).flatMap { cx -> (base until base + mosaicSide).map { cz -> cx to cz } }
+        // #65: shifting the target lets two runs overlap partially, to test position-only determinism.
+        val shift = Integer.getInteger("orion.targetShift", 0)
+        val lo = base + shift
+        val hi = base + shift + mosaicSide - 1
+        val target = (lo..hi).flatMap { cx -> (lo..hi).map { cz -> cx to cz } }
+        val featureOrderMode = System.getProperty("orion.deterministicFeatures")
+        if (featureOrderMode != null) {
+            val featuresStatus = mc.staticField(cChunkStatus, "FEATURES")
+            // Target chunks need LIGHT, which pulls FEATURES on their 1-ring; nothing further out runs it.
+            val bounds = when (featureOrderMode) {
+                "region" -> intArrayOf(lo - 1, lo - 1, hi + 1, hi + 1)
+                "closure" -> null
+                else -> error("orion.deterministicFeatures must be region or closure, got $featureOrderMode")
+            }
+            OrionParallelSteps.orderFeatures(OrionParallelSteps.FeatureOrder(bounds) { x, z ->
+                getChunkFuture.invoke(chunkSource, x, z, featuresStatus, true) as CompletableFuture<*>
+            })
+            val progressFile = File(serversDir.parentFile, "orion_progress.txt")
+            Thread({
+                while (true) {
+                    Thread.sleep(20_000)
+                    progressFile.appendText("${OrionParallelSteps.report()}\n  stuck: ${OrionParallelSteps.stuckSample(8)}\n")
+                }
+            }, "orion5-progress").apply { isDaemon = true; start() }
+        }
         println("Orion v5-filling a ${mosaicSide}x$mosaicSide block (${target.size} chunks), max $orionMaxInFlight in flight, parallel steps.")
 
         val resultFile = File(serversDir.parentFile, "orion_result.txt")

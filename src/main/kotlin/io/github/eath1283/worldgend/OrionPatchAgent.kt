@@ -6,6 +6,7 @@ import java.security.ProtectionDomain
 import javassist.ClassPool
 import javassist.CtClass
 import javassist.LoaderClassPath
+import javassist.CtNewMethod
 
 // #47/#49: OrionV3's deadlock traces to BlockableEventLoop.isSameThread(), which gates
 // executeBlocking()/submitAsync().join() on `Thread.currentThread() == getRunningThread()`
@@ -91,6 +92,7 @@ object OrionPatchAgent {
     private const val DENSITY_FUNCTIONS_AP2 = "net.minecraft.world.level.levelgen.DensityFunctions\$Ap2"
     private const val CHUNK_MAP = "net.minecraft.server.level.ChunkMap"
     private const val STRUCTURE_START = "net.minecraft.world.level.levelgen.structure.StructureStart"
+    private const val WORLD_GEN_REGION = "net.minecraft.server.level.WorldGenRegion"
 
     // Straight-to-file, not println: #23's already-documented quirk where buffered stdout
     // doesn't reliably reach the redirected log until process exit — same fix as
@@ -109,7 +111,8 @@ object OrionPatchAgent {
         val detectStructureGenRaces = System.getProperty("orion.detectStructureGenRaces") == "true"
         val patchDfc = System.getProperty("orion.patchDfc") == "true"
         val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
-        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps) {
+        val patchWorldgenLight = System.getProperty("orion.patchWorldgenLight") == "true"
+        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
@@ -132,7 +135,8 @@ object OrionPatchAgent {
             System.err.println("[OrionPatchAgent] will patch $CHUNK_MAP and $STRUCTURE_START on load (parallel steps, finding #62)")
             Runtime.getRuntime().addShutdownHook(Thread { debugLog("OrionParallelSteps report: ${OrionParallelSteps.report()}") })
         }
-        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps))
+        if (patchWorldgenLight) System.err.println("[OrionPatchAgent] will patch $WORLD_GEN_REGION light reads on load (finding #65)")
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight))
     }
 
     private class RaceDetectorTransformer : ClassFileTransformer {
@@ -179,6 +183,7 @@ object OrionPatchAgent {
         private val patchStructureGenState: Boolean,
         private val patchDfc: Boolean,
         private val patchParallelSteps: Boolean,
+        private val patchWorldgenLight: Boolean,
     ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
@@ -193,7 +198,8 @@ object OrionPatchAgent {
                 (patchBiomeMemo && dotted == SURFACE_RULES_BIOME_CONDITION) ||
                 (patchStructureGenState && dotted in structureGenTargets) ||
                 (patchDfc && dotted == DENSITY_FUNCTIONS_AP2) ||
-                (patchParallelSteps && (dotted == CHUNK_MAP || dotted == STRUCTURE_START))
+                (patchParallelSteps && (dotted == CHUNK_MAP || dotted == STRUCTURE_START)) ||
+                (patchWorldgenLight && dotted == WORLD_GEN_REGION)
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
@@ -207,6 +213,7 @@ object OrionPatchAgent {
                     DENSITY_FUNCTIONS_AP2 -> patchAp2Compute(loader, classfileBuffer)
                     CHUNK_MAP -> patchChunkMapApplyStep(loader, classfileBuffer)
                     STRUCTURE_START -> patchStructureStartPlacement(loader, classfileBuffer)
+                    WORLD_GEN_REGION -> patchWorldGenRegionLight(loader, classfileBuffer)
                     else -> patchPieceWeightPlaceCount(loader, classfileBuffer)
                 }
                 debugLog("transform() of $dotted succeeded, ${result.size} bytes")
@@ -247,6 +254,22 @@ object OrionPatchAgent {
                 }
             })
             check(matches == 1) { "expected exactly one ChunkStep.apply call in ChunkMap.applyStep, found $matches" }
+            val bytes = cc.toBytecode()
+            cc.detach()
+            return bytes
+        }
+
+        // #65: features read light (MushroomBlock.canSurvive's brightness < 13) from the level's
+        // live light engine, which lower-key neighbors fill asynchronously after their own FEATURES.
+        // Answer as an uninitialized column does (sky 15, block 0): what the decorated chunk always
+        // sees for itself, and what vanilla sees whenever light lags behind features.
+        private fun patchWorldGenRegionLight(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            cc.addMethod(CtNewMethod.make(
+                "public int getRawBrightness(net.minecraft.core.BlockPos pos, int darkening) { return Math.max(0, 15 - darkening); }", cc))
+            cc.addMethod(CtNewMethod.make(
+                "public int getBrightness(net.minecraft.world.level.LightLayer layer, net.minecraft.core.BlockPos pos) " +
+                    "{ return layer == net.minecraft.world.level.LightLayer.SKY ? 15 : 0; }", cc))
             val bytes = cc.toBytecode()
             cc.detach()
             return bytes
