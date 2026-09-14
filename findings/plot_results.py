@@ -524,6 +524,10 @@ def plot_emspc_integration_progress(out_path):
         ("Orion v2.1", ["Orion v2.1"]),
         ("Orion v2.2", ["Orion v2.2"]),
         ("Orion v3 (patched)", ["Orion v3", "Orion v3 (patched)"]),
+        ("Orion v4", ["Orion v4"]),
+        ("Orion v5", ["Orion v5"]),
+        ("Orion v5.1", ["Orion v5.1"]),
+        ("Orion v5.2", ["Orion v5.2"]),
     ]
     progress = []
     for label, engine_names in stages:
@@ -540,7 +544,7 @@ def plot_emspc_integration_progress(out_path):
 
     # Ordinal blue ramp (dataviz skill palette.md, steps 250-550): our own
     # progression is genuinely ordered (older -> newer integration).
-    ramp = ["#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#1c5cab"]
+    ramp = ["#d5e7fa", "#bcd8f6", "#a3c9f2", "#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#1c69c6", "#1455a4"]
     server_colors = [SERIES[1], SERIES[2]]  # categorical slots (orange, aqua) = Paper, Leaf
 
     labels = [s for s, _, _ in progress] + [f"{s}\n(best result)" for s, _, _, c in servers]
@@ -548,7 +552,7 @@ def plot_emspc_integration_progress(out_path):
     findings = [f for _, _, f in progress] + [f for _, _, f, _ in servers]
     colors = ramp + server_colors
 
-    fig, ax = plt.subplots(figsize=(11, 6))
+    fig, ax = plt.subplots(figsize=(14, 6))
     x = list(range(len(labels)))
     bars = ax.bar(x, values, color=colors, width=0.6, zorder=3)
     ax.axvline(len(progress) - 0.5, color=BASELINE, linewidth=1, linestyle=":", zorder=2)
@@ -559,11 +563,11 @@ def plot_emspc_integration_progress(out_path):
 
     ax.set_ylabel("effective MSPC (total_ms / chunks, ms/chunk) — lower is better")
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=9)
+    ax.set_xticklabels(labels, fontsize=8.5, rotation=22, ha="right")
     ax.set_ylim(0, max(values) * 1.22)
 
     fig.suptitle(
-        "eMSPC has fallen ~44% since the mosaic — now ahead of Paper's own best run, still behind Leaf's",
+        f"eMSPC has fallen {(1 - progress[-1][1] / progress[0][1]) * 100:.0f}% since the mosaic — Orion v5.2 is the newest measured stage",
         color=INK_PRIMARY, fontsize=13, y=0.96,
     )
     ax.set_title(
@@ -874,6 +878,69 @@ def plot_orion51(out_path):
     plt.close(fig)
 
 
+def plot_orion52_throughput(out_path):
+    import statistics
+
+    with (HERE / "orion52_results.csv").open() as source:
+        rows = list(csv.DictReader(source))
+    modes = [("control", "Orion v5.1", SERIES[0]), ("optimized", "Orion v5.2", SERIES[2])]
+    fig, ax = plt.subplots(figsize=(9, 5.2))
+    rounds = [1, 2, 3]
+    for mode, label, color in modes:
+        values = [float(next(row["emspc"] for row in rows if row["mode"] == mode and int(row["round"]) == round_number)) for round_number in rounds]
+        ax.plot(rounds, values, color=color, marker="o", linewidth=1.6, markersize=7, label=label, zorder=3)
+        for round_number, value in zip(rounds, values):
+            ax.annotate(f"{value:.2f}", (round_number, value), xytext=(0, 8), textcoords="offset points", ha="center", fontsize=8.5, color=INK_SECONDARY)
+    control = [float(row["emspc"]) for row in rows if row["mode"] == "control"]
+    optimized = [float(row["emspc"]) for row in rows if row["mode"] == "optimized"]
+    control_median = statistics.median(control)
+    optimized_median = statistics.median(optimized)
+    ax.axhline(control_median, color=BASELINE, linewidth=1, linestyle="--", zorder=2)
+    ax.text(3.05, control_median, f"v5.1 median {control_median:.2f}", va="center", fontsize=8.5, color=INK_MUTED)
+    ax.set_xticks(rounds, ["Round 1\nv5.2 first", "Round 2\nv5.1 first", "Round 3\nv5.2 first"])
+    ax.set_ylabel("Effective milliseconds / chunk — lower is better")
+    ax.set_ylim(min(control + optimized) - 0.18, max(control + optimized) + 0.24)
+    ax.legend(frameon=False, loc="upper left")
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.suptitle("#67: Orion v5.2 Perlin port is throughput-neutral at full scale", fontsize=14, x=0.08, ha="left")
+    fig.text(0.08, 0.01, f"6,400 chunks per leg, rotated order, 7 workers. Medians: v5.1 {control_median:.3f}, v5.2 {optimized_median:.3f} ms/chunk (-0.4%).\nMixed pairwise results remain inside the ~9% noise band.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.08, 1, 0.94))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_orion52_hotpath(out_path):
+    with (HERE / "orion52_hot_methods.csv").open() as source:
+        rows = list(csv.DictReader(source))
+    modes = ["Orion v5.1", "Orion v5.2"]
+    components = ["Permutation lookup", "Optimized interpolation", "Noise wrapper"]
+    colors = [SERIES[1], SERIES[2], SERIES[0]]
+    fig, ax = plt.subplots(figsize=(8.5, 5.2))
+    bottoms = [0.0, 0.0]
+    for component, color in zip(components, colors):
+        values = [sum(float(row["percent"]) for row in rows if row["mode"] == mode and row["component"] == component) for mode in modes]
+        bars = ax.bar(modes, values, bottom=bottoms, color=color, width=0.58, label=component, zorder=3)
+        for bar, value, bottom in zip(bars, values, bottoms):
+            if value:
+                ax.text(bar.get_x() + bar.get_width() / 2, bottom + value / 2, f"{value:.2f}%", ha="center", va="center", fontsize=9, color="white")
+        bottoms = [bottom + value for bottom, value in zip(bottoms, values)]
+    for index, total in enumerate(bottoms):
+        ax.text(index, total + 0.3, f"{total:.2f}%", ha="center", fontsize=9, color=INK_SECONDARY)
+    ax.set_ylabel("JFR execution samples in ImprovedNoise")
+    ax.set_ylim(0, max(bottoms) * 1.22)
+    ax.legend(frameon=False, loc="upper right")
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.suptitle("#67: direct permutation lookup removes ImprovedNoise.p() from the profile", fontsize=14, x=0.08, ha="left")
+    fig.text(0.08, 0.01, "Matched tile-5 JFR runs, recording delayed 10s and stopped at generation completion.\nCombined hot-path share falls 15.66% → 13.71% (-12.5% relative).", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.08, 1, 0.94))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -1032,6 +1099,9 @@ def main():
     plot_determinism65(orion_rows_by_config, HERE / "determinism65.png")
 
     plot_orion51(HERE / "orion51_simd.png")
+
+    plot_orion52_throughput(HERE / "orion52_throughput.png")
+    plot_orion52_hotpath(HERE / "orion52_hotpath.png")
 
     print(f"Wrote charts to {HERE}")
 

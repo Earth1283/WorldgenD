@@ -132,3 +132,9 @@ Orion v5,simd66_t5_vanilla_r2,62877,6400,#66
 Orion v5.1,simd66_t5_scalar_r3,56893,6400,#66
 Orion v5,simd66_t5_vanilla_r3,61812,6400,#66
 Orion v5.1,simd66_t5_vector_r3,62756,6400,#66
+Orion v5.2,"Perlin #67, round 1 (leg 1)",51491,6400,#67
+Orion v5.1,"Perlin #67 control, round 1 (leg 2)",52776,6400,#67
+Orion v5.1,"Perlin #67 control, round 2 (leg 1)",52031,6400,#67
+Orion v5.2,"Perlin #67, round 2 (leg 2)",51821,6400,#67
+Orion v5.2,"Perlin #67, round 3 (leg 1)",53791,6400,#67
+Orion v5.1,"Perlin #67 control, round 3 (leg 2)",49757,6400,#67

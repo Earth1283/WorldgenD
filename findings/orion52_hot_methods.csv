@@ -1,0 +1,5 @@
+mode,component,method,samples,percent
+Orion v5.1,Permutation lookup,ImprovedNoise.p,2147,10.60
+Orion v5.1,Noise wrapper,ImprovedNoise.noise,1025,5.06
+Orion v5.2,Optimized interpolation,ImprovedNoise.sampleAndLerp,1498,7.79
+Orion v5.2,Noise wrapper,ImprovedNoise.noise,1139,5.92

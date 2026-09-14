@@ -62,7 +62,8 @@ fun main() {
     println("Hammering ${discovered.jar} (${discovered.classpath.size} bundled libraries)")
 
     val loader = discovered.newClassLoader()
-    if (schedulerMode == "orion5.1") DensitySimdPatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") DensitySimdPatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.2") ImprovedNoisePatch.requireInstalled(loader)
     val mc = Mc(loader)
 
     mc.method(mc.c("net.minecraft.SharedConstants"), "tryDetectVersion").call(null)
@@ -732,7 +733,7 @@ fun main() {
         return
     }
 
-    if (schedulerMode == "orion5" || schedulerMode == "orion5.1") {
+    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2") {
         for (flag in listOf("orion.patchReentrancy", "orion.patchStructureGenState", "orion.patchParallelSteps")) {
             require(System.getProperty(flag) == "true") { "$schedulerMode requires -D$flag=true (see OrionPatchAgent)" }
         }
@@ -784,7 +785,7 @@ fun main() {
         resultFile.writeText(
             "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
                 "parallelSteps ${OrionParallelSteps.report()}\n${poolReport()}\n" +
-                if (schedulerMode == "orion5.1") "densitySimd ${DensityBatch.report()}\n" else ""
+                if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") "densitySimd ${DensityBatch.report()}\n" else ""
         )
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")
         saveWorldIfRequested()

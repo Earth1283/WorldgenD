@@ -19,7 +19,7 @@ classpath = subprocess.run(
 ).stdout.strip().splitlines()[-1]
 
 args = sys.argv[1:]
-if "-Dscheduler=orion5.1" in args or "-Dorion.patchDensitySimd=true" in args:
+if "-Dscheduler=orion5.1" in args or "-Dscheduler=orion5.2" in args or "-Dorion.patchDensitySimd=true" in args:
     if "--add-modules=jdk.incubator.vector" not in args:
         args = ["--add-modules=jdk.incubator.vector", *args]
 os.execvp("java", ["java", *args, "-cp", classpath, "io.github.eath1283.worldgend.HeadlessWorldgenKt"])

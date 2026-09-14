@@ -79,9 +79,12 @@ object OrionPatchAgent {
         val patchDfc = System.getProperty("orion.patchDfc") == "true"
         val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
         val patchWorldgenLight = System.getProperty("orion.patchWorldgenLight") == "true"
-        val patchDensitySimd = System.getProperty("scheduler") == "orion5.1" ||
+        val scheduler = System.getProperty("scheduler")
+        val patchDensitySimd = scheduler == "orion5.1" || scheduler == "orion5.2" ||
             System.getProperty("orion.patchDensitySimd") == "true"
-        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd) {
+        val patchImprovedNoise = scheduler == "orion5.2" ||
+            System.getProperty("orion.patchImprovedNoise") == "true"
+        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
@@ -106,7 +109,8 @@ object OrionPatchAgent {
         }
         if (patchWorldgenLight) System.err.println("[OrionPatchAgent] will patch $WORLD_GEN_REGION light reads on load (finding #65)")
         if (patchDensitySimd) System.err.println("[OrionPatchAgent] density batches: ${DensityBatch.report()}")
-        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd))
+        if (patchImprovedNoise) System.err.println("[OrionPatchAgent] will patch ${ImprovedNoisePatch.target} on load")
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise))
     }
 
     private class RaceDetectorTransformer : ClassFileTransformer {
@@ -155,6 +159,7 @@ object OrionPatchAgent {
         private val patchParallelSteps: Boolean,
         private val patchWorldgenLight: Boolean,
         private val patchDensitySimd: Boolean,
+        private val patchImprovedNoise: Boolean,
     ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
@@ -171,11 +176,14 @@ object OrionPatchAgent {
                 (patchDfc && dotted == DENSITY_FUNCTIONS_AP2) ||
                 (patchParallelSteps && (dotted == CHUNK_MAP || dotted == STRUCTURE_START)) ||
                 (patchWorldgenLight && dotted == WORLD_GEN_REGION) ||
-                (patchDensitySimd && dotted in DensitySimdPatch.targets)
+                (patchDensitySimd && dotted in DensitySimdPatch.targets) ||
+                (patchImprovedNoise && dotted == ImprovedNoisePatch.target)
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
-                val result = if (dotted in DensitySimdPatch.targets) DensitySimdPatch.transform(loader, classfileBuffer) else when (dotted) {
+                val result = if (dotted in DensitySimdPatch.targets) DensitySimdPatch.transform(loader, classfileBuffer)
+                else if (dotted == ImprovedNoisePatch.target) ImprovedNoisePatch.transform(loader, classfileBuffer)
+                else when (dotted) {
                     BLOCKABLE_EVENT_LOOP -> patchBlockableEventLoop(loader, classfileBuffer)
                     SERVER_CHUNK_CACHE -> patchServerChunkCache(loader, classfileBuffer)
                     SURFACE_RULES_BIOME_CONDITION -> patchBiomeConditionSource(loader, classfileBuffer)

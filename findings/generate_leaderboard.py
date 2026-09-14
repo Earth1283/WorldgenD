@@ -12,6 +12,7 @@ from pathlib import Path
 HERE = Path(__file__).parent
 
 ENGINE_COLORS = {
+    "Orion v5.2": "#1455c0",
     "Orion v5.1": "#007dba",
     "Orion v5": "#0f9d8a",
     "Orion v4": "#c0392b",

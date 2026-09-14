@@ -45,8 +45,16 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1`.
-**Orion v5 is the current champion** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2`.
+
+| Generator | Adds | Measured effective MSPC | Current reading |
+|---|---|---:|---|
+| Orion v4 | thread-safe structure generation | 20.68–20.80 | serial worldgen lane remains the ceiling |
+| Orion v5 | parallel chunk-generation steps | 8.16–8.65 | removes that ceiling; matches Moonrise at seven workers |
+| Orion v5.1 | SIMD density batches | 7.77–8.25 | isolated SIMD win, full-generation effect inside noise |
+| Orion v5.2 | optimized ImprovedNoise kernel | 8.05–8.40 | Perlin CPU share falls; full-generation effect inside noise |
+
+**Orion v5 is the architectural jump** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
 at champion scale (eMSPC 8.16-8.65 vs 20.68-20.80, interleaved, n=2 each), steady-state CPU
 ~709% vs ~313%. The bottleneck v3/v4 hit was never Orion's scheduler or radius-8 scarcity: vanilla
 runs every chunk-generation step through one `ConsecutiveExecutor("worldgen")`, so surface,
@@ -76,6 +84,12 @@ backend and lane count. All operations retain vanilla's rounding order; FMA is n
 The harness defaults to v5.1 and retains v5 for comparisons. See finding #66 for correctness,
 measured performance, and the correction to earlier palette-based world checks.
 
+**Orion v5.2** (`-Dscheduler=orion5.2`) adds an optimized `ImprovedNoise` kernel to v5.1.
+The patch removes repeated permutation masking and nested gradient-array access from the hottest
+noise path while retaining vanilla interpolation order. It is bit-exact in randomized kernel and
+full block-position checks. Matched JFR profiles show the combined hot path falling 12.5%, while
+three rotated 6,400-chunk rounds remain a throughput tie with v5.1; see finding #67.
+
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see
 `scientific-findings-41-80.md` #56. A DFC (density-function compiler) Stage 1 prototype also
@@ -98,12 +112,11 @@ knowledge required. Full formal definition in `scientific-findings.md` #11.
 
 Zooming out past the mosaic to every scheduler generation this project has shipped —
 **effective MSPC** (`total_ms / chunks`, the same "true average" #18 introduced) has
-fallen ~44% from the original mosaic to patched Orion v3, favoring each scheduler's
+fallen roughly 77% from the original mosaic to Orion v5.2, favoring each scheduler's
 latest result rather than its first. Real Paper and Leaf, at each server's own best
-result on record, are plotted alongside for scale: WorldgenD now beats Paper's best
-run and sits just behind Leaf's.
+result on record, are plotted alongside for scale.
 
-![Bar chart of effective MSPC across every WorldgenD scheduler generation, oldest to newest, plus Paper and Leaf's best real-server results — WorldgenD falls from 36.3 (mosaic) to 20.2 (Orion v3 patched), ahead of Paper's 21.0 and just behind Leaf's 19.8](findings/emspc_integration_progress.png)
+![Bar chart of effective MSPC across every WorldgenD scheduler generation through Orion v5.2, plus Paper and Leaf's best real-server results](findings/emspc_integration_progress.png)
 
 That's the whole point of building MSPC in the first place: a number you can watch go
 down as the fill algorithm improves, instead of an average that hides whether it

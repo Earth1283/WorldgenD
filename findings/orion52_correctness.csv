@@ -1,0 +1,3 @@
+check,cases,mismatches
+Randomized double output bits,65536,0
+Full chunk block-position SHA-256,256,0
