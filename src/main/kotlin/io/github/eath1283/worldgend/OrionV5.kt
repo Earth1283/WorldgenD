@@ -34,12 +34,15 @@ class OrionV5(
     fun fill(
         coords: List<Pair<Int, Int>>,
         onComplete: (cx: Int, cz: Int, success: Boolean, result: Any?, error: Any?) -> Unit = { _, _, _, _, _ -> },
+        onProgress: (completed: Int, total: Int, elapsedMs: Long) -> Unit = { _, _, _ -> },
     ): Result {
         val start = System.nanoTime()
         val permits = Semaphore(maxInFlight)
         val completions = AtomicInteger(0)
+        val progressEvery = maxOf(1, coords.size / 100)
         val stop = AtomicBoolean(false)
-        val futures = arrayOfNulls<CompletableFuture<Any?>>(coords.size)
+        val ok = AtomicInteger(0)
+        val failed = AtomicInteger(0)
 
         // Single caller of pollTask(), same #34 constraint as every scheduler since v2.
         // stderr is unreliable after Bootstrap (#56), so a dead poller surfaces through fill() instead.
@@ -59,42 +62,53 @@ class OrionV5(
             }
         }, "orion5-poll").apply { isDaemon = true; start() }
 
+        // onComplete used to fire from a loop *after* every chunk had already finished (a
+        // second pass over a `futures` array kept alive for the whole run), so nothing that
+        // relies on it -- like evicting a chunk once it's done -- ever ran until it was too
+        // late to matter: every chunk was already resident. Firing it straight from
+        // whenComplete (per-chunk, as it actually finishes) is what makes streaming eviction
+        // possible; a future's own result is dropped as soon as its callback returns instead
+        // of being retained in an array for the whole fill(). A future completing
+        // exceptionally (not a normal ChunkResult.isSuccess()==false, but a real thrown
+        // exception) is fatal, same as the old code's unchecked `future.join()!!` -- recorded
+        // here and rethrown from the wait loop instead of thrown from inside a worker thread.
+        val fillFailure = AtomicReference<Throwable>()
         val submitThread = Thread({
-            for ((i, coord) in coords.withIndex()) {
+            for (coord in coords) {
                 permits.acquireUninterruptibly()
                 val submitNanos = System.nanoTime()
                 @Suppress("UNCHECKED_CAST")
                 val future = getChunkFutureHandle.invoke(chunkSource, coord.first, coord.second, fullStatus, true) as CompletableFuture<Any?>
-                futures[i] = future
-                future.whenComplete { _, _ ->
+                future.whenComplete { result, error ->
                     chunkMspc.add((System.nanoTime() - submitNanos) / 1_000_000.0)
                     permits.release()
-                    completions.incrementAndGet()
+                    if (error != null) {
+                        fillFailure.compareAndSet(null, error)
+                    } else if (mc.publicMethodCached(result!!.javaClass, "isSuccess").call(result) as Boolean) {
+                        ok.incrementAndGet()
+                        onComplete(coord.first, coord.second, true, result, null)
+                    } else {
+                        failed.incrementAndGet()
+                        onComplete(coord.first, coord.second, false, null, mc.publicMethodCached(result.javaClass, "getError").call(result))
+                    }
+                    val completed = completions.incrementAndGet()
+                    if (completed == coords.size || completed % progressEvery == 0) {
+                        onProgress(completed, coords.size, (System.nanoTime() - start) / 1_000_000)
+                    }
                 }
             }
         }, "orion5-submit").apply { isDaemon = true; start() }
 
         while (completions.get() < coords.size) {
             pollFailure.get()?.let { throw IllegalStateException("orion5-poll died", it) }
+            fillFailure.get()?.let { throw IllegalStateException("chunk future completed exceptionally", it) }
             LockSupport.parkNanos(200_000)
         }
         stop.set(true)
         submitThread.join()
         pollThread.join()
+        fillFailure.get()?.let { throw IllegalStateException("chunk future completed exceptionally", it) }
 
-        var ok = 0
-        var failed = 0
-        for ((i, future) in futures.withIndex()) {
-            val (cx, cz) = coords[i]
-            val result = future!!.join()!!
-            if (mc.publicMethodCached(result.javaClass, "isSuccess").call(result) as Boolean) {
-                ok++
-                onComplete(cx, cz, true, result, null)
-            } else {
-                failed++
-                onComplete(cx, cz, false, null, mc.publicMethodCached(result.javaClass, "getError").call(result))
-            }
-        }
-        return Result(ok, failed, (System.nanoTime() - start) / 1_000_000)
+        return Result(ok.get(), failed.get(), (System.nanoTime() - start) / 1_000_000)
     }
 }

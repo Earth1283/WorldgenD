@@ -37,6 +37,11 @@ Watch the logs for the mosaic fill — a gapless 96x96 block (9216 chunks) tiled
 phases, each one provably independent by construction (see `scientific-findings.md` #7-#8
 for why 16 is the magic modulus). Every run ends with two summary lines:
 
+The seed defaults to `69`. User-facing launchers may set a signed 64-bit seed with
+`-Dworldgen.seed=<seed>` and request machine-readable Orion v5 progress lines with
+`-Dworldgen.progress=true`. A launcher that cannot rely on post-bootstrap stdout may
+instead set `-Dworldgen.progressfile=<path>`; all options are inert when omitted.
+
 ```
 Done: 9216 chunks generated, 0 failed in NNms across 256 phases (fastest=NNms, slowest=NNms).
 MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
@@ -45,7 +50,7 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2`.
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3`.
 
 | Generator | Adds | Measured effective MSPC | Current reading |
 |---|---|---:|---|
@@ -53,6 +58,7 @@ Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orio
 | Orion v5 | parallel chunk-generation steps | 8.16–8.65 | removes that ceiling; matches Moonrise at seven workers |
 | Orion v5.1 | SIMD density batches | 7.77–8.25 | isolated SIMD win, full-generation effect inside noise |
 | Orion v5.2 | optimized ImprovedNoise kernel | 8.05–8.40 | Perlin CPU share falls; full-generation effect inside noise |
+| Orion v5.3 | allocation-pressure fixes (Ap2/Context/SequenceRule/Aquifer) | 7.87–9.34 | bit-exact, real GC-frequency drop, no confirmed throughput win |
 
 **Orion v5 is the architectural jump** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
 at champion scale (eMSPC 8.16-8.65 vs 20.68-20.80, interleaved, n=2 each), steady-state CPU
@@ -89,6 +95,18 @@ The patch removes repeated permutation masking and nested gradient-array access 
 noise path while retaining vanilla interpolation order. It is bit-exact in randomized kernel and
 full block-position checks. Matched JFR profiles show the combined hot path falling 12.5%, while
 three rotated 6,400-chunk rounds remain a throughput tie with v5.1; see finding #67.
+
+**Orion v5.3** (`-Dscheduler=orion5.3`) patches four allocation-pressure sites found by a JFR
+allocation profile of v5.1 (`memory-issue.md`): `DensityFunctions$Ap2.fillArray`'s ADD-branch
+scratch buffer, `SurfaceRules$Context.updateY`'s per-call memoizing supplier,
+`SurfaceRules$SequenceRule.tryApply`'s `List.iterator()`, and `Aquifer$NoiseBasedAquifer`'s
+`MutableDouble` output box — all replaced with reused/cached-in-place state instead of a fresh
+allocation per call. It keeps v5's scheduler and requires the same three safety patches and
+agent; `-Dorion.patchAllocations=true` is auto-enabled for this scheduler. Bit-exact against v5
+(0/256 block-position hashes differ, controlling for #65's spawn-prep caveat). A champion-scale
+young-GC count dropped 28% (18 -> 13 collections), confirming the allocation reduction is real,
+but total GC pause time and whole-generation throughput were a wash to slightly worse across two
+interleaved rounds — inside the noise band, same pattern as v5.1/v5.2. See finding #68.
 
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see

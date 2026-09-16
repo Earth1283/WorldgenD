@@ -60,6 +60,10 @@ object OrionPatchAgent {
     private const val CHUNK_MAP = "net.minecraft.server.level.ChunkMap"
     private const val STRUCTURE_START = "net.minecraft.world.level.levelgen.structure.StructureStart"
     private const val WORLD_GEN_REGION = "net.minecraft.server.level.WorldGenRegion"
+    private const val SURFACE_RULES_CONTEXT = "net.minecraft.world.level.levelgen.SurfaceRules\$Context"
+    private const val SURFACE_RULES_SEQUENCE_RULE = "net.minecraft.world.level.levelgen.SurfaceRules\$SequenceRule"
+    private const val AQUIFER_NOISE_BASED = "net.minecraft.world.level.levelgen.Aquifer\$NoiseBasedAquifer"
+    val ALLOCATION_PATCH_TARGETS = setOf(DENSITY_FUNCTIONS_AP2, SURFACE_RULES_CONTEXT, SURFACE_RULES_SEQUENCE_RULE, AQUIFER_NOISE_BASED)
 
     // Straight-to-file, not println: #23's already-documented quirk where buffered stdout
     // doesn't reliably reach the redirected log until process exit — same fix as
@@ -84,7 +88,9 @@ object OrionPatchAgent {
             System.getProperty("orion.patchDensitySimd") == "true"
         val patchImprovedNoise = scheduler == "orion5.2" ||
             System.getProperty("orion.patchImprovedNoise") == "true"
-        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise) {
+        val patchAllocations = scheduler == "orion5.3" ||
+            System.getProperty("orion.patchAllocations") == "true"
+        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
@@ -110,7 +116,8 @@ object OrionPatchAgent {
         if (patchWorldgenLight) System.err.println("[OrionPatchAgent] will patch $WORLD_GEN_REGION light reads on load (finding #65)")
         if (patchDensitySimd) System.err.println("[OrionPatchAgent] density batches: ${DensityBatch.report()}")
         if (patchImprovedNoise) System.err.println("[OrionPatchAgent] will patch ${ImprovedNoisePatch.target} on load")
-        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise))
+        if (patchAllocations) System.err.println("[OrionPatchAgent] will patch $ALLOCATION_PATCH_TARGETS on load (allocation pressure, orion5.3, memory-issue.md)")
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise, patchAllocations))
     }
 
     private class RaceDetectorTransformer : ClassFileTransformer {
@@ -160,6 +167,7 @@ object OrionPatchAgent {
         private val patchWorldgenLight: Boolean,
         private val patchDensitySimd: Boolean,
         private val patchImprovedNoise: Boolean,
+        private val patchAllocations: Boolean,
     ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
@@ -177,7 +185,8 @@ object OrionPatchAgent {
                 (patchParallelSteps && (dotted == CHUNK_MAP || dotted == STRUCTURE_START)) ||
                 (patchWorldgenLight && dotted == WORLD_GEN_REGION) ||
                 (patchDensitySimd && dotted in DensitySimdPatch.targets) ||
-                (patchImprovedNoise && dotted == ImprovedNoisePatch.target)
+                (patchImprovedNoise && dotted == ImprovedNoisePatch.target) ||
+                (patchAllocations && dotted in ALLOCATION_PATCH_TARGETS)
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
@@ -190,7 +199,10 @@ object OrionPatchAgent {
                     STRONGHOLD_PIECES -> patchStrongholdPieces(loader, classfileBuffer)
                     STRONGHOLD_PIECE_WEIGHT -> patchPieceWeightPlaceCount(loader, classfileBuffer)
                     NETHER_FORTRESS_PIECES -> patchOuterPlaceCountUsage(loader, classfileBuffer, NETHER_FORTRESS_PIECE_WEIGHT)
-                    DENSITY_FUNCTIONS_AP2 -> patchAp2Compute(loader, classfileBuffer)
+                    DENSITY_FUNCTIONS_AP2 -> patchAp2(loader, classfileBuffer, patchDfc, patchAllocations)
+                    SURFACE_RULES_CONTEXT -> patchSurfaceRulesContext(loader, classfileBuffer)
+                    SURFACE_RULES_SEQUENCE_RULE -> patchSequenceRule(loader, classfileBuffer)
+                    AQUIFER_NOISE_BASED -> patchAquiferMutableDouble(loader, classfileBuffer)
                     CHUNK_MAP -> patchChunkMapApplyStep(loader, classfileBuffer)
                     STRUCTURE_START -> patchStructureStartPlacement(loader, classfileBuffer)
                     WORLD_GEN_REGION -> patchWorldGenRegionLight(loader, classfileBuffer)
@@ -469,8 +481,17 @@ object OrionPatchAgent {
         // subtree, so redoing it is wasteful, never wrong), which is cheaper than
         // forcing every access through a memory barrier. Rename-and-wrap keeps
         // vanilla's own arithmetic completely unreplicated for the fallback.
-        private fun patchAp2Compute(loader: ClassLoader?, original: ByteArray): ByteArray {
+        private fun patchAp2(loader: ClassLoader?, original: ByteArray, patchDfc: Boolean, patchAllocations: Boolean): ByteArray {
             val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            if (patchDfc) patchAp2Compute(cc)
+            if (patchAllocations) patchAp2FillArray(cc)
+            val bytes = cc.toBytecode()
+            cc.detach()
+            if (patchAllocations) AllocationPatch.markTransformed(DENSITY_FUNCTIONS_AP2)
+            return bytes
+        }
+
+        private fun patchAp2Compute(cc: CtClass) {
             cc.addField(javassist.CtField.make("public Object orionDfcCompiled;", cc))
             cc.addField(javassist.CtField.make("public Object orionDfcLeaves;", cc))
             val compute = cc.getDeclaredMethod("compute")
@@ -496,8 +517,133 @@ object OrionPatchAgent {
                 cc,
             )
             cc.addMethod(wrapper)
+        }
+
+        // memory-issue.md #1 (10.70GB): the ADD branch's `new double[values.length]` scratch
+        // buffer, replaced with Ap2Scratch's depth-indexed per-thread reuse. enter()/exit()
+        // bracket the whole call (matches every branch, not just ADD, but ADD is the only one
+        // that reads the depth-indexed slot); see Ap2Scratch's own comment for why a plain
+        // singleton isn't safe for nested ADD-of-ADD trees.
+        private fun patchAp2FillArray(cc: CtClass) {
+            val fillArray = cc.getDeclaredMethod("fillArray")
+            fillArray.insertBefore("{ io.github.eath1283.worldgend.Ap2Scratch.enter(); }")
+            fillArray.insertAfter("{ io.github.eath1283.worldgend.Ap2Scratch.exit(); }", true)
+            var matches = 0
+            fillArray.instrument(object : javassist.expr.ExprEditor() {
+                override fun edit(a: javassist.expr.NewArray) {
+                    if (a.componentType == CtClass.doubleType) {
+                        matches++
+                        a.replace("{ \$_ = io.github.eath1283.worldgend.Ap2Scratch.checkout(\$1); }")
+                    }
+                }
+            })
+            check(matches == 1) { "expected exactly one new double[] in Ap2.fillArray, found $matches" }
+        }
+
+        // memory-issue.md #2 (11.38GB lambda captures + most of the 8.37GB memoizing-supplier
+        // share): `updateY` did `this.biome = Suppliers.memoize(() -> biomeGetter.apply(pos.set(x,
+        // y, z)))` on every call — a fresh lambda plus a fresh wrapper per Y-level. One
+        // ResettableBiomeSupplier now lives for the Context's whole lifetime; updateY just resets
+        // its captured coordinates. Full setBody rewrite, not a surgical expression replace: the
+        // lambda's invokedynamic runs (and allocates) before Suppliers.memoize is even called, so
+        // only removing the memoize() call can't stop it — the whole statement has to go.
+        private fun patchSurfaceRulesContext(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            cc.addField(javassist.CtField.make(
+                "private io.github.eath1283.worldgend.ResettableBiomeSupplier orionBiomeSupplier;", cc,
+            ))
+            val ctor = cc.declaredConstructors[0]
+            ctor.insertAfter(
+                """{
+                    orionBiomeSupplier = new io.github.eath1283.worldgend.ResettableBiomeSupplier(biomeGetter, pos);
+                }"""
+            )
+            // setBody() on the pre-existing method corrupts its LocalVariableTable on this
+            // jar/JDK (confirmed via a ClassFormatError on the actual patched class, not
+            // guessed); rename-and-add sidesteps it by leaving the original method's own
+            // bytecode/attributes untouched, same trick patchAp2Compute already relies on.
+            cc.getDeclaredMethod("updateY").name = "updateYOriginal"
+            cc.addMethod(javassist.CtNewMethod.make(
+                """protected void updateY(int argStoneDepthAbove, int argStoneDepthBelow, int argWaterHeight, int x, int y, int z) {
+                    this.lastUpdateY += 1L;
+                    this.orionBiomeSupplier.reset(x, y, z);
+                    this.biome = this.orionBiomeSupplier;
+                    this.blockY = y;
+                    this.waterHeight = argWaterHeight;
+                    this.stoneDepthBelow = argStoneDepthBelow;
+                    this.stoneDepthAbove = argStoneDepthAbove;
+                }""",
+                cc,
+            ))
             val bytes = cc.toBytecode()
             cc.detach()
+            AllocationPatch.markTransformed(SURFACE_RULES_CONTEXT)
+            return bytes
+        }
+
+        // memory-issue.md #3 (11.6GB, the hottest site — runs per block during surface
+        // decoration): `for (SurfaceRule r : rules)` allocates a fresh List$Itr every tryApply
+        // call. `rules` never changes after construction (it's a record component), so cache it
+        // as an array once, lazily, and iterate by index. Plain field (not synchronized): worst
+        // case under a first-access race is a few redundant, harmless toArray() calls, same
+        // tradeoff as Ap2's own DFC cache fields make.
+        private fun patchSequenceRule(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            cc.addField(javassist.CtField.make(
+                "private net.minecraft.world.level.levelgen.SurfaceRules\$SurfaceRule[] orionRulesArray;", cc,
+            ))
+            // setBody() on a record's own method corrupts its LocalVariableTable on this
+            // jar/JDK (ClassFormatError, confirmed not guessed); rename-and-add sidesteps it,
+            // same trick patchAp2Compute and the Context.updateY patch above use.
+            cc.getDeclaredMethod("tryApply").name = "tryApplyOriginal"
+            cc.addMethod(javassist.CtNewMethod.make(
+                """public net.minecraft.world.level.block.state.BlockState tryApply(int x, int y, int z) {
+                    net.minecraft.world.level.levelgen.SurfaceRules${'$'}SurfaceRule[] arr = this.orionRulesArray;
+                    if (arr == null) {
+                        java.util.List list = this.rules;
+                        arr = (net.minecraft.world.level.levelgen.SurfaceRules${'$'}SurfaceRule[])
+                            list.toArray(new net.minecraft.world.level.levelgen.SurfaceRules${'$'}SurfaceRule[list.size()]);
+                        this.orionRulesArray = arr;
+                    }
+                    for (int i = 0; i < arr.length; i++) {
+                        net.minecraft.world.level.block.state.BlockState r = arr[i].tryApply(x, y, z);
+                        if (r != null) return r;
+                    }
+                    return null;
+                }""",
+                cc,
+            ))
+            val bytes = cc.toBytecode()
+            cc.detach()
+            AllocationPatch.markTransformed(SURFACE_RULES_SEQUENCE_RULE)
+            return bytes
+        }
+
+        // memory-issue.md #4 (1.0GB, smallest site): `computeSubstance` does
+        // `new MutableDouble(NaN)` once per call purely as an output parameter to
+        // calculatePressure, never recursively — a per-thread singleton (reset before use) is
+        // safe here, unlike Ap2's scratch buffer.
+        private fun patchAquiferMutableDouble(loader: ClassLoader?, original: ByteArray): ByteArray {
+            val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
+            var matches = 0
+            cc.getDeclaredMethod("computeSubstance").instrument(object : javassist.expr.ExprEditor() {
+                override fun edit(e: javassist.expr.NewExpr) {
+                    if (e.className == "org.apache.commons.lang3.mutable.MutableDouble") {
+                        matches++
+                        e.replace(
+                            """{
+                                ${'$'}_ = (org.apache.commons.lang3.mutable.MutableDouble)
+                                    io.github.eath1283.worldgend.MutableDoubleScratch.reset(
+                                        org.apache.commons.lang3.mutable.MutableDouble.class, ${'$'}1);
+                            }"""
+                        )
+                    }
+                }
+            })
+            check(matches == 1) { "expected exactly one new MutableDouble in computeSubstance, found $matches" }
+            val bytes = cc.toBytecode()
+            cc.detach()
+            AllocationPatch.markTransformed(AQUIFER_NOISE_BASED)
             return bytes
         }
 

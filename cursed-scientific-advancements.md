@@ -1,16 +1,18 @@
 # Cursed Scientific Advancements: How We Accidentally Out-Ran Paper (Allegedly, on paper, at least)
 
 A field guide to the crimes committed in this repository, presented in roughly the order we
-committed them. `TUTORIAL.md` has the heist. `scientific-findings.md` has the receipts, all 35
-of them and counting, in a tone somewhere between lab notebook and confession. This document is
-the highlight reel — the parts where a bit, a busy-spin, and a spreadsheet's worth of stubbornness
-turned into a headless Java process that got genuinely competitive with a real,
-production-grade, professionally-maintained Paper server running the actual game.
+committed them. `TUTORIAL.md` has the heist. `scientific-findings-1-40.md` and
+`scientific-findings-41-80.md` have the receipts, all 68 of them and counting, in a tone somewhere
+between lab notebook and confession. This document is the highlight reel — the parts where a bit,
+a busy-spin, and a spreadsheet's worth of stubbornness turned into a headless Java process that
+got genuinely competitive with a real, production-grade, professionally-maintained Paper server
+running the actual game.
 
 "Allegedly" is doing real work in that title. Keep reading — we get there, then we take some of
 it back, then we take some of *that* back too, because that's how this document works. Every
 number below has a finding number next to it, and every finding number has `javap` output or a
-JFR recording backing it up. Read `scientific-findings.md` if you don't believe a word of this.
+JFR recording backing it up. Read `scientific-findings-1-40.md` / `scientific-findings-41-80.md`
+if you don't believe a word of this.
 
 ## Act 1: The Felony (a quick recap for the impatient)
 
@@ -277,6 +279,291 @@ has now been taught twice by two different schedulers. The reigning throughput c
 plain 7-worker v2.1, no scatter, 132949ms. v2.2 is real, it's just a tail-latency fix wearing a
 version bump, and we're naming it that instead of pretending otherwise.
 
+## Act 12: OrionV3 — a coarse lock, a deadlock, and a rescue mission that made 507 corpses
+
+(`scientific-findings-41-80.md` #44-49) The single-threaded-admission trick that made
+v2/v2.1/v2.2 work was never satisfying on its own terms — it was an escape hatch from Orion v1's
+unexplained bug (Act 4), not a design anyone actually wanted permanently. OrionV3 was the attempt
+to go back and do multi-threaded admission properly this time, guarded by one coarse lock instead
+of v1's per-node area lock.
+
+It broke immediately and informatively. First cut: 8 dispatch threads busy-polling a shared lock
+every 50 microseconds, diagnosed by live thread dump before the benchmark even finished (#44).
+Swapped the busy-loop for a textbook `ReentrantLock`/`Condition` pair (#45): correctness held,
+all 7 workers showed up alive at once for the first time in this scheduler's life — and then a
+longer run quietly dropped to 1 active worker and never came back. Chased what looked like a
+leaked permit. Built a dedicated diagnostic thread to prove it, and the leak theory died on
+contact with real numbers: `held` never rose above ~22-25 no matter what the config allowed,
+because the one-way admission cursor was racing through the *entire* target list in **38
+milliseconds** flat, 8 threads deep — faster than real generation could possibly refill the
+reconsideration queue behind it. Not a new bug, just the same one-way cursor Acts 6/11 already
+knew about, running at a speed nobody had stress-tested it at.
+
+The actual freeze (#46) was a real, structural deadlock: `orion3-poll` — this project's one and
+only thread allowed to drain vanilla's `mainThreadProcessor` queue — got dispatched a task whose
+own body needed to recursively call back into that same queue to finish, and the only thread
+licensed to make that call was the one now stuck waiting on it. A single thread, deadlocked
+against itself, through Mojang's own code. #47 chased the exact queue by hand (`pendingGenerationTasks`
+was a red herring; the real site was `BlockableEventLoop.pendingRunnables`) and caught it live:
+one task sitting there, forever, un-drained, because the only drainer was mid-drain of an earlier
+one.
+
+Then it got worse before it got better. #48's fix attempt built a rescue thread that watched for
+a stale heartbeat and drained the stuck queue itself. Version one deadlocked on the identical
+failure one level down. Version two, "smarter," handed every drained task to a disposable worker
+thread instead of running it inline — and produced **507 permanently blocked threads in 90
+seconds, still climbing at roughly 10 a second**, before it got killed for the box's own safety.
+That number is the actual finding: a fixed amount of rescue capacity can't out-drain a genuine
+cycle, and a steady, unplateauing climb is what circularity looks like on a graph, as opposed to
+a merely deep chain that more threads could eventually chew through.
+
+The real fix (#49) stopped working around Mojang's code and went into it: `ServerChunkCache.getChunk()`'s
+reentrancy check compares the calling thread against one fixed field, `this.mainThread`, and
+`orion3-poll` — never that field's value, even while it's the thread already inside a `pollTask()`
+call — always fails that check and takes the blocking, wait-forever branch instead of vanilla's
+own, already-correct `managedBlock()` self-pump loop sitting right below it in the same method.
+Two `javassist` bytecode edits later (a `ThreadLocal` reentrancy-depth counter, and one field-read
+substitution scoped to exactly one method), `OrionV3` ran 9216/9216 chunks clean at champion scale
+for the first time in its life, at parity with v2.1/v2.2 (20.87 eMSPC, inside 1%) — a correctness
+fix, confirmed, not a scheduling win, exactly as advertised.
+
+![CPU usage over time for Orion v2.1, v2.2, and patched v3 at champion config — three stacked line traces, all settling well below the 700% full-worker ceiling](findings/orion_cpu_traces.png)
+
+Once patched, v3 behaves exactly like its single-threaded siblings on a CPU trace — same idle
+headroom, same shape — because multi-threaded admission was never going to be the thing that
+fixed that headroom. That answer had to wait for Act 15.
+
+## Act 13: A second "we beat a real server" headline, filed with last time's asterisk already attached
+
+Patched OrionV3 (Act 12) got its own drag race (#52): a single run each, WorldgenD's
+v2.1/v2.2/v3 against real Paper, Leaf, and Leaf-on-crack servers running Chunky, normalized as
+best Chunky's own off-by-one radius bug (`(2N+1)²` chunks, not `(2N)²`, confirmed and never
+explained on Chunky's own end) allows. v3 posted the fastest number of the whole field, 20.23
+eMSPC against Leaf's 21.78 ms/chunk — **~7% faster than the fastest real server tested.**
+
+Act 8 already spent a whole section teaching this document not to trust that shape of result off
+one block-sequential run each, so this one gets the same asterisk pinned to it here rather than
+repeated as a clean win: n=1 per engine, not interleaved, never rerun Act-8-style. File it as
+"encouraging, unconfirmed" and move on — the real story from this session isn't the leaderboard
+position, it's that v3 no longer needs the word "parked" next to its name.
+
+## Act 14: The Density-Function Compiler — three attempts, two of them worse than doing nothing
+
+If Act 12 was about a bug that took five tries to fix, this one is about an optimization that
+took three tries to stop hurting.
+
+The idea (#56-57): C2ME's density-function compiler flattens a `DensityFunction` tree into one
+compiled method instead of walking it node-by-node through polymorphic `compute()` calls. A
+deliberately narrow port (two node types: `Constant`, `Ap2`'s ADD/MUL) measured 1.13-1.55x faster
+on a synthetic tree — modest, and, worryingly, *shrinking* with tree depth, which is backwards
+from what "more nodes flattened" should predict. #58 found why: the synthetic leaves were routed
+through `java.lang.reflect.Proxy`, taxing both the vanilla and compiled paths equally and diluting
+the real effect. Real vanilla leaf classes showed a much better 2.04-3.12x — but only on ~4.6-7.1%
+of champion-scale CPU (glue, not the noise math itself), which multiplies out to a **projected
+3.5-4.8% wall-clock win — sitting right at the edge of this box's own ~9% noise band before a
+single real chunk had been generated with it.** Recommendation at that point: park it.
+
+It got wired in anyway, to get a real number instead of a projection (#59), and the real number
+was **a 27.3% regression.** Not noise — nowhere close. The instrumented cache told the actual
+story: a 99.95% hit rate ruled out recompilation, but every `compute()` call — hit or miss —
+allocated a lookup-key object and did a `ConcurrentHashMap` probe before it could even reach the
+fast path it was trying to earn. A hashmap lookup is not competitive with the two field reads and
+one arithmetic op it was replacing.
+
+Fix attempt two (#60): move the cache into two real instance fields on `Ap2` instead of a
+side-table — no more allocation, no more hashmap. Regression shrank to 16.6%. Still a loss, and
+root-caused to something structurally different: 241,971 distinct compiled classes, one per
+unique tree shape, all funneling through one shared `eval()` call site — which degrades the JIT's
+inline cache from a clean handful of concrete types down to fully **megamorphic**, no inlining,
+vtable lookup on every call, for the entire run. The fix that solved attempt one's problem created
+attempt two's.
+
+Fix attempt three (#61) is the one that actually worked: instead of one bespoke compiled class
+per tree shape, compile every tree down to the *same* interpreter class — flattened post-order
+arrays, one small loop, constructor arguments carrying the tree data instead of the class
+identity. One class, arbitrarily many instances, back to a call site the JIT can actually
+optimize.
+
+![Bar chart of Orion v4's DFC arc: orion3 baseline and orion4-structure-fix-only near 20 eMSPC, the hashmap-cache and bespoke-class-cache DFC attempts spiking to 25.1 and 23.7 (regressions), then both monomorphic-interpreter runs landing back at 20.9 and 21.6, inside the orion4-no-DFC dashed reference line's noise band](findings/orion4_dfc_arc.png)
+
++23.2% regression, then +16.6%, then **+2.7% and +5.9% across two replicated runs — both back
+inside the noise band the two previous attempts had blown straight through.** Not a demonstrated
+win either — the static 3.5-4.8% projection from #58 was always going to be hard to see over this
+box's own noise, and it wasn't seen. But going from a confirmed quarter-worse to
+statistically-indistinguishable-from-free, twice in a row, entirely by changing *how many classes
+the compiler emits* rather than anything about what it computes, is the kind of lesson worth an
+Act even when the scoreboard says "tie."
+
+## Act 15: Orion v5 — the "structural" ceiling turns out to be a filing-cabinet problem, one lane wide
+
+Act 10 already found one filing cabinet nobody bolted down (`ChunkMap.pendingGenerationTasks`,
+safe only because everything funneled through one executor). #55 spent five separate experiments
+— SIMD, FFM, an AOT cache, disabling structure generation outright — trying to relieve what four
+separate findings agreed was a hard, radius-8-shaped dependency scarcity, and came back with five
+straight misses, closing the book with "structurally load-bearing, not fixable from this side."
+
+The book reopened for one reason: rereading `ChunkMap`'s own bytecode, not the assumption
+everyone had been building on top of (#62). `NoiseBasedChunkGenerator.fillFromNoise`/`createBiomes`
+are the *only* generation steps that ever leave the main thread. Surface, carvers, features,
+structures, and spawn — everything else in the whole pipeline — runs through one
+`ConsecutiveExecutor("worldgen")`, a single lane, for the entire level, on every scheduler this
+project had ever built, going all the way back to the mosaic. Every one of #50/#51/#54/#55's
+"radius-8 scarcity" readings was the same lane, seen from five different diagnostic angles.
+Paper's own Moonrise patches (checked locally, not assumed) mark every one of those same steps
+parallel-capable with an explicit write-radius table — the exact numbers vanilla's own
+`ChunkPyramid` already carries as constants. Nobody here needed to invent anything; they needed to
+read one more class file.
+
+The patch is one `javassist` swap inside `ChunkMap.applyStep`, routing each step through an
+area-locked background-pool dispatch instead of the synchronous in-lane call — structures get one
+global lock (C2ME's own 30-mixin fix, condensed into one), everything else gets a write-radius
+area lock matching Moonrise's numbers exactly. Two real bugs got caught before any number was
+trusted: a vanishing exception from an already-known stderr issue, and a lane-matching `when`
+that silently ran structure steps unserialized because `ChunkStatus.getName()` returns a
+namespaced registry key, not the bare name anyone would guess.
+
+Correctness got checked at the block level, not just `failed=0` — full block-state histograms,
+hashed, diffed against a same-run MC-55596 noise floor established in Act 9's own vocabulary.
+Cross-engine diffs land at ~1.4x the same-engine floor, entirely vegetation and feature placement,
+the exact signature order-dependent placement already has a name for. No terrain corruption, no
+bulk stone/air shift.
+
+![Left: interleaved champion eMSPC bars, orion4 at 20.68/20.80 and orion5 at 8.65/8.16. Right: CPU% over time, orion4 oscillating around 300% for ~205s, orion5 holding ~700% and finishing near 95s](findings/orion5_parallel_steps.png)
+
+**-59.5% total time. A 2.47x speedup, replicated twice, both pairs nowhere near the noise band.**
+CPU climbs from ~313% to ~709% of a possible 800% — the idle headroom this whole document has been
+photographing since Act 9 was the serial lane, the entire time. Generator math is, for the first
+time since the mosaic itself, the actual bottleneck — which retroactively makes Act 14's DFC saga
+and #55's SIMD/FFM swings worth another look, now that there's finally a CPU ceiling for them to
+matter against.
+
+## Act 16: The rematch nobody had actually run — Moonrise given the same thread count it beat everyone at
+
+Act 8 taught this document to distrust an uninterleaved single-run "beats Paper" headline. Act
+15's own closing line asked for the obvious follow-up: rerun the drag race with v5 in the seat,
+this time controlling for the one variable every prior drag race had quietly left mismatched.
+Every Paper log this project had ever generated said the same thing: `Paper is using 2 worker
+threads` against WorldgenD's 7. Nobody had ever given Paper the same worker count and asked
+again.
+
+Three rotated rounds, six legs including a new one — Paper explicitly configured to 7 workers
+(#63):
+
+![Drag race #63: mean ms/chunk bars with per-round dots, sorted: Orion v5 8.61, Paper 7 workers 9.13, Orion v4 20.97, Paper 24.62, Leaf 25.59, Leaf-on-crack 26.31](findings/dragrace3_summary.png)
+
+Orion v5 posted the lowest mean (8.61 vs Paper-7w's 9.13), but the margin (5.7%) sits inside the
+noise band, and Paper-7w's own round-to-round spread (11.7%) is wider than the gap it lost by —
+it even won round 1 outright. **Two structurally unrelated engines — one a bytecode patch on
+unmodified vanilla, the other a full chunk-system rewrite — converge on the same ~8.5-9ms/chunk
+the moment both get to run their steps in parallel over the same 7 cores.** That's not a win. It's
+the strongest confirmation Act 15's diagnosis could ask for. And it fully explains the number this
+document has been quietly sitting on since Act 7: stock Paper's old ~53%-faster-than-everyone edge
+was never generator-patch cleverness — it was 2 Moonrise workers against WorldgenD's 4-7, a
+thread-count setting the whole time.
+
+A follow-up (#64) closed the last two untested legs — Leaf and Leaf-on-crack, also given 7
+workers:
+
+![Drag race #64: all four engines at 7 workers, mean ms/chunk bars with per-round dots: Orion v5 8.84, Paper 9.07, Leaf 9.33, Leaf-on-crack 9.54, all within ~8% of each other](findings/dragrace4_summary.png)
+
+All four — a reflection heist that ships zero bytes of Mojang code, and three flavors of real,
+professionally maintained, production Minecraft server — land inside one 8% band. Leaf's own fork
+patches, which #52 once credited with a real edge over Paper, buy nothing measurable at matched
+thread count; the entire spread this project spent 60-odd findings chasing was one YAML line the
+whole time.
+
+## Act 17: Making Orion lie about the time of day so mushrooms grow in the right place
+
+Determinism was never free in this project — Act 9's own vocabulary (MC-55596, order-dependent
+feature placement) is the reason every "identical-seed" comparison since Act 6 has carried an
+asterisk. v5 owns its own step scheduler now (Act 15), which means, for the first time, this
+project could actually try to schedule the nondeterminism away instead of just measuring around
+it (#65).
+
+Two separate races turned out to be hiding under one symptom. The first: overlapping FEATURES
+steps (the only step with a write-radius wider than its own chunk) racing on their relative order
+— fixed with a deterministic priority key (`3*floorMod(x,3)+floorMod(z,3)`) that guarantees any
+two conflicting chunks always disagree on priority, so "lower key goes first" is a total,
+scheduler-independent order. That alone cut same-seed drift from ~45% of chunks down to single
+digits. The second, smaller race was hiding underneath the first: a mushroom's placement check
+reads live light data, and whether that light has propagated yet from a neighbor is itself a
+timing accident. The fix, in its full absurdity: make every generating chunk answer light queries
+as if it were still an uninitialized column — sky 15, block 0 — a lighting state vanilla's own
+code already produces for plenty of real, unmodified chunks, just applied on purpose instead of
+by accident.
+
+Both together: **0 out of 2304 chunks differ, across repeat runs of the same target, and across
+two overlapping targets compared against each other.** Bit-identical worlds, out of a scheduler
+whose entire founding premise was running things out of order.
+
+Sit with that for a second: real, unmodified, official-jar vanilla Minecraft, running its own
+unmodified multi-threaded worldgen, cannot reproduce its own output for the same seed (MC-55596,
+Act 9, never patched, presumably never will be). This project's own reflection-heist toy, held
+together by javassist and spite, now can. We are, as of this finding, more deterministic at
+Minecraft than Minecraft is.
+
+![Determinism results: same-target and overlapping-target chunk mismatch counts, plain v5 vs region vs closure ordering, before and after the light-read fix](findings/determinism65.png)
+
+Nothing here is free. The `region` mode (order only the chunks the run actually needs) costs
++6.7%, comfortably noise; the stricter `closure` mode (order every lower-key neighbor
+transitively, generating extra ones if needed) costs a real +19.3%, mostly honest extra terrain
+rather than scheduling overhead. And the unlit-light trick has a body count: brown mushrooms in
+the test region dropped from 348 under plain v5 to 78 once both fixes were active — a determinism
+flag that visibly thins the mushroom population has to say so out loud, and this document is
+saying so. Vanilla's own mushroom count was never fixed to begin with (it's scheduling-dependent
+there too); "fewer mushrooms, deterministically" is still an honest trade, just not a free one.
+
+## Act 18: The diminishing-returns tour — SIMD, an optimized Perlin port, and four allocation fixes, none of which moved the needle
+
+With v5 finally CPU-bound (Act 15), every compute-side idea #55 had already tried and failed to
+matter against a scarcity-bound scheduler got a second chance to matter against a busy one. Three
+separate attempts (#66-68), three real, verified, bit-exact-correctness local wins, and three
+champion-scale ties.
+
+**v5.1 (SIMD density batches, #66):** genuinely vectorized — decoded C2-compiled assembly confirms
+real 256-bit AVX2 `ymm` instructions, not autovectorized scalar code wearing a costume — and a
+real 1.4-1.7x win in isolation, past a ~48-element length threshold below which lane setup costs
+more than it saves.
+
+![Isolated SIMD microbenchmark and correctness/AVX confirmation for Orion v5.1's density batches](findings/orion51_simd.png)
+
+Weighted by real generation's own call-length mix (99.4% of all elements at length 128, never the
+longer lengths the microbenchmark also swept), the real saving projects to ~20-55 microseconds
+per chunk — against chunks that each take tens to hundreds of *milliseconds* end to end.
+Champion-scale numbers moved in the expected direction, but a scalar control path with zero
+vectorization at all moved by the same amount in the same direction, which is the textbook tell
+for "this is noise, not the effect."
+
+**v5.2 (optimized Perlin port, #67):** ported the useful shape of C2ME's flattened-permutation-table
+Perlin sampler, bit-exact across 65,536 randomized samples and a full block-position hash of a
+real generated region. It earns its keep on a profiler — `ImprovedNoise.p()`, the single hottest
+lookup method in the whole engine at 11.08% of a v5.1 profile, drops to a flat 0% once the
+permutation walk moves inline:
+
+![Matched JFR hot-path share: Orion v5.1 spends 10.60% in permutation lookup and 5.06% in the noise wrapper; Orion v5.2 spends 7.79% in optimized interpolation and 5.92% in the wrapper](findings/orion52_hotpath.png)
+
+The work didn't vanish, it just got attributed to a cheaper-looking method name; three rotated
+whole-generation rounds crossed each other and landed at a -0.4% median / +1.6% mean — a tie,
+reported as one.
+
+![Three rotated 6,400-chunk rounds comparing Orion v5.1 and v5.2; results cross and remain inside the established noise band](findings/orion52_throughput.png)
+
+**v5.3 (four allocation-pressure fixes, #68):** a standalone JFR allocation profile found
+~1.66GB/s allocated, with five call sites responsible for ~43GB of a 70.5-second run — mostly
+scratch buffers and a memoizing lambda that had no business being reallocated on every call. All
+four got the obvious fix (a per-thread reusable buffer, a resettable supplier, a cached array, a
+reusable output box) and the correctness check came back bit-exact. A GC log confirmed the
+mechanism actually worked — 28% fewer young collections, real allocation genuinely removed — and
+then ParallelGC's own adaptive Eden growth ate the saving by letting more live data pile up
+between the now-rarer collections, leaving total pause time a wash to slightly worse.
+
+Three real, local, independently-verified engineering wins in a row (SIMD, Perlin, allocations),
+three times the JVM or the noise floor ate the difference before it reached the stopwatch. If
+there's a moral here, it's the one this project keeps rediscovering under a new coat of paint each
+time: a profiler telling you where the CPU goes is not the same claim as a stopwatch telling you
+the total got smaller, and this document has now learned that lesson from a scheduler, a compiler,
+and a memory allocator.
+
 ## The Whole Arc, In One Table
 
 | Stage | Effective ms/chunk (this box) | vs. where we started |
@@ -286,21 +573,26 @@ version bump, and we're naming it that instead of pretending otherwise.
 | Orion v1 (single-threaded, area lock) | 45.04 | worse, abandoned |
 | Orion v2 (single scheduler, dumb workers) | 26.80-27.52 | ~24-27% faster than mosaic |
 | Orion v2.1 (+ spatial index, 4 workers) | 23.25-23.98 | ~34% faster than mosaic |
-| **Orion v2.1 (+ 7 workers)** | **20.77** | **~43% faster than mosaic, reigning champion** |
+| Orion v2.1 (+ 7 workers) | 20.77 | ~43% faster than mosaic |
 | Orion v2.2 (v2.1 + scatter order) | 20.77-22.81 | same throughput, ~half the median latency |
-| Orion v3/v4 (multi-threaded admission, patched; `scientific-findings-41-80.md` #49-#61) | 19.71-20.80 | parity with v2.1: the ceiling wasn't the scheduler |
+| Orion v3 (multi-threaded admission, reentrancy-patched; #44-49) | 19.71-20.87 | parity with v2.1: a correctness fix, not a speedup |
+| Orion v4 (+ C2ME structure-thread-safety port; #56) | 20.36-20.97 | parity: the fix costs nothing measurable, exercised or not |
 | **Orion v5 (parallel chunk steps, #62)** | **8.16-8.65** | **~2.5x v4, ~77% faster than mosaic: vanilla's serial worldgen lane was the ceiling all along** |
-| *(for reference) Paper, interleaved same-session mean* | 24.02 | *genuine parity with v2.1 @ 4 workers, per Act 8* |
+| Orion v5.1 / v5.2 / v5.3 (SIMD, Perlin port, allocation fixes; #66-68) | 8.05-9.34 | each a real, bit-exact local win; all three a champion-scale tie with v5 |
+| Orion v5 deterministic (region / closure + unlit light; #65) | +6.7% / +19.3% vs plain v5 | bit-identical worlds, at a real and measured cost |
+| *(for reference) Paper, interleaved same-session mean, 4 workers* | 24.02 | *genuine parity with v2.1 @ 4 workers, per Act 8* |
+| *(for reference) Paper, matched 7 workers, interleaved twice; #63/#64* | 9.07-9.13 | *genuine parity with v5, pooled n=6: -4.2%, inside noise* |
 
-The last row is deliberately not compared against the champion row above it — the 7-worker
-number has never been through Act 8's interleaved discipline against Paper, and until it has,
-this document isn't going to imply a comparison it can't back up. That's the whole point of
-having an Act 8 in the first place.
+The Act 8 discipline that once kept the champion row from being compared against Paper has since
+been paid off in full: the 7-worker matchup got run interleaved, twice, in two separate sessions
+(#63, #64), and it came back a tie both times — the honest headline this whole document was
+always working toward, not the one it almost ran with back in Act 7.
 
 Every single number in that table is backed by a JFR recording, a `top -bH` snapshot, a CSV in
-`findings/`, or a `javap` disassembly — nothing here is vibes. `scientific-findings.md` #1
-through #35 has the full, unabridged, occasionally-wrong-and-corrected version of this story,
-wrong turns and all, because a lab notebook that only records the wins isn't a lab notebook,
-it's marketing.
+`findings/`, or a `javap` disassembly — nothing here is vibes. `scientific-findings-1-40.md` and
+`scientific-findings-41-80.md` have the full, unabridged, occasionally-wrong-and-corrected version
+of this story, findings #1 through #68 and counting, wrong turns and all, because a lab notebook
+that only records the wins isn't a lab notebook, it's marketing.
 
-Go make some land. Don't gloat about the Paper number until someone's run it interleaved twice.
+Go make some land. The Paper number got run interleaved, at matched thread count, twice — and it
+came back a tie both times. That's still the best headline this document has earned.

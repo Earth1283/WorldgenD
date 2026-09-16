@@ -23,6 +23,12 @@ import java.util.function.BooleanSupplier
 private const val MOSAIC_N = 16
 
 fun main() {
+    // #56: Minecraft's log bootstrap makes System.err unreliable after startup, so an
+    // uncaught exception's default printStackTrace(System.err) can render as a bare
+    // "Exception in thread main" with the trace itself silently lost. Write it to a file too.
+    Thread.setDefaultUncaughtExceptionHandler { _, t ->
+        File("main_crash.txt").writeText(t.stackTraceToString())
+    }
     // Self-reported, not inferred: which collector actually loaded, straight from the
     // JVM's own MXBeans, so a GC experiment's flags can be confirmed the same way
     // -Dmax.bg.threads got confirmed in #13 — by asking the running JVM, not the flag.
@@ -45,6 +51,13 @@ fun main() {
 
     val schedulerMode = System.getProperty("scheduler", "mosaic")
     val saveWorld = System.getProperty("saveworld", "false").toBoolean()
+    val reportProgress = System.getProperty("worldgen.progress", "false").toBoolean()
+    val progressFile = System.getProperty("worldgen.progressfile")?.let { path ->
+        File(path).apply {
+            parentFile?.mkdirs()
+            writeText("")
+        }
+    }
     println(
         if (saveWorld) "World saving enabled: chunks will be flushed after generation timing completes."
         else "World saving disabled (default): benchmark behavior is unchanged."
@@ -64,6 +77,7 @@ fun main() {
     val loader = discovered.newClassLoader()
     if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") DensitySimdPatch.requireInstalled(loader)
     if (schedulerMode == "orion5.2") ImprovedNoisePatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.3") AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
     val mc = Mc(loader)
 
     mc.method(mc.c("net.minecraft.SharedConstants"), "tryDetectVersion").call(null)
@@ -223,7 +237,7 @@ fun main() {
     // A fresh .run every launch: createNewWorldData() always builds new world
     // data regardless of what's on disk, but a stale region file from a prior
     // (different-seed) run would still get loaded back instead of regenerated,
-    // silently defeating the pinned seed below.
+    // silently defeating the configured seed below.
     val runDir = File(serversDir, ".run").apply { deleteRecursively(); mkdirs() }
 
     // #55: STRUCTURE_STARTS is the sole radius-8 requirement in ChunkPyramid
@@ -231,8 +245,10 @@ fun main() {
     // disabling structure search collapses the dependency radius and relieves
     // the scarcity #50/#51/#54 pinned as the real ceiling.
     val generateStructures = System.getProperty("worldgen.generateStructures", "true").toBoolean()
+    val worldSeed = System.getProperty("worldgen.seed", "69").toLong()
+    println("World seed: $worldSeed")
     val propertiesFile = File(runDir, "server.properties")
-        .apply { writeText("level-seed=69\ngenerate-structures=$generateStructures\n") }
+        .apply { writeText("level-seed=$worldSeed\ngenerate-structures=$generateStructures\n") }
     val cDedicatedServerSettings = mc.c("net.minecraft.server.dedicated.DedicatedServerSettings")
     val dedicatedServerSettings = mc.new(
         cDedicatedServerSettings, arrayOf(Path::class.java), arrayOf(propertiesFile.toPath())
@@ -419,7 +435,8 @@ fun main() {
         val out = histogramFile ?: return
         val chunk = mc.publicMethod(chunkResult.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
         val sections = getSections.call(chunk) as Array<*>
-        out.appendText("$cx $cz ${snapshot!!.describe(sections)}\n")
+        val line = "$cx $cz ${snapshot!!.describe(sections)}\n"
+        synchronized(out) { out.appendText(line) }
     }
 
     val mosaicSide = MOSAIC_N * mosaicTile
@@ -733,7 +750,7 @@ fun main() {
         return
     }
 
-    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2") {
+    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3") {
         for (flag in listOf("orion.patchReentrancy", "orion.patchStructureGenState", "orion.patchParallelSteps")) {
             require(System.getProperty(flag) == "true") { "$schedulerMode requires -D$flag=true (see OrionPatchAgent)" }
         }
@@ -748,7 +765,13 @@ fun main() {
         val lo = base + shift
         val hi = base + shift + mosaicSide - 1
         val target = (lo..hi).flatMap { cx -> (lo..hi).map { cz -> cx to cz } }
+        val evictChunks = System.getProperty("orion.evictChunks") == "true"
         val featureOrderMode = System.getProperty("orion.deterministicFeatures")
+        // Verified together at tile 2 with -Dorion.targetShift=100: 0/1024 block-position
+        // hashes differ vs. the same run without eviction, with 640/1024 chunks actually
+        // evicted mid-run -- deterministicFeatures's extra neighbor-only calls (outside
+        // `target`) never touch an evicted chunk's ticket/holder, so they don't interact.
+        val evictor = if (evictChunks) ChunkEvictor(mc, chunkSource, lo, hi, mosaicSide) else null
         if (featureOrderMode != null) {
             val featuresStatus = mc.staticField(cChunkStatus, "FEATURES")
             // Target chunks need LIGHT, which pulls FEATURES on their 1-ring; nothing further out runs it.
@@ -774,18 +797,34 @@ fun main() {
         resultFile.writeText("$schedulerMode fill() starting, target=${target.size}\n${poolReport()}\n")
         val overallStart = System.nanoTime()
         val result = try {
-            orion.fill(target) { cx, cz, success, chunkResult, error ->
-                if (success) recordHistogram(chunkResult!!, cx, cz) else println("[$cx,$cz] FAILED: $error")
-            }
+            orion.fill(
+                target,
+                onComplete = { cx, cz, success, chunkResult, error ->
+                    if (success) recordHistogram(chunkResult!!, cx, cz) else println("[$cx,$cz] FAILED: $error")
+                    evictor?.markComplete(cx, cz)
+                },
+                onProgress = { completed, total, elapsedMs ->
+                    val progress = "WGD_PROGRESS completed=$completed total=$total elapsedMs=$elapsedMs"
+                    if (reportProgress) println(progress)
+                    if (progressFile != null) synchronized(progressFile) { progressFile.appendText("$progress\n") }
+                },
+            )
         } catch (t: Throwable) {
             resultFile.writeText("THREW: ${t.stackTraceToString()}\n")
             throw t
         }
+        evictor?.flush()
         val totalMs = (System.nanoTime() - overallStart) / 1_000_000
         resultFile.writeText(
             "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
                 "parallelSteps ${OrionParallelSteps.report()}\n${poolReport()}\n" +
-                if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") "densitySimd ${DensityBatch.report()}\n" else ""
+                (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") "densitySimd ${DensityBatch.report()}\n" else "") +
+                (if (schedulerMode == "orion5.3") "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
+                (if (evictor != null) {
+                    "chunkEvictor ${evictor.report()}\n" +
+                        "chunkEvictorGcCheck ${evictor.verifyReclaimed()}\n" +
+                        "chunkEvictorRetainerPath ${evictor.findFirstRetainerPath()}\n"
+                } else "")
         )
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")
         saveWorldIfRequested()
