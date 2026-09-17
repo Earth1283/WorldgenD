@@ -50,7 +50,7 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3`.
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3|orion5.4`.
 
 | Generator | Adds | Measured effective MSPC | Current reading |
 |---|---|---:|---|
@@ -59,6 +59,7 @@ Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orio
 | Orion v5.1 | SIMD density batches | 7.77–8.25 | isolated SIMD win, full-generation effect inside noise |
 | Orion v5.2 | optimized ImprovedNoise kernel | 8.05–8.40 | Perlin CPU share falls; full-generation effect inside noise |
 | Orion v5.3 | allocation-pressure fixes (Ap2/Context/SequenceRule/Aquifer) | 7.87–9.34 | bit-exact, real GC-frequency drop, no confirmed throughput win |
+| Orion v5.4 | C1GC bounded chunk reclamation | 9.03–9.86 (champion scale), 8.75 (256x256) | fixes a real large-tile hang/OOM; a real ~13% champion-scale cost, not noise |
 
 **Orion v5 is the architectural jump** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
 at champion scale (eMSPC 8.16-8.65 vs 20.68-20.80, interleaved, n=2 each), steady-state CPU
@@ -107,6 +108,21 @@ agent; `-Dorion.patchAllocations=true` is auto-enabled for this scheduler. Bit-e
 young-GC count dropped 28% (18 -> 13 collections), confirming the allocation reduction is real,
 but total GC pause time and whole-generation throughput were a wash to slightly worse across two
 interleaved rounds — inside the noise band, same pattern as v5.1/v5.2. See finding #68.
+
+**Orion v5.4** (`-Dscheduler=orion5.4`, C1GC — Chunk-First Garbage Collector) keeps the v5
+prerequisites and v5.3's allocation patch, and adds bounded chunk reclamation for sustained/
+large-tile runs. Every chunk generated so far stayed permanently resident (`ChunkEvictor.kt`'s
+existing, off-by-default fix aside); at 6,400 chunks that's a rounding error, at 65,536 it's a
+16GB heap pinned at its ceiling with no progress for 45+ minutes. C1GC pushes each chunk through
+`ACTIVE -> QUARANTINED -> COLLECTIBLE -> DETACHED -> PERSISTED`: only once a chunk clears the
+same retain-radius heuristic *and* has its ticket/POI/distance-manager state provably cleared
+does it get copied into a compact `SerializableChunkData` record and handed to a bounded,
+elastic IO worker pool that writes it to a real `.mca` region file through vanilla's own
+`IOWorker`. The same 256x256 mosaic that hung under v5.3 completed cleanly under v5.4 in 9.56
+minutes (65,536/65,536 chunks, eMSPC 8.75 ms/chunk, 0 leaked cells). That fix isn't free: two
+interleaved champion-scale rounds (6,400 chunks) show v5.4 a real 10-16% slower than v5.3, both
+rounds the same direction and outside the ~9% noise band — a genuine memory-vs-throughput trade,
+not a regression to be explained away. See finding #69 and `c1gc/README.md`.
 
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see

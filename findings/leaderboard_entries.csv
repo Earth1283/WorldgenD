@@ -142,3 +142,8 @@ Orion v5,"Allocation-pressure A/B, round 1",51508,6400,#68
 Orion v5,"Allocation-pressure A/B, round 2",50803,6400,#68
 Orion v5.3,"Allocation-pressure A/B, round 1",59755,6400,#68
 Orion v5.3,"Allocation-pressure A/B, round 2",50350,6400,#68
+Orion v5.4,"C1GC champion-scale A/B, round 1",57760,6400,#69
+Orion v5.3,"C1GC champion-scale A/B, round 1",52430,6400,#69
+Orion v5.3,"C1GC champion-scale A/B, round 2",54561,6400,#69
+Orion v5.4,"C1GC champion-scale A/B, round 2",63075,6400,#69
+Orion v5.4,"256x256 sustained run, 16g heap, 0 fail, 62464/62464 chunks reclaimed",573361,65536,#69

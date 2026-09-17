@@ -11,6 +11,7 @@ import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import java.util.function.BooleanSupplier
+import io.github.eath1283.worldgend.c1gc.C1GC
 
 // ChunkPyramid.GENERATION_PYRAMID's addRequirement() calls are all radius 1
 // except STRUCTURE_STARTS, which is 8 — confirmed straight out of the jar's
@@ -77,7 +78,7 @@ fun main() {
     val loader = discovered.newClassLoader()
     if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") DensitySimdPatch.requireInstalled(loader)
     if (schedulerMode == "orion5.2") ImprovedNoisePatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.3") AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
+    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4") AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
     val mc = Mc(loader)
 
     mc.method(mc.c("net.minecraft.SharedConstants"), "tryDetectVersion").call(null)
@@ -750,7 +751,7 @@ fun main() {
         return
     }
 
-    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3") {
+    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3" || schedulerMode == "orion5.4") {
         for (flag in listOf("orion.patchReentrancy", "orion.patchStructureGenState", "orion.patchParallelSteps")) {
             require(System.getProperty(flag) == "true") { "$schedulerMode requires -D$flag=true (see OrionPatchAgent)" }
         }
@@ -765,7 +766,12 @@ fun main() {
         val lo = base + shift
         val hi = base + shift + mosaicSide - 1
         val target = (lo..hi).flatMap { cx -> (lo..hi).map { cz -> cx to cz } }
-        val evictChunks = System.getProperty("orion.evictChunks") == "true"
+        val evictChunks = System.getProperty("orion.evictChunks") == "true" && schedulerMode != "orion5.4"
+        val c1gc = if (schedulerMode == "orion5.4") C1GC(
+            mc, chunkSource, lo, hi, mosaicSide,
+            ringCapacity = Integer.getInteger("orion.c1gc.ringCapacity", C1GC.RING_CAPACITY),
+            maxIoWorkers = Integer.getInteger("orion.c1gc.maxIoWorkers", C1GC.MAX_IO_WORKERS),
+        ) else null
         val featureOrderMode = System.getProperty("orion.deterministicFeatures")
         // Verified together at tile 2 with -Dorion.targetShift=100: 0/1024 block-position
         // hashes differ vs. the same run without eviction, with 640/1024 chunks actually
@@ -802,6 +808,7 @@ fun main() {
                 onComplete = { cx, cz, success, chunkResult, error ->
                     if (success) recordHistogram(chunkResult!!, cx, cz) else println("[$cx,$cz] FAILED: $error")
                     evictor?.markComplete(cx, cz)
+                    c1gc?.markComplete(cx, cz)
                 },
                 onProgress = { completed, total, elapsedMs ->
                     val progress = "WGD_PROGRESS completed=$completed total=$total elapsedMs=$elapsedMs"
@@ -814,17 +821,19 @@ fun main() {
             throw t
         }
         evictor?.flush()
+        c1gc?.flush()
         val totalMs = (System.nanoTime() - overallStart) / 1_000_000
         resultFile.writeText(
             "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
                 "parallelSteps ${OrionParallelSteps.report()}\n${poolReport()}\n" +
                 (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") "densitySimd ${DensityBatch.report()}\n" else "") +
-                (if (schedulerMode == "orion5.3") "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
+                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4") "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
                 (if (evictor != null) {
                     "chunkEvictor ${evictor.report()}\n" +
                         "chunkEvictorGcCheck ${evictor.verifyReclaimed()}\n" +
                         "chunkEvictorRetainerPath ${evictor.findFirstRetainerPath()}\n"
-                } else "")
+                } else "") +
+                (if (c1gc != null) "c1gc ${c1gc.report()}\n" else "")
         )
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")
         saveWorldIfRequested()

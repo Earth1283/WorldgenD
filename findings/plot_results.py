@@ -941,6 +941,38 @@ def plot_orion52_hotpath(out_path):
     plt.close(fig)
 
 
+def plot_c1gc69_throughput(out_path):
+    import statistics
+
+    with (HERE / "c1gc69_results.csv").open() as source:
+        rows = list(csv.DictReader(source))
+    modes = [("orion53", "Orion v5.3", SERIES[0]), ("orion54", "Orion v5.4 (C1GC)", SERIES[2])]
+    fig, ax = plt.subplots(figsize=(8, 5.2))
+    rounds = [1, 2]
+    for mode, label, color in modes:
+        values = [float(next(row["emspc"] for row in rows if row["mode"] == mode and int(row["round"]) == round_number)) for round_number in rounds]
+        ax.plot(rounds, values, color=color, marker="o", linewidth=1.6, markersize=7, label=label, zorder=3)
+        for round_number, value in zip(rounds, values):
+            ax.annotate(f"{value:.2f}", (round_number, value), xytext=(0, 8), textcoords="offset points", ha="center", fontsize=8.5, color=INK_SECONDARY)
+    v53 = [float(row["emspc"]) for row in rows if row["mode"] == "orion53"]
+    v54 = [float(row["emspc"]) for row in rows if row["mode"] == "orion54"]
+    v53_mean, v54_mean = statistics.mean(v53), statistics.mean(v54)
+    ax.set_xticks(rounds, ["Round 1\nv5.4 first", "Round 2\nv5.3 first"])
+    ax.set_ylabel("Effective milliseconds / chunk — lower is better")
+    ax.set_ylim(min(v53 + v54) - 0.3, max(v53 + v54) + 0.4)
+    ax.legend(frameon=False, loc="upper left")
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.suptitle("#69: C1GC has a real champion-scale cost, no benefit at this scale", fontsize=14, x=0.08, ha="left")
+    fig.text(0.08, 0.01, f"6,400 chunks per leg, rotated order, 7 workers, 16GB heap. Means: v5.3 {v53_mean:.3f}, v5.4 {v54_mean:.3f} ms/chunk "
+                         f"({(v54_mean - v53_mean) / v53_mean * 100:+.1f}%). Both rounds same direction — outside the ~9% noise band.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.08, 1, 0.94))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -1102,6 +1134,8 @@ def main():
 
     plot_orion52_throughput(HERE / "orion52_throughput.png")
     plot_orion52_hotpath(HERE / "orion52_hotpath.png")
+
+    plot_c1gc69_throughput(HERE / "c1gc69_throughput.png")
 
     print(f"Wrote charts to {HERE}")
 

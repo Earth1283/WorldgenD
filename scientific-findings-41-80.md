@@ -856,6 +856,96 @@ Files:
 - **Data:** `findings/orion_results.csv` (rows `alloc68_*`), `findings/leaderboard_entries.csv` (`#68` rows).
 - **Code:** `AllocationPatch.kt` (`Ap2Scratch`, `MutableDoubleScratch`, `ResettableBiomeSupplier`); `OrionPatchAgent.kt`'s `patchAp2FillArray`/`patchSurfaceRulesContext`/`patchSequenceRule`/`patchAquiferMutableDouble`; `-Dscheduler=orion5.3` enables all four and fails fast (`AllocationPatch.requireInstalled`) if the agent didn't install them.
 
+## 69. Orion v5.4 (C1GC): a bounded chunk-reclamation pipeline fixes a real large-tile failure, at a real champion-scale cost
+
+(finding #69. nice.)
+
+A 256x256 mosaic (65,536 chunks) on v5.3 was reported hanging/OOMing where 6,400-chunk champion
+runs never had trouble. Every chunk `getChunkFuture(..., true)` returns keeps a permanent
+`TicketType.UNKNOWN` ticket and sits in `ChunkMap`'s holder map for the JVM's life (`ChunkEvictor.kt`'s
+own header comment, `-Dorion.evictChunks=true`'s existing but off-by-default fix) — fine at 6,400
+chunks, unbounded at 65,536. Reproduced directly: v5.3 at 16GB heap, tile 16, champion config, ran
+45+ minutes pinned at the heap ceiling (16.4-16.7GB RSS) with zero progress reported before being
+killed; a second attempt at 3GB heap showed the same pinned-at-ceiling, zero-progress pattern for
+12+ minutes before being killed for time. Neither run failed outright inside the time budget spent
+on it, but neither made measurable progress either — the practical effect a user sees as a hang or
+an OOM depending on exactly when they give up or the collector does.
+
+**C1GC** (`c1gc/` package, `-Dscheduler=orion5.4`, builds on v5.3's allocation patches) is a five-state
+lifecycle per chunk — `ACTIVE -> QUARANTINED -> COLLECTIBLE -> DETACHED -> PERSISTED`, transition
+table enforced in `ChunkLifecycle.kt`, illegal jumps throw. QUARANTINED reuses `ChunkEvictor`'s
+x-frontier/retain-radius heuristic. COLLECTIBLE is the actual proof: ticket removed,
+`DistanceManager` updates drained, POI sections flushed and stripped from `PoiManager`'s own
+storage map (which vanilla never removes from, per `ChunkEvictor.kt`). Only after that proof does
+DETACHED run: `SerializableChunkData.copyOf(level, chunk)` — a real Mojang method, found via
+`javap -c` on the actual server jar — copies the live `ChunkAccess` into an immutable record with no
+back-reference, and C1GC drops its own reference to the heavy object. PERSISTED hands the record's
+NBT bytes to `ChunkMap.write(ChunkPos, CompoundTag)` (public, inherited from `SimpleRegionStorage`),
+which dispatches into vanilla's own real `IOWorker`/`RegionFileStorage` — genuine `.mca` region files,
+not a bespoke format.
+
+**One real reflection-plumbing bug found and fixed during this session**: `ChunkAccess.tryMarkSaved()`'s
+dirty flag looked like the right gate for "does this chunk still need persisting" (vanilla's own
+`ChunkMap.save()` uses exactly this flag to skip redundant saves), but instrumenting it
+(`isUnsaved()` logged per chunk at quarantine time) showed it was already `false` for 63 of 64
+chunks in a tile-1 smoke test, well before C1GC ever touched them. This runtime never ticks, so
+nothing else genuinely writes chunks to disk — the flag's "already saved" semantics assume a real
+ticking server's incremental-save use case and don't hold here. Gating on it silently dropped
+persistence for nearly every chunk (`alreadySaved=63, persisted=1` in the result file). Fixed by
+detaching and persisting every COLLECTIBLE chunk unconditionally, calling `tryMarkSaved()` only to
+keep vanilla's own internal processUnloads-triggered save a no-op instead of a race. Re-run after
+the fix: `persisted=64` out of 64, matching `quarantined`/`collectible`/`detached`, 0 leaked cells.
+A second bug (caught by review before it ever ran): `LifecycleTracker.advance()` was a plain
+get-then-put on a `ConcurrentHashMap`, racy across the threads that set DETACHED (an IO-pool
+thread) and PERSISTED (inside `CompletableFuture.whenComplete`, not necessarily the same thread).
+Fixed with `ConcurrentHashMap.compute()`, which makes the check-and-transition atomic.
+
+**The ring is an `ArrayBlockingQueue`, and the pool is a `ThreadPoolExecutor`** (1 core IO thread,
+`orion.c1gc.maxIoWorkers` max, default 4; `orion.c1gc.ringCapacity`, default 512) with
+`CallerRunsPolicy`. Growth past one worker only happens once the queue is actually full; once even
+`maxIoWorkers` can't keep the queue from staying full, the policy hands the persistence job to
+whatever thread just finished generating a chunk, synchronously — real backpressure, not a
+suggestion, so heap stays bounded by the ring's capacity regardless of how slow the disk is that day.
+
+**Large-tile validation**: 256x256 (65,536 chunks), same champion config (16GB heap, ParallelGC, 7
+workers, `orion.maxinflight=64`) that hung under v5.3 above. v5.4 completed cleanly:
+`ok=65536 failed=0 totalMs=573361` (9.56 minutes), eMSPC 8.75 ms/chunk — in line with champion-scale
+numbers despite 10.24x the chunk count. `c1gc` line: `quarantined=62464 collectible=62464
+detached=62464 persisted=62464`, all four equal, 0 leaked cells. 595MB of real region files landed
+under `servers/.run/headless/dimensions/` (264 region/entities/poi files), wiped after the run.
+
+**Champion-scale cost is real, not noise.** Two interleaved rounds, tile 5 (6,400 chunks), order
+rotated, same champion config:
+
+| Round | First leg | v5.3 totalMs (eMSPC) | v5.4 totalMs (eMSPC) | v5.4 delta |
+|---|---|---:|---:|---:|
+| 1 | v5.4 | 52430 (8.19) | 57760 (9.03) | +10.2% |
+| 2 | v5.3 | 54561 (8.53) | 63075 (9.86) | +15.6% |
+| Mean | — | 53495.5 (8.36) | 60417.5 (9.44) | +12.9% |
+
+Both rounds land the same direction and both exceed this box's own ~9% noise band — unlike
+#66/#67/#68's local wins that stayed inside it, this one doesn't get the benefit of the doubt. At
+6,400 chunks nothing needs reclaiming (v5.3 never OOMs here either), so C1GC's per-chunk POI
+strip/ticket removal/NBT-encode/real-disk-write is pure overhead at this scale — exactly the
+tradeoff `c1gc/README.md` states up front: bounded memory on a sustained run, not a throughput win,
+and this session has the numbers to back that framing rather than just assert it.
+
+![C1GC champion-scale throughput cost: two rotated rounds, v5.3 vs v5.4, both showing v5.4 slower by 10-16%](findings/c1gc69_throughput.png)
+
+Still open: whether `orion.c1gc.ringCapacity`/`maxIoWorkers` tuning narrows the champion-scale cost;
+a real JFR profile isolating how much of the +12.9% is the NBT encode vs. the POI/ticket bookkeeping
+vs. real disk I/O; a formal OOM reproduction with a stack trace (this session's repro showed
+pinned-at-ceiling/zero-progress rather than a caught `OutOfMemoryError` within the time spent
+waiting); C1GC's behavior under `-Dorion.deterministicFeatures` (untested combination); whether a
+real ticking server (not this headless harness) would need the `tryMarkSaved()` assumption
+revisited, per the caveat in `c1gc/README.md`.
+
+Files:
+
+- **Data:** `findings/orion_results.csv` (rows `c1gc69_*`), `findings/leaderboard_entries.csv` (`#69` rows), `findings/c1gc69_results.csv`.
+- **Code:** `c1gc/ChunkLifecycle.kt`, `c1gc/C1GC.kt`, `c1gc/README.md`; `-Dscheduler=orion5.4` enables it unconditionally, no extra flags.
+- **Chart:** `c1gc69_throughput.png`, generated by `findings/plot_results.py`.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):

@@ -88,7 +88,7 @@ object OrionPatchAgent {
             System.getProperty("orion.patchDensitySimd") == "true"
         val patchImprovedNoise = scheduler == "orion5.2" ||
             System.getProperty("orion.patchImprovedNoise") == "true"
-        val patchAllocations = scheduler == "orion5.3" ||
+        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" ||
             System.getProperty("orion.patchAllocations") == "true"
         if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
