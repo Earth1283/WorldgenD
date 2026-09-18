@@ -97,6 +97,44 @@ not by however fast a spinning disk feels like going that day. A slow disk makes
 generate more slowly. It does not make Orion generate itself into an OOM. That trade was
 the entire point.
 
+## The bill vanilla was actually sending us
+
+The first cut of C1GC settled vanilla's distance/light graph (`runDistanceManagerUpdates()`,
+which walks `ChunkTracker`/`DynamicGraphMinFixedPoint`) once per chunk, immediately after removing
+that chunk's ticket. A JFR profile at champion scale said otherwise: that one call chain was
+**~40% of all CPU time**, more than actual worldgen. Vanilla doesn't need to hear about a ticket
+removal the instant it happens — the graph keeps its own pending-update state regardless of how
+many mutations pile up before the next settle. So C1GC now removes tickets one at a time (cheap)
+but only settles the graph and calls `processUnloads()` once every `BATCH_SIZE` (64) chunks. Same
+correctness proof, paid for in bulk instead of retail. Post-fix profile: 0.7%.
+
+## v5.5: collect when there's pressure, on the right thread, with a cheaper codec
+
+**Don't collect an empty heap.** Under `orion5.5`, C1GC keeps its bookkeeping from the first chunk
+but only starts reclaiming once the old generation's *current* occupancy crosses
+`-Dorion.c1gc.pressure` (default `0.5`) of its max. At champion scale (6,400 chunks) it never
+arms, so the ticket/POI/NBT/disk work costs nothing. At 65,536 chunks it arms partway through,
+drains the backlog it had been deferring, then behaves like v5.4. `pressure=0` reproduces v5.4's
+reclaim-from-the-first-chunk behavior. The first cut read `collectionUsage` (live set after the
+last collection). That was a mistake: ParallelGC refreshes it only after a full GC, and the first
+full GC happens only once the old gen is already full. It armed at 10.6GB live, then spent 698s
+in back-to-back full GCs. Current occupancy arms while there's still room (finding #70).
+
+**Main-thread work happens on the main thread.** `markComplete` fires from whichever thread
+completed the chunk future, often a worker. v5.4 removed tickets and settled `DistanceManager`
+right there, racing the poll thread's own `runDistanceManagerUpdates()` on a graph that isn't
+thread-safe. It showed up once as an `ArrayIndexOutOfBoundsException` inside
+`LongLinkedOpenHashSet.fixPointers`. Now `markComplete` only records (and checks pressure), and
+`drain()` does the reclamation from the poll thread between `pollTask` calls, where no vanilla
+task is mid-update. This fix applies to `orion5.4` as well.
+
+**LZ4 regions.** `orion5.5` sets vanilla's own `region-file-compression=lz4`
+(`RegionFileVersion` id 4, `LZ4BlockOutputStream`) before boot. Vanilla reads it back through
+the per-chunk codec byte. Verified by decoding a whole 65,536-chunk world through
+`RegionFile.getChunkDataInputStream` with 0 errors. `-Dorion.c1gc.compression=deflate`
+restores the default. The tradeoff: about 45% more disk for less encode CPU on the `IO-Worker`
+lane.
+
 ## What C1GC is explicitly not trying to do
 
 Make worldgen faster. It won't, and if a benchmark run ever claims it did, don't believe it —

@@ -147,3 +147,39 @@ Orion v5.3,"C1GC champion-scale A/B, round 1",52430,6400,#69
 Orion v5.3,"C1GC champion-scale A/B, round 2",54561,6400,#69
 Orion v5.4,"C1GC champion-scale A/B, round 2",63075,6400,#69
 Orion v5.4,"256x256 sustained run, 16g heap, 0 fail, 62464/62464 chunks reclaimed",573361,65536,#69
+Orion v5.3,"C1GC batching-fix A/B (finding #69 addendum)",55386,6400,#69
+Orion v5.4,"C1GC batching-fix A/B (finding #69 addendum)",58718,6400,#69
+Orion v5.4,"#70 set A (pre race fix), round 1",58407,6400,#70
+Orion v5.4,"#70 set A (pre race fix), round 2",61556,6400,#70
+Orion v5.4,"#70 set A (pre race fix), round 3",56786,6400,#70
+Orion v5.5,"#70 set A (pre race fix), cargo build overlapped, round 1",52343,6400,#70
+Orion v5.5,"#70 set A (pre race fix), round 2",52423,6400,#70
+Orion v5.5,"#70 set A (pre race fix), round 3",52696,6400,#70
+Orion v5.3,"#70 ablation set B (pre race fix), round 1",54665,6400,#70
+Orion v5.3,"#70 ablation set B (pre race fix), round 2",54697,6400,#70
+Orion v5.4,"#70 ablation set B (pre race fix), round 1",63438,6400,#70
+Orion v5.4,"#70 ablation set B (pre race fix), round 2",56912,6400,#70
+Orion v5.5,"#70 ablation set B (pre race fix), round 1",55384,6400,#70
+Orion v5.5,"#70 ablation set B (pre race fix), round 2",52592,6400,#70
+Orion v5.5,"#70 ablation set B (pre race fix), pressure=0, round 1",58471,6400,#70
+Orion v5.3,"#70 set C (race fix), round 1",51701,6400,#70
+Orion v5.3,"#70 set C (race fix), round 2",52886,6400,#70
+Orion v5.3,"#70 set C (race fix), round 3",62263,6400,#70
+Orion v5.4,"#70 set C (race fix), round 1",57013,6400,#70
+Orion v5.4,"#70 set C (race fix), round 2",63092,6400,#70
+Orion v5.4,"#70 set C (race fix), round 3",58010,6400,#70
+Orion v5.5,"#70 set C (race fix), round 1",52285,6400,#70
+Orion v5.5,"#70 set C (race fix), round 2",52070,6400,#70
+Orion v5.5,"#70 set C (race fix), round 3",49948,6400,#70
+Orion v5.5,"#70 set C (race fix), pressure=0, round 1",59735,6400,#70
+Orion v5.5,"#70 set C (race fix), pressure=0, round 2",56120,6400,#70
+Orion v5.5,"#70 set C (race fix), pressure=0, round 3",55808,6400,#70
+Orion v5.4,"#70 set D (final code), round 1",57498,6400,#70
+Orion v5.4,"#70 set D (final code), round 2",58461,6400,#70
+Orion v5.5,"#70 set D (final code), round 1",53174,6400,#70
+Orion v5.5,"#70 set D (final code), round 2",51787,6400,#70
+Orion v5.5,"#70 256x256 (collectionUsage trigger, superseded), round 1",1151708,65536,#70
+Orion v5.4,"#70 256x256, round 1",581520,65536,#70
+Orion v5.5,"#70 256x256, round 2",546059,65536,#70
+Orion v5.4,"#70 256x256, round 3",513438,65536,#70
+Orion v5.5,"#70 256x256, round 3",518565,65536,#70

@@ -50,7 +50,7 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3|orion5.4`.
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3|orion5.4|orion5.5`.
 
 | Generator | Adds | Measured effective MSPC | Current reading |
 |---|---|---:|---|
@@ -59,7 +59,7 @@ Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orio
 | Orion v5.1 | SIMD density batches | 7.77–8.25 | isolated SIMD win, full-generation effect inside noise |
 | Orion v5.2 | optimized ImprovedNoise kernel | 8.05–8.40 | Perlin CPU share falls; full-generation effect inside noise |
 | Orion v5.3 | allocation-pressure fixes (Ap2/Context/SequenceRule/Aquifer) | 7.87–9.34 | bit-exact, real GC-frequency drop, no confirmed throughput win |
-| Orion v5.4 | C1GC bounded chunk reclamation | 9.03–9.86 (champion scale), 8.75 (256x256) | fixes a real large-tile hang/OOM; a real ~13% champion-scale cost, not noise |
+| Orion v5.4 | C1GC bounded chunk reclamation | 8.66–9.17 (champion scale, post batching-fix), 8.75 (256x256) | fixes a real large-tile hang/OOM; champion-scale cost cut from ~13% to ~6% (inside noise) after fixing a per-chunk distance-graph-settle bottleneck |
 
 **Orion v5 is the architectural jump** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
 at champion scale (eMSPC 8.16-8.65 vs 20.68-20.80, interleaved, n=2 each), steady-state CPU
@@ -119,10 +119,26 @@ same retain-radius heuristic *and* has its ticket/POI/distance-manager state pro
 does it get copied into a compact `SerializableChunkData` record and handed to a bounded,
 elastic IO worker pool that writes it to a real `.mca` region file through vanilla's own
 `IOWorker`. The same 256x256 mosaic that hung under v5.3 completed cleanly under v5.4 in 9.56
-minutes (65,536/65,536 chunks, eMSPC 8.75 ms/chunk, 0 leaked cells). That fix isn't free: two
-interleaved champion-scale rounds (6,400 chunks) show v5.4 a real 10-16% slower than v5.3, both
-rounds the same direction and outside the ~9% noise band — a genuine memory-vs-throughput trade,
-not a regression to be explained away. See finding #69 and `c1gc/README.md`.
+minutes (65,536/65,536 chunks, eMSPC 8.75 ms/chunk, 0 leaked cells). The first cut of this wasn't
+free: two interleaved champion-scale rounds (6,400 chunks) showed v5.4 a real 10-16% slower than
+v5.3, outside the ~9% noise band. A JFR profile explained why: the ticket-removal step was calling
+vanilla's `runDistanceManagerUpdates()` (a full distance/light graph settle) up to 8 times *per
+chunk* — ~40% of total CPU time in `ChunkTracker`/`DynamicGraphMinFixedPoint` internals, not
+anything C1GC's own code was doing. Batching ticket removals (`BATCH_SIZE = 64`) so that settle
+happens once per batch instead of once per chunk cut that share to 0.7% and brought a clean
+champion-scale pair down to +6.0% — inside the noise band. See finding #69 and `c1gc/README.md`.
+
+**Orion v5.5** (`-Dscheduler=orion5.5`) is v5.4 with C1GC's cost made conditional, plus the v5.1
+SIMD and v5.2 Perlin kernels and a new `WorldGenRegion.getChunk` memo (`RegionChunkMemo.kt`), all
+auto-enabled by the agent. Needs the same three v5 patch flags and `--add-modules=jdk.incubator.vector`
+(`run_direct.py` and the harness add it). C1GC only starts reclaiming once old-gen occupancy passes
+`-Dorion.c1gc.pressure` (default `0.5`; `0` is v5.4's always-on behavior), reclaims on the poll
+thread instead of whichever thread completed the chunk (fixes a v5.4 `DistanceManager` race, also
+applied to `orion5.4`), and writes vanilla's LZ4 region codec (`-Dorion.c1gc.compression`, default
+`lz4`). Bit-exact vs v5.4 in deterministic mode. It's about 12% faster than v5.4 at champion scale,
+because at 6,400 chunks C1GC never arms. That's parity with v5.3: the compute patches stay inside
+noise, as they did individually. At 65,536 chunks it's at parity with v5.4 (two pairs: -6.1%, +1.0%).
+Deferring reclamation costs more full-GC time there, and the compute patches offset it. See finding #70.
 
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see

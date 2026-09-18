@@ -35,6 +35,8 @@ class OrionV5(
         coords: List<Pair<Int, Int>>,
         onComplete: (cx: Int, cz: Int, success: Boolean, result: Any?, error: Any?) -> Unit = { _, _, _, _, _ -> },
         onProgress: (completed: Int, total: Int, elapsedMs: Long) -> Unit = { _, _, _ -> },
+        // Runs on the poll thread between pollTask calls: main-thread work outside any vanilla task.
+        onPoll: () -> Boolean = { false },
     ): Result {
         val start = System.nanoTime()
         val permits = Semaphore(maxInFlight)
@@ -53,7 +55,8 @@ class OrionV5(
                 while (!stop.get()) {
                     val ranServer = pollTask.call(dedicatedServer) as Boolean
                     val ranChunks = pollTask.call(mainThreadProcessor) as Boolean
-                    backoffNanos = if (ranServer || ranChunks) 0L
+                    val ranHook = onPoll()
+                    backoffNanos = if (ranServer || ranChunks || ranHook) 0L
                         else minOf(maxOf(backoffNanos * 2, POLL_BACKOFF_FLOOR_NANOS), POLL_BACKOFF_CAP_NANOS)
                     if (backoffNanos > 0L) LockSupport.parkNanos(backoffNanos)
                 }

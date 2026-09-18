@@ -167,3 +167,12 @@ For correctness, use a smaller tile with `-Dorion.deterministicFeatures=region`,
 and emits SHA-256 digests plus actual block counts. Its output cannot be compared with the
 older palette-only histograms. Verification and digesting add work; leave them out of timing runs.
 See [finding #66](scientific-findings-41-80.md) and `findings/run_orion51.py` for the experiment.
+
+## Orion v5.5: large fills without paying for them at small ones
+
+Same flags as v5.1, with `-Dscheduler=orion5.5`. For a 65,536-chunk fill, use `-Dmosaic.tile=16`.
+C1GC starts reclaiming chunks to real `.mca` region files once old-gen occupancy passes half its
+max (`-Dorion.c1gc.pressure`). Below that it does nothing, so small fills cost the same as v5.3.
+The result file's `c1gc` line shows `armed=` and where it armed. World data lands under
+`servers/.run/headless/dimensions/` as vanilla LZ4 regions (`-Dorion.c1gc.compression=deflate`
+for the default codec); wipe it between runs. See [finding #70](scientific-findings-41-80.md).

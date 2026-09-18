@@ -973,6 +973,53 @@ def plot_c1gc69_throughput(out_path):
     plt.close(fig)
 
 
+def plot_orion55_70(out_path):
+    import statistics
+
+    with (HERE / "orion55_70_results.csv").open() as source:
+        rows = [row for row in csv.DictReader(source) if row["c1gc_code"] == "post_fix"]
+    modes = [
+        ("v53", "Orion v5.3", SERIES[0]),
+        ("v54", "Orion v5.4", SERIES[1]),
+        ("v55p0", "v5.5, pressure=0", SERIES[3]),
+        ("v55", "Orion v5.5", SERIES[2]),
+    ]
+    fig, (left, right) = plt.subplots(1, 2, figsize=(11, 5.2), gridspec_kw={"width_ratios": [3, 2]})
+    for i, (mode, label, color) in enumerate(modes):
+        values = [float(row["emspc"]) for row in rows if row["mode"] == mode and row["tile"] == "5"]
+        if not values:
+            continue
+        left.scatter([i] * len(values), values, s=64, color=color, edgecolor="white", linewidth=2, zorder=3)
+        mean = statistics.mean(values)
+        left.hlines(mean, i - 0.25, i + 0.25, color=color, linewidth=2, zorder=2)
+        left.annotate(f"{mean:.2f}", (i + 0.28, mean), va="center", fontsize=8.5, color=INK_SECONDARY)
+    left.set_xticks(range(len(modes)), [label for _, label, _ in modes], fontsize=9)
+    left.set_ylabel("Effective milliseconds / chunk — lower is better")
+    left.set_title("6,400 chunks (dots = runs, bar = mean)", fontsize=10, loc="left", color=INK_SECONDARY)
+    big = [(label, color, [float(row["total_ms"]) / 1000 for row in rows if row["mode"] == mode and row["tile"] == "16"])
+           for mode, label, color in modes]
+    big = [(label, color, values) for label, color, values in big if values]
+    for i, (label, color, values) in enumerate(big):
+        mean = statistics.mean(values)
+        right.bar(i, mean, width=0.55, color=color, zorder=2)
+        right.scatter([i] * len(values), values, s=24, color="white", edgecolor=INK_SECONDARY, linewidth=1, zorder=3)
+        right.annotate(f"{mean:.0f}s", (i + 0.3, mean), va="center", fontsize=8.5, color=INK_SECONDARY)
+    right.set_xticks(range(len(big)), [label for label, _, _ in big], fontsize=9)
+    right.set_ylabel("Total seconds — lower is better")
+    right.set_title("65,536 chunks (bar = mean, dots = runs)", fontsize=10, loc="left", color=INK_SECONDARY)
+    for ax in (left, right):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#70: v5.5 skips C1GC work until the heap needs it", fontsize=14, x=0.06, ha="left")
+    fig.text(0.06, 0.01, "Post-race-fix code only. 7 workers, 16GB ParallelGC heap, rotated order. "
+                         "v5.5 never arms at 6,400 chunks; pressure=0 forces v5.4-style reclaim. ~9% noise band.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.94))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -1136,6 +1183,7 @@ def main():
     plot_orion52_hotpath(HERE / "orion52_hotpath.png")
 
     plot_c1gc69_throughput(HERE / "c1gc69_throughput.png")
+    plot_orion55_70(HERE / "orion55_70_throughput.png")
 
     print(f"Wrote charts to {HERE}")
 

@@ -76,13 +76,20 @@ fun main() {
     println("Hammering ${discovered.jar} (${discovered.classpath.size} bundled libraries)")
 
     val loader = discovered.newClassLoader()
-    if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") DensitySimdPatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.2") ImprovedNoisePatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4") AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
+    if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5") DensitySimdPatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.2" || schedulerMode == "orion5.5") ImprovedNoisePatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5") AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
+    if (schedulerMode == "orion5.5") RegionChunkMemo.requireInstalled(loader)
     val mc = Mc(loader)
 
     mc.method(mc.c("net.minecraft.SharedConstants"), "tryDetectVersion").call(null)
     mc.method(mc.c("net.minecraft.server.Bootstrap"), "bootStrap").call(null)
+    if (schedulerMode == "orion5.5") {
+        // Vanilla's own region-file-compression=lz4 codec (RegionFileVersion id 4). Set before boot:
+        // each RegionFile keeps the codec it was opened with, and spawn prep opens the first ones.
+        mc.publicMethod(mc.c("net.minecraft.world.level.chunk.storage.RegionFileVersion"), "configure", String::class.java)
+            .call(null, System.getProperty("orion.c1gc.compression", "lz4"))
+    }
 
     // Direct stress test, not a real-generation timing gamble: resetPieces() is the exact
     // method that reassigns StrongholdPieces' racy static state (currentPieces/totalWeight/
@@ -751,7 +758,7 @@ fun main() {
         return
     }
 
-    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3" || schedulerMode == "orion5.4") {
+    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5") {
         for (flag in listOf("orion.patchReentrancy", "orion.patchStructureGenState", "orion.patchParallelSteps")) {
             require(System.getProperty(flag) == "true") { "$schedulerMode requires -D$flag=true (see OrionPatchAgent)" }
         }
@@ -766,11 +773,13 @@ fun main() {
         val lo = base + shift
         val hi = base + shift + mosaicSide - 1
         val target = (lo..hi).flatMap { cx -> (lo..hi).map { cz -> cx to cz } }
-        val evictChunks = System.getProperty("orion.evictChunks") == "true" && schedulerMode != "orion5.4"
-        val c1gc = if (schedulerMode == "orion5.4") C1GC(
+        val usesC1gc = schedulerMode == "orion5.4" || schedulerMode == "orion5.5"
+        val evictChunks = System.getProperty("orion.evictChunks") == "true" && !usesC1gc
+        val c1gc = if (usesC1gc) C1GC(
             mc, chunkSource, lo, hi, mosaicSide,
             ringCapacity = Integer.getInteger("orion.c1gc.ringCapacity", C1GC.RING_CAPACITY),
             maxIoWorkers = Integer.getInteger("orion.c1gc.maxIoWorkers", C1GC.MAX_IO_WORKERS),
+            pressure = if (schedulerMode == "orion5.5") System.getProperty("orion.c1gc.pressure", "0.5").toDouble() else 0.0,
         ) else null
         val featureOrderMode = System.getProperty("orion.deterministicFeatures")
         // Verified together at tile 2 with -Dorion.targetShift=100: 0/1024 block-position
@@ -815,6 +824,7 @@ fun main() {
                     if (reportProgress) println(progress)
                     if (progressFile != null) synchronized(progressFile) { progressFile.appendText("$progress\n") }
                 },
+                onPoll = { c1gc?.drain() ?: false },
             )
         } catch (t: Throwable) {
             resultFile.writeText("THREW: ${t.stackTraceToString()}\n")
@@ -826,14 +836,15 @@ fun main() {
         resultFile.writeText(
             "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
                 "parallelSteps ${OrionParallelSteps.report()}\n${poolReport()}\n" +
-                (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2") "densitySimd ${DensityBatch.report()}\n" else "") +
-                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4") "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
+                (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5") "densitySimd ${DensityBatch.report()}\n" else "") +
+                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5") "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
                 (if (evictor != null) {
                     "chunkEvictor ${evictor.report()}\n" +
                         "chunkEvictorGcCheck ${evictor.verifyReclaimed()}\n" +
                         "chunkEvictorRetainerPath ${evictor.findFirstRetainerPath()}\n"
                 } else "") +
-                (if (c1gc != null) "c1gc ${c1gc.report()}\n" else "")
+                (if (c1gc != null) "c1gc ${c1gc.report()}\n" else "") +
+                (if (schedulerMode == "orion5.5") "regionFileVersion ${regionFileVersionReport(mc)}\n" else "")
         )
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")
         saveWorldIfRequested()
@@ -957,4 +968,10 @@ private fun mspcSummary(samplesMs: List<Double>): String {
     fun at(p: Double) = "%.2f".format(percentile(sorted, p))
     return "MSPC (ms/chunk, n=${sorted.size}): min=${at(0.0)} p1=${at(1.0)} p25=${at(25.0)} " +
         "p50=${at(50.0)} p75=${at(75.0)} p99=${at(99.0)} max=${at(100.0)}"
+}
+
+private fun regionFileVersionReport(mc: Mc): String {
+    val cRegionFileVersion = mc.c("net.minecraft.world.level.chunk.storage.RegionFileVersion")
+    val selected = mc.publicMethod(cRegionFileVersion, "getSelected").call(null)!!
+    return "id=${mc.publicMethod(cRegionFileVersion, "getId").call(selected)}"
 }

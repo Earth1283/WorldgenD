@@ -106,3 +106,39 @@ c1gc69_orion53_r1,"Orion orion5.3 (finding #69, round 1)",orion5.3,5,6400,7,5243
 c1gc69_orion53_r2,"Orion orion5.3 (finding #69, round 2)",orion5.3,5,6400,7,54561,6.72,235.79,367.72,417.63,505.27,1512.33,9926.02
 c1gc69_orion54_r2,"Orion orion5.4 (finding #69, round 2)",orion5.4,5,6400,7,63075,0.44,268.33,433.48,495.23,573.69,1736.44,9116.72
 c1gc69_orion54_t16,"Orion orion5.4, 256x256 sustained run (finding #69)",orion5.4,16,65536,7,573361,0.71,286.12,400.23,450.94,517.88,3245.97,45011.89
+c1gc69_batch_orion53_clean,"Orion orion5.3 (finding #69 addendum, post-batch-fix pair)",orion5.3,5,6400,7,55386,0.84,239.49,370.52,421.52,503.71,1488.73,10595.56
+c1gc69_batch_orion54_clean,"Orion orion5.4 (finding #69 addendum, post-batch-fix pair)",orion5.4,5,6400,7,58718,0.15,245.01,413.43,466.18,537.64,1617.95,8181.43
+orion55_70_ab1_v54_r1,"Orion orion5.4 (finding #70, set A (pre race fix), round 1)",orion5.4,5,6400,7,58407,0.27,287.06,408.94,460.00,526.07,1778.41,8786.34
+orion55_70_ab1_v54_r2,"Orion orion5.4 (finding #70, set A (pre race fix), round 2)",orion5.4,5,6400,7,61556,0.31,284.13,443.31,504.34,587.23,1726.97,7720.43
+orion55_70_ab1_v54_r3,"Orion orion5.4 (finding #70, set A (pre race fix), round 3)",orion5.4,5,6400,7,56786,0.23,247.11,408.23,457.22,527.14,1652.32,6466.13
+orion55_70_ab1_v55_r1,"Orion orion5.5 (finding #70, set A (pre race fix), cargo build overlapped, round 1)",orion5.5,5,6400,7,52343,0.18,254.49,371.33,418.78,500.21,1533.54,6976.84
+orion55_70_ab1_v55_r2,"Orion orion5.5 (finding #70, set A (pre race fix), round 2)",orion5.5,5,6400,7,52423,0.09,207.93,331.00,375.79,468.32,1379.44,11087.31
+orion55_70_ab1_v55_r3,"Orion orion5.5 (finding #70, set A (pre race fix), round 3)",orion5.5,5,6400,7,52696,0.17,228.01,349.33,397.83,473.20,1610.09,10304.88
+orion55_70_ab2_v53_r1,"Orion orion5.3 (finding #70, ablation set B (pre race fix), round 1)",orion5.3,5,6400,7,54665,0.08,240.74,370.35,415.25,485.07,1585.50,10568.15
+orion55_70_ab2_v53_r2,"Orion orion5.3 (finding #70, ablation set B (pre race fix), round 2)",orion5.3,5,6400,7,54697,0.39,248.67,365.15,413.24,490.75,1474.33,10649.77
+orion55_70_ab2_v54_r1,"Orion orion5.4 (finding #70, ablation set B (pre race fix), round 1)",orion5.4,5,6400,7,63438,0.13,306.10,418.75,481.79,552.57,1763.01,11128.95
+orion55_70_ab2_v54_r2,"Orion orion5.4 (finding #70, ablation set B (pre race fix), round 2)",orion5.4,5,6400,7,56912,0.41,286.48,411.04,464.92,540.82,1391.60,6450.37
+orion55_70_ab2_v55_r1,"Orion orion5.5 (finding #70, ablation set B (pre race fix), round 1)",orion5.5,5,6400,7,55384,0.14,240.48,356.04,402.28,499.70,1642.92,11378.32
+orion55_70_ab2_v55_r2,"Orion orion5.5 (finding #70, ablation set B (pre race fix), round 2)",orion5.5,5,6400,7,52592,0.10,235.45,346.56,391.33,487.09,1656.40,10320.90
+orion55_70_ab2_v55p0_r1,"Orion orion5.5 pressure=0 (finding #70, ablation set B (pre race fix), round 1)",orion5.5,5,6400,7,58471,0.11,228.37,387.33,444.15,514.50,1594.26,10480.24
+orion55_70_ab3_v53_r1,"Orion orion5.3 (finding #70, set C (race fix), round 1)",orion5.3,5,6400,7,51701,0.09,242.78,365.56,419.22,503.59,1512.33,7564.29
+orion55_70_ab3_v53_r2,"Orion orion5.3 (finding #70, set C (race fix), round 2)",orion5.3,5,6400,7,52886,0.13,252.65,372.67,421.58,489.61,1410.41,8495.36
+orion55_70_ab3_v53_r3,"Orion orion5.3 (finding #70, set C (race fix), round 3)",orion5.3,5,6400,7,62263,0.14,316.91,463.12,518.63,598.03,2000.14,8308.79
+orion55_70_ab3_v54_r1,"Orion orion5.4 (finding #70, set C (race fix), round 1)",orion5.4,5,6400,7,57013,0.13,255.75,413.30,469.75,547.95,1490.28,5778.02
+orion55_70_ab3_v54_r2,"Orion orion5.4 (finding #70, set C (race fix), round 2)",orion5.4,5,6400,7,63092,0.74,312.61,443.34,513.04,603.10,1773.29,7877.42
+orion55_70_ab3_v54_r3,"Orion orion5.4 (finding #70, set C (race fix), round 3)",orion5.4,5,6400,7,58010,0.17,262.23,402.43,460.03,528.11,1652.92,8229.03
+orion55_70_ab3_v55_r1,"Orion orion5.5 (finding #70, set C (race fix), round 1)",orion5.5,5,6400,7,52285,0.12,232.12,343.34,387.45,460.65,1368.46,10857.24
+orion55_70_ab3_v55_r2,"Orion orion5.5 (finding #70, set C (race fix), round 2)",orion5.5,5,6400,7,52070,0.09,257.61,375.74,424.92,500.04,1554.28,6900.38
+orion55_70_ab3_v55_r3,"Orion orion5.5 (finding #70, set C (race fix), round 3)",orion5.5,5,6400,7,49948,0.72,226.03,341.46,387.87,463.92,1435.31,7632.08
+orion55_70_ab3_v55p0_r1,"Orion orion5.5 pressure=0 (finding #70, set C (race fix), round 1)",orion5.5,5,6400,7,59735,0.45,250.82,414.76,477.29,568.88,1462.04,7405.14
+orion55_70_ab3_v55p0_r2,"Orion orion5.5 pressure=0 (finding #70, set C (race fix), round 2)",orion5.5,5,6400,7,56120,0.16,253.99,390.36,442.49,509.26,1613.50,7775.02
+orion55_70_ab3_v55p0_r3,"Orion orion5.5 pressure=0 (finding #70, set C (race fix), round 3)",orion5.5,5,6400,7,55808,0.07,246.53,388.36,439.19,515.02,1590.52,7586.40
+orion55_70_fin_v54_r1,"Orion orion5.4 (finding #70, set D (final code), round 1)",orion5.4,5,6400,7,57498,0.44,258.98,405.42,463.40,542.13,1561.44,7227.79
+orion55_70_fin_v54_r2,"Orion orion5.4 (finding #70, set D (final code), round 2)",orion5.4,5,6400,7,58461,0.40,253.82,404.78,464.78,539.05,1616.86,8480.44
+orion55_70_fin_v55_r1,"Orion orion5.5 (finding #70, set D (final code), round 1)",orion5.5,5,6400,7,53174,0.09,233.07,333.20,377.08,470.43,1537.69,11843.11
+orion55_70_fin_v55_r2,"Orion orion5.5 (finding #70, set D (final code), round 2)",orion5.5,5,6400,7,51787,0.22,230.35,335.68,378.73,460.20,1353.48,11425.54
+orion55_70_big_v55_r1,"Orion orion5.5 (finding #70, 256x256 (collectionUsage trigger, superseded), round 1)",orion5.5,16,65536,7,1151708,0.36,252.36,341.27,388.14,476.36,8382.67,109145.93
+orion55_70_big_v54_r1,"Orion orion5.4 (finding #70, 256x256, round 1)",orion5.4,16,65536,7,581520,0.18,302.50,408.63,460.93,528.42,3445.90,54019.04
+orion55_70_big2_v55_r2,"Orion orion5.5 (finding #70, 256x256, round 2)",orion5.5,16,65536,7,546059,0.26,268.70,361.64,405.40,463.65,3176.47,40588.21
+orion55_70_big3_v54_r3,"Orion orion5.4 (finding #70, 256x256, round 3)",orion5.4,16,65536,7,513438,0.47,251.72,356.33,402.42,464.91,3046.39,10955.79
+orion55_70_big3_v55_r3,"Orion orion5.5 (finding #70, 256x256, round 3)",orion5.5,16,65536,7,518565,0.15,250.69,340.47,382.68,440.73,3214.06,9402.12

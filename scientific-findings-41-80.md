@@ -932,19 +932,146 @@ and this session has the numbers to back that framing rather than just assert it
 
 ![C1GC champion-scale throughput cost: two rotated rounds, v5.3 vs v5.4, both showing v5.4 slower by 10-16%](findings/c1gc69_throughput.png)
 
-Still open: whether `orion.c1gc.ringCapacity`/`maxIoWorkers` tuning narrows the champion-scale cost;
-a real JFR profile isolating how much of the +12.9% is the NBT encode vs. the POI/ticket bookkeeping
-vs. real disk I/O; a formal OOM reproduction with a stack trace (this session's repro showed
-pinned-at-ceiling/zero-progress rather than a caught `OutOfMemoryError` within the time spent
-waiting); C1GC's behavior under `-Dorion.deterministicFeatures` (untested combination); whether a
-real ticking server (not this headless harness) would need the `tryMarkSaved()` assumption
-revisited, per the caveat in `c1gc/README.md`.
+Still open (at the time of the original write-up): whether `orion.c1gc.ringCapacity`/`maxIoWorkers`
+tuning narrows the champion-scale cost; a real JFR profile isolating where the +12.9% actually goes;
+a formal OOM reproduction with a stack trace; C1GC's behavior under `-Dorion.deterministicFeatures`;
+whether a real ticking server would need the `tryMarkSaved()` assumption revisited.
+
+### Addendum: the JFR profile answers "where," and it wasn't the NBT encode
+
+A JFR profile of a champion-scale v5.4 run (`settings=profile,delay=10s`) put the answer to the
+first "still open" item well past dispute: **`Long2ObjectLinkedOpenHashMap.get` alone was 18.3% of
+every execution sample in the recording**, and the full chain it belongs to — vanilla's
+`ChunkTracker`/`DynamicGraphMinFixedPoint` distance-and-light graph propagation
+(`ChunkTracker.checkNeighborsAfterUpdate`, `DynamicGraphMinFixedPoint.checkNeighbor`, plus the
+fastutil hash-map/set internals underneath them) — accounted for **~40% of total CPU time**, dwarfing
+real generation work (`ImprovedNoise` and friends sat at 5-7% combined). The cause: `quarantineOne()`
+called vanilla's `runDistanceManagerUpdates()` — a full graph settle — up to 8 times *per chunk*,
+5,440 times in a single champion-scale run. Not C1GC's own bookkeeping; a cost paid once per chunk
+that should have been paid once per batch.
+
+**The fix**: split `quarantineOne()` into a cheap per-chunk part (fetch the live chunk, flush POI,
+claim `tryMarkSaved()`, remove the ticket) and an expensive shared part (the distance-manager drain
+loop, `processUnloads()`, then POI-storage strip + detach for the whole batch) — batched at
+`BATCH_SIZE = 64` chunks instead of one. Removing a ticket doesn't require an immediate settle;
+`DistanceManager` tracks pending updates internally regardless of how many mutations happened since
+the last drain, so paying that cost less often is free correctness-wise. Re-profiled after the fix,
+same champion config: the same graph-related frames fell from ~40% to **0.7%** of total samples, and
+the hot path is now genuinely dominated by worldgen compute (`ImprovedNoise.p`/`.noise`, `PalettedContainer`,
+`Climate$RTree` search, `NoiseChunk` interpolation, `Aquifer`, `SurfaceRules`) — the shape a healthy
+profile should have.
+
+**Wall-clock, and an honest methodology note.** A matched pair run immediately after confirming the
+system had recovered from a run of back-to-back 16GB-heap launches (checked via `free -h`: available
+memory had fallen to 1.6GB mid-session, consistent with sustained memory pressure, not anything
+scheduler-specific) gave v5.3 55386ms vs. v5.4 58718ms — **+6.0%, inside the ~9% noise band**, down
+from the pre-fix +10.2%/+15.6%/+12.9% mean. Two other pairs run later the same session, without
+re-checking memory first, came back at +18.8% and +38.6% — almost certainly the same memory-pressure
+artifact (this box was never designed to run dozens of 16GB-heap champion benchmarks back to back in
+one sitting) rather than a real regression, but they're recorded rather than discarded, per this
+project's own non-negotiables. The honest headline: the batching fix demonstrably fixes the
+mechanism (JFR, unambiguous), and the one wall-clock pair taken under controlled conditions lands
+inside noise — a second clean pair, in a fresh session, would make that a confirmed parity claim
+rather than a single data point.
+
+Still open: replicate the clean pair (n=1 so far) in a fresh session to confirm parity rather than a
+lucky reading; whether `BATCH_SIZE` trades away any of the bounded-memory guarantee at very large
+scale (64 chunks' worth of "ticket removed, not yet detached" heavy state is a small, fixed addition
+to the existing `RING_CAPACITY=512` margin, but untested at the 65,536-chunk scale); everything else
+from the original "still open" list.
 
 Files:
 
 - **Data:** `findings/orion_results.csv` (rows `c1gc69_*`), `findings/leaderboard_entries.csv` (`#69` rows), `findings/c1gc69_results.csv`.
-- **Code:** `c1gc/ChunkLifecycle.kt`, `c1gc/C1GC.kt`, `c1gc/README.md`; `-Dscheduler=orion5.4` enables it unconditionally, no extra flags.
-- **Chart:** `c1gc69_throughput.png`, generated by `findings/plot_results.py`.
+- **Code:** `c1gc/ChunkLifecycle.kt`, `c1gc/C1GC.kt` (`settleBatch()`/`BATCH_SIZE`), `c1gc/README.md`; `-Dscheduler=orion5.4` enables it unconditionally, no extra flags.
+- **Chart:** `c1gc69_throughput.png` (pre-batching-fix numbers), generated by `findings/plot_results.py`.
+- **Profiles:** `findings/c1gc69_v54_profile_partial.jfr` (pre-fix, ~40% graph settle), `findings/c1gc69_v54_batched_profile.jfr` (post-fix, 0.7%).
+
+## 70. Orion v5.5: C1GC pays only under pressure, reclaims on the right thread, and a v5.4 race it fixed along the way
+
+**What v5.5 is.** `-Dscheduler=orion5.5` = v5.4 (v5 prerequisites, v5.3 allocation patch, C1GC) plus
+the v5.1 SIMD and v5.2 Perlin kernels, plus a new `WorldGenRegion.getChunk` memo
+(`RegionChunkMemo.kt`). The agent auto-enables all four. C1GC gets three changes: a pressure gate
+(`-Dorion.c1gc.pressure`, default 0.5), reclamation moved onto the poll thread, and vanilla's LZ4
+region codec (`-Dorion.c1gc.compression`, default `lz4`).
+
+**Why these.** #69's post-batching JFR profile had CPU saturated (7.2-7.6 of 8 cores). C1GC's own
+threads (`c1gc-io` + `IO-Worker`) were ~2.3% of samples, and GC pauses ~2.6% of wall time. So
+C1GC's champion-scale cost wasn't one hotspot; it was all the work of reclaiming 5,440 chunks
+nobody needed reclaimed. `GenerationChunkHolder.getChunkIfPresentUnchecked` was 5.0% *leaf* time,
+reached almost entirely from `WorldGenRegion.getChunk` on per-block and per-biome reads. The memo
+caches the resolved `ChunkAccess` per region slot, with the highest status already validated, so
+a request for a later status still takes vanilla's path. Its safety argument: a slot's holder only
+changes on FULL promotion, and any chunk in the step's write radius can't reach FULL until this
+step finishes.
+
+**Correctness.** Deterministic mode (`region` + `patchWorldgenLight` + `targetShift=100`), tile 2:
+0/1,024 block-position hash mismatches vs v5.4, both with the gate unarmed and with
+`pressure=0` (re-checked after the race fix). LZ4: every region file of a 65,536-chunk world
+decoded through vanilla's own `RegionFile.getChunkDataInputStream` + `NbtIo.read` (a standalone
+reader against the unmodified server jar) with 0 errors, and full-status count = C1GC's
+`persisted` count (62,464). That world also had 4,096 DEFLATE entries: the four spawn-area region
+files were opened during boot, before the codec was set, and a `RegionFile` keeps the codec it was
+opened with. v5.5 now sets the codec right after `Bootstrap`. A tile-2 re-check read back as
+1,432/1,432 LZ4. Vanilla registers LZ4 as `RegionFileVersion` id 4 (`LZ4BlockOutputStream`),
+exposed as `region-file-compression=lz4`. It costs about 46% more disk (868MB vs 595MB at 65,536
+chunks).
+
+**A real v5.4 bug, found by v5.5.** One `pressure=0` run died with `orion5-poll died`, caused by
+`ArrayIndexOutOfBoundsException` in `LongLinkedOpenHashSet.fixPointers` under
+`DistanceManager.runAllUpdates`. `markComplete` fires on whichever thread completes the chunk
+future (often a worker). C1GC removed tickets and settled the distance graph right there, while
+the poll thread settled the same non-thread-safe graph inside `pollTask`. The fix:
+`markComplete` only does bookkeeping; `C1GC.drain()` does reclamation from `OrionV5`'s poll loop
+between `pollTask` calls (new `onPoll` hook), up to `BATCH_SIZE` chunks per call; `flush()` runs
+after the poll thread stops. This applies to `orion5.4` too, so v5.4 rows before and after the fix
+are labeled separately (`c1gc_code` in `orion55_70_results.csv`). The crashed run isn't filed as a
+row (no result).
+
+**The pressure gate's first cut was wrong, and a 65,536-chunk run showed it.** It armed on the old
+gen's `collectionUsage`. ParallelGC refreshes that only after a full GC, which first happened with
+the old gen already full. It armed at completion 47,744 with 10.6GB live, then did 192 full GCs
+(698s of pauses). Total: 1,151,708ms, 2x v5.4. Switching to current occupancy (`usage.used`)
+arms at completion ~23,600 (5.5GB). At champion scale, peak occupancy was 1.59GB, a 3.4x margin
+under the threshold, so it never arms there.
+
+**Champion scale** (6,400 chunks, 16GB ParallelGC, 7 workers, `maxinflight=64`, rotated order;
+post-race-fix code):
+
+| Engine | Runs (ms) | Mean eMSPC |
+|---|---|---:|
+| v5.4 | 57013, 63092, 58010, 57498, 58461 | 9.19 |
+| v5.5, `pressure=0` | 59735, 56120, 55808 | 8.94 |
+| v5.5 | 52285, 52070, 49948, 53174, 51787 | 8.10 |
+| v5.3 | 51701, 52886, 62263 | 8.69 (median 8.26) |
+
+v5.5 vs v5.4: **-11.8%**. Every v5.5 run beat every v5.4 run, and the two pre-fix sets agree
+(set A -10.9%, set B -10.3%). The ablation is the honest part. With reclamation forced
+(`pressure=0`), v5.5 is -2.7% vs v5.4, inside noise. v5.5 vs v5.3 is -6.8% on means but -1.5% on
+medians (v5.3's 62,263 run is an outlier). **The compute patches (memo, SIMD, Perlin) are inside
+the ~9% noise band here, as they were individually in #66/#67. The champion-scale win is the gate
+not doing C1GC work that 6,400 chunks don't need.**
+
+**65,536 chunks** (tile 16, same config): v5.4 581,520 / 513,438ms, v5.5 546,059 / 518,565ms.
+Per pair that's -6.1% and +1.0%, pooled -2.8%: **parity**. v5.5 does more full-GC work (35
+collections / 80.3s vs 23 / 51.4s), because it holds ~23k chunks resident before arming. The
+compute patches and cheaper encode roughly offset that. All 62,464 eligible chunks were persisted
+in every run, 0 leaked.
+
+![#70 throughput: champion scale and 65,536 chunks](findings/orion55_70_throughput.png)
+
+Still open: a lower `pressure` default (e.g. 0.3) to arm earlier at large scale and cut v5.5's
+extra full-GC time without arming at champion scale (1.59GB peak leaves room); a JFR profile of
+v5.5 to size the memo's real effect (it removes a 5% leaf frame on paper, but no wall-clock
+effect is resolvable at n=5); `NoiseChunk.wrap`'s record hashing (~2-3% worker CPU, recursive
+`ObjectMethods` hashCode over freshly mapped density trees) as the next compute target; G1 rather
+than ParallelGC for the gate (G1's old-gen `usage` includes humongous regions).
+
+Files:
+
+- **Data:** `findings/orion_results.csv` and `findings/leaderboard_entries.csv` (rows `orion55_70_*`, `#70`), `findings/orion55_70_results.csv` (column `c1gc_code`: `pre_fix` / `post_fix` / `pre_trigger_fix`).
+- **Code:** `RegionChunkMemo.kt`, `OrionPatchAgent.kt` (`orion5.5` flags, `patchWorldGenRegion`), `c1gc/C1GC.kt` (`pressure`, `drain()`), `OrionV5.kt` (`onPoll`), `HeadlessWorldgen.kt`; `c1gc/README.md` v5.5 section.
+- **Chart:** `findings/orion55_70_throughput.png` via `plot_results.py`'s `plot_orion55_70`.
 
 ## Open questions / where you pick this up
 
@@ -968,3 +1095,4 @@ Files:
 - **#65 makes v5 deterministic**: ordering overlapping FEATURES steps by a 3x3 color key plus an unlit light view in `WorldGenRegion` gives bit-identical block states across repeat runs (0/2304 chunks), and `closure` mode across overlapping targets too (0/1024). Cost: region +6.7% (noise), closure +19.3% (extra border chunks). Still open: the unlit view cuts brown mushrooms ~4x vs plain v5 (a heightmap-based light model might keep them); spawn-prep chunks generated before ordering is enabled; closure cost at champion-plus scale, where the border share should shrink.
 - **#66 fixes #65's palette-only correctness checker (full block-position digest, 0/1024 mismatches either v5.1 backend) and finds v5.1's SIMD win is real but too small to see at champion scale**: isolated microbenchmark shows AVX2 vectorization at 1.4-1.7x past a ~48-element threshold, confirmed genuine 256-bit `ymm` via decoded C2 assembly, but real generation's own call-length mix (99.4% of elements at length 128) projects to only ~20-55us/chunk saved — inside the ~9% noise band, and champion-scale v5.1 numbers (-6 to -8% vs v5) shouldn't be read as a confirmed win. Still open: whether a batch API that groups multiple density arrays per call (rather than one call per 49- or 128-element array) would amortize dispatch overhead enough to clear the noise floor; no such grouping exists in vanilla's own call sites today.
 - **#67 ports C2ME's optimized Perlin shape into Orion v5.2**: 65,536 randomized outputs and a 256-chunk full block-position comparison are bit-exact; matched JFR removes `ImprovedNoise.p()` (10.60% -> 0%) and cuts combined ImprovedNoise sample share 12.5%, but three rotated 6,400-chunk rounds are a throughput tie (-0.4% median, +1.6% mean). Still open: a longer n>=10 interleaved run to bound a sub-percent whole-generation effect, and whether batching multiple adjacent Perlin samples can expose reuse that this one-sample-at-a-time port cannot.
+- **#70's Orion v5.5 is -11.8% vs v5.4 at champion scale (n=5 each, every run faster), but the win is C1GC's pressure gate not arming at 6,400 chunks, not compute.** With reclamation forced, it's -2.7% (noise); vs v5.3 it's parity. At 65,536 chunks it's at parity with v5.4 (-6.1%/+1.0%), paying ~29s more full-GC time for arming late. #70 also fixed a real v5.4 race (C1GC mutating `DistanceManager` off the poll thread). Still open: a lower `pressure` default, a v5.5 JFR profile for the region memo, `NoiseChunk.wrap` record hashing, the gate under G1.

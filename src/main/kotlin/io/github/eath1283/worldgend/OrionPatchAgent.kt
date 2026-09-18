@@ -84,13 +84,14 @@ object OrionPatchAgent {
         val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
         val patchWorldgenLight = System.getProperty("orion.patchWorldgenLight") == "true"
         val scheduler = System.getProperty("scheduler")
-        val patchDensitySimd = scheduler == "orion5.1" || scheduler == "orion5.2" ||
+        val patchDensitySimd = scheduler == "orion5.1" || scheduler == "orion5.2" || scheduler == "orion5.5" ||
             System.getProperty("orion.patchDensitySimd") == "true"
-        val patchImprovedNoise = scheduler == "orion5.2" ||
+        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" ||
             System.getProperty("orion.patchImprovedNoise") == "true"
-        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" ||
+        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" ||
             System.getProperty("orion.patchAllocations") == "true"
-        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations) {
+        val patchRegionChunkMemo = scheduler == "orion5.5" || System.getProperty("orion.patchRegionChunkMemo") == "true"
+        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations && !patchRegionChunkMemo) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
@@ -117,7 +118,8 @@ object OrionPatchAgent {
         if (patchDensitySimd) System.err.println("[OrionPatchAgent] density batches: ${DensityBatch.report()}")
         if (patchImprovedNoise) System.err.println("[OrionPatchAgent] will patch ${ImprovedNoisePatch.target} on load")
         if (patchAllocations) System.err.println("[OrionPatchAgent] will patch $ALLOCATION_PATCH_TARGETS on load (allocation pressure, orion5.3, memory-issue.md)")
-        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise, patchAllocations))
+        if (patchRegionChunkMemo) System.err.println("[OrionPatchAgent] will memoize $WORLD_GEN_REGION.getChunk on load (orion5.5)")
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise, patchAllocations, patchRegionChunkMemo))
     }
 
     private class RaceDetectorTransformer : ClassFileTransformer {
@@ -168,6 +170,7 @@ object OrionPatchAgent {
         private val patchDensitySimd: Boolean,
         private val patchImprovedNoise: Boolean,
         private val patchAllocations: Boolean,
+        private val patchRegionChunkMemo: Boolean,
     ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
@@ -183,7 +186,7 @@ object OrionPatchAgent {
                 (patchStructureGenState && dotted in structureGenTargets) ||
                 (patchDfc && dotted == DENSITY_FUNCTIONS_AP2) ||
                 (patchParallelSteps && (dotted == CHUNK_MAP || dotted == STRUCTURE_START)) ||
-                (patchWorldgenLight && dotted == WORLD_GEN_REGION) ||
+                ((patchWorldgenLight || patchRegionChunkMemo) && dotted == WORLD_GEN_REGION) ||
                 (patchDensitySimd && dotted in DensitySimdPatch.targets) ||
                 (patchImprovedNoise && dotted == ImprovedNoisePatch.target) ||
                 (patchAllocations && dotted in ALLOCATION_PATCH_TARGETS)
@@ -205,7 +208,7 @@ object OrionPatchAgent {
                     AQUIFER_NOISE_BASED -> patchAquiferMutableDouble(loader, classfileBuffer)
                     CHUNK_MAP -> patchChunkMapApplyStep(loader, classfileBuffer)
                     STRUCTURE_START -> patchStructureStartPlacement(loader, classfileBuffer)
-                    WORLD_GEN_REGION -> patchWorldGenRegionLight(loader, classfileBuffer)
+                    WORLD_GEN_REGION -> patchWorldGenRegion(loader, classfileBuffer, patchWorldgenLight, patchRegionChunkMemo)
                     else -> patchPieceWeightPlaceCount(loader, classfileBuffer)
                 }
                 debugLog("transform() of $dotted succeeded, ${result.size} bytes")
@@ -255,13 +258,16 @@ object OrionPatchAgent {
         // live light engine, which lower-key neighbors fill asynchronously after their own FEATURES.
         // Answer as an uninitialized column does (sky 15, block 0): what the decorated chunk always
         // sees for itself, and what vanilla sees whenever light lags behind features.
-        private fun patchWorldGenRegionLight(loader: ClassLoader?, original: ByteArray): ByteArray {
+        private fun patchWorldGenRegion(loader: ClassLoader?, original: ByteArray, light: Boolean, chunkMemo: Boolean): ByteArray {
             val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
-            cc.addMethod(CtNewMethod.make(
-                "public int getRawBrightness(net.minecraft.core.BlockPos pos, int darkening) { return Math.max(0, 15 - darkening); }", cc))
-            cc.addMethod(CtNewMethod.make(
-                "public int getBrightness(net.minecraft.world.level.LightLayer layer, net.minecraft.core.BlockPos pos) " +
-                    "{ return layer == net.minecraft.world.level.LightLayer.SKY ? 15 : 0; }", cc))
+            if (light) {
+                cc.addMethod(CtNewMethod.make(
+                    "public int getRawBrightness(net.minecraft.core.BlockPos pos, int darkening) { return Math.max(0, 15 - darkening); }", cc))
+                cc.addMethod(CtNewMethod.make(
+                    "public int getBrightness(net.minecraft.world.level.LightLayer layer, net.minecraft.core.BlockPos pos) " +
+                        "{ return layer == net.minecraft.world.level.LightLayer.SKY ? 15 : 0; }", cc))
+            }
+            if (chunkMemo) RegionChunkMemo.patch(cc)
             val bytes = cc.toBytecode()
             cc.detach()
             return bytes
