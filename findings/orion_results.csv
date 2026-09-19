@@ -142,3 +142,4 @@ orion55_70_big_v54_r1,"Orion orion5.4 (finding #70, 256x256, round 1)",orion5.4,
 orion55_70_big2_v55_r2,"Orion orion5.5 (finding #70, 256x256, round 2)",orion5.5,16,65536,7,546059,0.26,268.70,361.64,405.40,463.65,3176.47,40588.21
 orion55_70_big3_v54_r3,"Orion orion5.4 (finding #70, 256x256, round 3)",orion5.4,16,65536,7,513438,0.47,251.72,356.33,402.42,464.91,3046.39,10955.79
 orion55_70_big3_v55_r3,"Orion orion5.5 (finding #70, 256x256, round 3)",orion5.5,16,65536,7,518565,0.15,250.69,340.47,382.68,440.73,3214.06,9402.12
+orion71_v55_jfr_diskpoll,"Orion orion5.5 (finding #71, 256x256, JFR-profiled + disk-polled)",orion5.5,16,65536,7,584038,0.17,290.28,388.37,433.04,493.64,3160.2,14309.58

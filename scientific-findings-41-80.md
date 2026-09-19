@@ -1073,6 +1073,120 @@ Files:
 - **Code:** `RegionChunkMemo.kt`, `OrionPatchAgent.kt` (`orion5.5` flags, `patchWorldGenRegion`), `c1gc/C1GC.kt` (`pressure`, `drain()`), `OrionV5.kt` (`onPoll`), `HeadlessWorldgen.kt`; `c1gc/README.md` v5.5 section.
 - **Chart:** `findings/orion55_70_throughput.png` via `plot_results.py`'s `plot_orion55_70`.
 
+## 71. Orion v5.5 at real 65,536-chunk scale, JFR-profiled with a disk-stats poll: the batching fix holds, and the pressure gate's backlog drain is a real (but non-bottlenecking) disk-latency burst
+
+`#69`/`#70`'s JFR profiles were champion-scale (6,400 chunks); C1GC's actual sustained-reclamation
+job only really runs at large-tile scale, so this session profiled a real 256x256 mosaic
+(65,536 chunks, `-Dscheduler=orion5.5`, default `-Dorion.c1gc.pressure=0.5`) with
+`-XX:StartFlightRecording=settings=profile,delay=10s` plus a 1s `/proc/diskstats` poller on `vda3`
+running alongside it, to check whether a new hotspot appears at scale and whether the disk is
+ever actually the bottleneck.
+
+**No new hotspot — the batching fix generalizes.** 203,157 execution samples, 97.16% in
+`Worker-Main` (real worldgen compute: `Mth.lerp3`/`lerp2`, `ImprovedNoise`, `Aquifer`,
+`SurfaceRules`, `NoiseChunk` — the same healthy shape #69 found post-fix). C1GC's three phases —
+`orion5-poll`'s batched ticket/`DistanceManager` settle (1.09%), `c1gc-io`'s NBT/`PalettedContainer`
+encode (1.03%), `IO-Worker`'s LZ4 compress + region write (0.71%) — sum to 2.83% of samples,
+matching #70's champion-scale measurement (~2.3%) almost exactly. GC pause (`jdk.GCPhasePause`)
+totaled 10.28s of the 647s recording (1.59%), 183 young GCs, zero full GCs. Normalized to
+wall-clock (folding GC's STW time in), the split is **Worldgen Compute 95.63%, GC pause 1.59%,
+C1GC ticket/settle 1.07%, C1GC encode 1.01%, C1GC disk-write 0.70%** — see
+`findings/c1gc71_cpu_breakdown.png`. Top offenders inside the worldgen-compute slice itself
+(`findings/c1gc71_worker_hotpath.png`): `Mth.lerp3` (8.01%), `ImprovedNoise.sampleAndLerp` (7.36%),
+`Mth.lerp2` (6.00%), `ImprovedNoise.noise` (5.78%), `Aquifer$NoiseBasedAquifer.computeSubstance`
+(4.64%) — the standard noise/interpolation/aquifer profile, nothing C1GC-shaped.
+
+**Disk is not a sustained bottleneck, but it does stall.** Average utilization across the run
+(computed from `/proc/diskstats` `io_ticks` deltas, `findings/c1gc71_diskstats.csv`): 21%. Total
+time any `IO-Worker` thread spent blocked inside a `write()` syscall (`jdk.FileWrite`, 8,732
+events ≥ the profile's threshold): 40.44s of 647s — negligible against 8 cores. But 12
+individual writes exceeded 100ms, and **8 of them took 2.1–3.5 seconds each, all for payloads
+under 15KB** (a 521-byte write took 3.35s; an 8KB write took 3.49s). Every one of these stalls
+landed on an `IO-Worker` thread, never a `Worker-Main` — `CallerRunsPolicy` never fired, so
+generation itself was never forced to do a synchronous disk write. The worst stretch is a
+sustained ~60-second window where disk utilization pins at 90–100%, timed almost exactly to
+when the pressure gate armed (`armedAtCompletion=23744`, matching the earlier unprofiled run's
+23,552) and started draining its already-quarantined backlog in one burst — precisely the
+"arms partway through, drains the backlog it had been deferring" behavior `c1gc/README.md`'s v5.5
+section already names, now measured as a real disk-saturation event rather than asserted. Actual
+on-disk world size: 890MB (`servers/.run/headless/dimensions`, LZ4, matching #70's ~868MB
+estimate); total bytes the block device recorded as written over the run: 2.16GB — the ~2.4x gap
+is write amplification from small, scattered per-chunk region-file extensions (no `fsync`/
+`jdk.FileForce` events at all; the OS page cache and its own writeback cadence own the actual
+disk timing, not C1GC).
+
+**Open thread, not closed here:** this profiled run took 584,038ms — 12.6% slower than an
+unprofiled `orion5.5`/65,536-chunk row filed the same day (518,565ms, `orion55_70_big3_v55_r3`),
+outside the project's ~9% noise band. `parallelSteps maxRunning` grew from 131 to 214 and
+`backgroundPool poolSize` from 89 to 214 (more fork-join compensation this run). Plausibly related
+to the disk-saturation burst above, possibly just JFR's own sampling overhead or single-run
+noise (n=1 on each side) — not isolated. `jdk.ThreadPark` shows `Worker-Main` threads accumulating
+20,884s of total park time across the pool (idle-waiting, not necessarily a problem on its own)
+vs. only 3,781s for `IO-Worker` and 1,391s for `c1gc-io`; without a second profiled run to compare
+against, this doesn't yet distinguish "normal fork-join idling" from "something new is stalling
+workers." One theory checked and ruled out: all 207 `Worker-Main` thread starts (`jdk.ThreadStart`)
+landed in the run's first minute, at boot — none were spawned reactively during the ~60s disk
+burst 3+ minutes later, so the larger pool isn't the fork-join layer compensating *for* that stall.
+The pool-size difference and the disk burst are each real; they just aren't each other's cause.
+
+Files:
+
+- **Data:** `findings/orion_results.csv`/`findings/leaderboard_entries.csv` (row `orion71_v55_jfr_diskpoll`, `#71`), `findings/c1gc71_diskstats.csv` (1s `/proc/diskstats` samples), `findings/c1gc71_cpu_breakdown.csv`, `findings/c1gc71_worker_leaf_frames.csv`.
+- **Recording:** `findings/c1gc_65536_v55_profile.jfr` (89MB, `settings=profile,delay=10s`, 647s/7 chunks).
+- **Chart:** `findings/c1gc71_cpu_breakdown.png` and `findings/c1gc71_worker_hotpath.png` via `findings/plot_c1gc71_cpu_breakdown.py`.
+
+## 72. WorldgenD now writes its own `world_gen_settings.dat` — real servers can boot on its output without a splice workaround
+
+Discovered while booting a real, unmodified server directly on #71's 65,536-chunk world (to walk
+the chunk-status boundary #71 found, in a real client). Vanilla loaded WorldgenD's raw output
+fine. Paper 26.1.2 did not: `VanillaWorldMigration` throws `IllegalStateException: Overworld
+settings missing` and refuses to boot, because the per-world `data/minecraft/world_gen_settings.dat`
+file — where newer versions keep dimension/chunk-generator config, split out of `level.dat` itself
+— never existed in a WorldgenD-generated world. Vanilla's own `Main.main()` calls into the exact
+same `LevelStorageSource.getLevelDataAndDimensions` method Paper does, but tolerates the file's
+absence with a silent `Falling back to the default settings with a random world seed` warning
+instead of a hard failure — which is why this went unnoticed until something (Paper) actually
+checked. The workaround used for #71's live demo was a splice: boot a fresh server once to let it
+write its own valid `level.dat`/`world_gen_settings.dat`, stop it, then copy only the
+region/poi/entities data over. Real, but a workaround.
+
+**Root cause, once looked at closely: `HeadlessWorldgen.kt` was already halfway there.** It calls
+vanilla's own `LevelStorageAccess.saveDataTag(worldData)` to write a genuinely real `level.dat`
+(not a hand-rolled stub — this was already correct). But the object it reads that `worldData` off
+of, `WorldDataAndGenSettings`, is a record with two fields: `data()` (what gets saved) and
+`genSettings()` (the real `WorldGenSettings` used in-memory to build the `ChunkGenerator` for the
+whole run, then just discarded). The fix is three lines longer than the diagnosis: also call
+vanilla's `LevelStorageSource.writeWorldGenSettings(RegistryAccess, Path, WorldGenSettings)`
+(found via `javap -p`, not guessed) right after `saveDataTag`, using the same `genSettings` value.
+
+**One wrong turn, caught by testing rather than assumed correct.** The first attempt wrote the
+file to `getDimensionPath(Level.OVERWORLD)` — matching the file path Paper's own error message
+printed. Compiled, ran, but a direct vanilla re-test still logged the same "Falling back... random
+world seed" warning: wrong location. The actual read path (`Main.main`'s own code, shared by both
+vanilla and Paper) wants it at the world *root*, via `LevelStorageAccess.getLevelPath
+(LevelResource.ROOT)` → `<world>/data/minecraft/world_gen_settings.dat`, not per-dimension.
+Fixed, regenerated a small test world, re-tested: zero fallback warning, clean `Done (3.360s)!`
+booting vanilla directly on the raw, unspliced output.
+
+**Verified through vanilla, not Paper directly.** Paper's own failure trace shows it delegates to
+the identical shared `LevelStorageSource.getLevelDataAndDimensions` — not a Paper-specific
+override — so a clean vanilla read is real evidence Paper reads it the same way. Didn't
+re-confirm end-to-end against Paper's own jar because its dependency tree is a maven-layout
+`libraries/` tree (196 jars, no flat classpath), unlike vanilla's flat 39-jar cache; not worth
+hand-resolving for a one-off confirmation of code neither project patches.
+
+**Scope:** the fix lives in shared `HeadlessWorldgen.kt` bootstrap code, used by every scheduler —
+not gated to `orion5.5`, despite that being what prompted the investigation. Still open: an actual
+Paper-jar end-to-end boot test (classpath work, not a code question); whether the same gap exists
+for `the_nether`/`the_end` dimension settings specifically (only overworld was checked); whether a
+real ticking server that later *saves* the world overwrites this file with its own copy anyway,
+making the fix moot for long-lived servers and relevant only for exactly this
+"inspect-then-discard" headless use case.
+
+Files:
+
+- **Code:** `HeadlessWorldgen.kt` (new `writeWorldGenSettings` call, right after the existing `saveDataTag`).
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -1096,3 +1210,5 @@ Files:
 - **#66 fixes #65's palette-only correctness checker (full block-position digest, 0/1024 mismatches either v5.1 backend) and finds v5.1's SIMD win is real but too small to see at champion scale**: isolated microbenchmark shows AVX2 vectorization at 1.4-1.7x past a ~48-element threshold, confirmed genuine 256-bit `ymm` via decoded C2 assembly, but real generation's own call-length mix (99.4% of elements at length 128) projects to only ~20-55us/chunk saved — inside the ~9% noise band, and champion-scale v5.1 numbers (-6 to -8% vs v5) shouldn't be read as a confirmed win. Still open: whether a batch API that groups multiple density arrays per call (rather than one call per 49- or 128-element array) would amortize dispatch overhead enough to clear the noise floor; no such grouping exists in vanilla's own call sites today.
 - **#67 ports C2ME's optimized Perlin shape into Orion v5.2**: 65,536 randomized outputs and a 256-chunk full block-position comparison are bit-exact; matched JFR removes `ImprovedNoise.p()` (10.60% -> 0%) and cuts combined ImprovedNoise sample share 12.5%, but three rotated 6,400-chunk rounds are a throughput tie (-0.4% median, +1.6% mean). Still open: a longer n>=10 interleaved run to bound a sub-percent whole-generation effect, and whether batching multiple adjacent Perlin samples can expose reuse that this one-sample-at-a-time port cannot.
 - **#70's Orion v5.5 is -11.8% vs v5.4 at champion scale (n=5 each, every run faster), but the win is C1GC's pressure gate not arming at 6,400 chunks, not compute.** With reclamation forced, it's -2.7% (noise); vs v5.3 it's parity. At 65,536 chunks it's at parity with v5.4 (-6.1%/+1.0%), paying ~29s more full-GC time for arming late. #70 also fixed a real v5.4 race (C1GC mutating `DistanceManager` off the poll thread). Still open: a lower `pressure` default, a v5.5 JFR profile for the region memo, `NoiseChunk.wrap` record hashing, the gate under G1.
+- **#71's real-scale JFR profile (65,536 chunks) confirms #69's batching fix generalizes** (C1GC's three phases are 2.83% of samples, matching #70's champion-scale ~2.3%) and finds no new hotspot. Disk is not a sustained bottleneck (21% avg utilization, 40.44s total time blocked in `write()` across the whole run) but does show real latency spikes — 8 writes of under 15KB took 2.1-3.5s each, clustered in a ~60s near-100%-utilization burst timed to the pressure gate's backlog drain; none of these stalls ever hit a `Worker-Main` thread. Still open: this profiled run was 12.6% slower than an unprofiled same-day baseline (outside the ~9% noise band), with `parallelSteps maxRunning` and `backgroundPool poolSize` both up — not yet isolated as the disk burst, JFR overhead, or plain single-run noise; needs a second profiled run to compare against.
+- **#72 fixes a real gap found by booting a live server on #71's output**: WorldgenD saved a genuine `level.dat` (vanilla's own `saveDataTag`) but discarded the `WorldGenSettings` half of the same in-memory object instead of also persisting it, so `data/minecraft/world_gen_settings.dat` never existed. Vanilla tolerates that silently (random-seed fallback); Paper hard-fails on it. Fix is one more vanilla-native write call (`LevelStorageSource.writeWorldGenSettings`) at the world root (`LevelResource.ROOT`, not per-dimension — the first attempt guessed wrong and was caught by re-testing, not assumed). Verified via a clean vanilla boot with zero fallback warning. Lives in shared `HeadlessWorldgen.kt`, not `orion5.5`-specific. Still open: an actual Paper-jar end-to-end boot (blocked on its maven-layout classpath, not a code question), whether nether/end need the same treatment, whether this matters at all for a server that immediately re-saves anyway.

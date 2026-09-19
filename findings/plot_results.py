@@ -11,6 +11,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap, to_hex
 
 HERE = Path(__file__).parent
 CSV_PATH = HERE / "mspc_results.csv"
@@ -528,10 +530,13 @@ def plot_emspc_integration_progress(out_path):
         ("Orion v5", ["Orion v5"]),
         ("Orion v5.1", ["Orion v5.1"]),
         ("Orion v5.2", ["Orion v5.2"]),
+        ("Orion v5.3", ["Orion v5.3"]),
+        ("Orion v5.4", ["Orion v5.4"]),
+        ("Orion v5.5", ["Orion v5.5"]),
     ]
     progress = []
     for label, engine_names in stages:
-        candidates = [(i, r) for i, r in enumerate(board_rows) if r["engine"] in engine_names]
+        candidates = [(i, r) for i, r in enumerate(board_rows) if r["engine"] in engine_names and r["chunks"] == "6400"]
         idx, latest = max(candidates, key=lambda ir: (finding_num(ir[1]), ir[0]))
         progress.append((label, emspc(latest), finding_num(latest)))
 
@@ -542,9 +547,12 @@ def plot_emspc_integration_progress(out_path):
         best = min(candidates, key=emspc)
         servers.append((name, emspc(best), finding_num(best), int(best["chunks"])))
 
-    # Ordinal blue ramp (dataviz skill palette.md, steps 250-550): our own
-    # progression is genuinely ordered (older -> newer integration).
-    ramp = ["#d5e7fa", "#bcd8f6", "#a3c9f2", "#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#1c69c6", "#1455a4"]
+    # Ordinal blue ramp (dataviz skill palette.md): our own progression is
+    # genuinely ordered (older -> newer integration).
+    ramp = [
+        to_hex(c) for c in
+        LinearSegmentedColormap.from_list("ordinal", ["#d5e7fa", "#1455a4"])(np.linspace(0, 1, len(progress)))
+    ]
     server_colors = [SERIES[1], SERIES[2]]  # categorical slots (orange, aqua) = Paper, Leaf
 
     labels = [s for s, _, _ in progress] + [f"{s}\n(best result)" for s, _, _, c in servers]
@@ -567,7 +575,7 @@ def plot_emspc_integration_progress(out_path):
     ax.set_ylim(0, max(values) * 1.22)
 
     fig.suptitle(
-        f"eMSPC has fallen {(1 - progress[-1][1] / progress[0][1]) * 100:.0f}% since the mosaic — Orion v5.2 is the newest measured stage",
+        f"eMSPC has fallen {(1 - progress[-1][1] / progress[0][1]) * 100:.0f}% since the mosaic — {progress[-1][0]} is the newest measured stage",
         color=INK_PRIMARY, fontsize=13, y=0.96,
     )
     ax.set_title(

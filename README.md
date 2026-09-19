@@ -162,11 +162,11 @@ knowledge required. Full formal definition in `scientific-findings.md` #11.
 
 Zooming out past the mosaic to every scheduler generation this project has shipped —
 **effective MSPC** (`total_ms / chunks`, the same "true average" #18 introduced) has
-fallen roughly 77% from the original mosaic to Orion v5.2, favoring each scheduler's
+fallen roughly 78% from the original mosaic to Orion v5.5, favoring each scheduler's
 latest result rather than its first. Real Paper and Leaf, at each server's own best
 result on record, are plotted alongside for scale.
 
-![Bar chart of effective MSPC across every WorldgenD scheduler generation through Orion v5.2, plus Paper and Leaf's best real-server results](findings/emspc_integration_progress.png)
+![Bar chart of effective MSPC across every WorldgenD scheduler generation through Orion v5.5, plus Paper and Leaf's best real-server results](findings/emspc_integration_progress.png)
 
 That's the whole point of building MSPC in the first place: a number you can watch go
 down as the fill algorithm improves, instead of an average that hides whether it

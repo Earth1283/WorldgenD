@@ -1,0 +1,16 @@
+samples,pct_of_worker_total,leaf_frame
+15803,8.01,"net.minecraft.util.Mth.lerp3(double, double, double, double, double, double, double, double, double, double, double)"
+14521,7.36,"net.minecraft.world.level.levelgen.synth.ImprovedNoise.sampleAndLerp(int, int, int, double, double, double, double)"
+11844,6.00,"net.minecraft.util.Mth.lerp2(double, double, double, double, double, double)"
+11412,5.78,"net.minecraft.world.level.levelgen.synth.ImprovedNoise.noise(double, double, double, double, double)"
+9152,4.64,"net.minecraft.world.level.levelgen.Aquifer$NoiseBasedAquifer.computeSubstance(DensityFunction$FunctionContext, double)"
+7988,4.05,net.minecraft.world.level.material.FluidState.isEmpty()
+7337,3.72,"net.minecraft.world.level.levelgen.SurfaceRules$TestRule.tryApply(int, int, int)"
+6309,3.20,net.minecraft.world.level.levelgen.NoiseChunk$NoiseInterpolator.updateForX(double)
+6057,3.07,"net.minecraft.world.level.LevelReader.getNoiseBiome(int, int, int)"
+5592,2.83,net.minecraft.world.level.levelgen.DensityFunctions$PureTransformer.compute(DensityFunction$FunctionContext)
+5234,2.65,"net.minecraft.world.level.biome.Climate$RTree$SubTree.search(long[], Climate$RTree$Leaf, Climate$DistanceMetric)"
+4628,2.34,java.util.Objects.hashCode(Object)
+4464,2.26,"net.minecraft.world.level.levelgen.NoiseChunk.lambda$new$0(DensityFunction, DensityFunction$FunctionContext)"
+3513,1.78,net.minecraft.world.level.chunk.PalettedContainer.get(int)
+83528,42.32,Other (long tail)

@@ -350,6 +350,29 @@ fun main() {
     val cWorldData = mc.c("net.minecraft.world.level.storage.WorldData")
     mc.publicMethod(cLevelStorageAccess, "saveDataTag", cWorldData).call(levelStorageAccess, worldData)
 
+    // level.dat alone isn't enough for a real server to boot on this world: newer
+    // versions split dimension/chunk-generator config into its own per-dimension
+    // file (data/minecraft/world_gen_settings.dat), read back by
+    // LevelStorageSource.getLevelDataAndDimensions on a real Main.main() boot.
+    // Vanilla tolerates it missing (falls back silently); Paper's own
+    // VanillaWorldMigration treats its absence as fatal. We already assemble a
+    // real WorldGenSettings to build the ChunkGenerator, so just also persist it
+    // through vanilla's own writer instead of throwing it away.
+    val genSettings = mc.publicMethod(cWorldDataAndGenSettings, "genSettings").call(worldDataAndGenSettings)
+    val compositeAccess = mc.publicMethod(cLayeredRegistryAccess, "compositeAccess")
+        .call(mc.publicMethod(cWorldStem, "registries").call(worldStem))
+    // world_gen_settings.dat lives at the world ROOT's data/ dir (Main.main's own
+    // read path), not per-dimension -- confirmed by reading the actual path out
+    // of the "Falling back to the default settings" log line, not guessed.
+    val cLevelResource = mc.c("net.minecraft.world.level.storage.LevelResource")
+    val rootResource = mc.staticField(cLevelResource, "ROOT")
+    val worldRootPath = mc.publicMethod(cLevelStorageAccess, "getLevelPath", cLevelResource)
+        .call(levelStorageAccess, rootResource)
+    mc.publicMethod(
+        cLevelStorageSource, "writeWorldGenSettings",
+        mc.c("net.minecraft.core.RegistryAccess"), Path::class.java, mc.c("net.minecraft.world.level.levelgen.WorldGenSettings"),
+    ).call(null, compositeAccess, worldRootPath, genSettings)
+
     val cYggdrasil = mc.c("com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService")
     val yggdrasil = mc.new(cYggdrasil, arrayOf(java.net.Proxy::class.java), arrayOf(NetProxy.NO_PROXY))
     val cServices = mc.c("net.minecraft.server.Services")

@@ -1,0 +1,6 @@
+category,pct_of_wall_clock
+Worldgen Compute,95.627
+GC pause (STW),1.589
+C1GC: ticket/DistanceManager settle,1.073
+C1GC: NBT/palette encode,1.014
+C1GC: LZ4 compress + disk write,0.699
