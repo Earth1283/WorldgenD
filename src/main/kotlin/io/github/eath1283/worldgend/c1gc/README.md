@@ -135,6 +135,14 @@ the per-chunk codec byte. Verified by decoding a whole 65,536-chunk world throug
 restores the default. The tradeoff: about 45% more disk for less encode CPU on the `IO-Worker`
 lane.
 
+## v5.6: earlier pressure trigger
+
+`orion5.6` defaults to `-Dorion.c1gc.pressure=0.3`. In one 65,536-chunk comparison with
+the same 16-chunk admission window, this completed in 519.6s with 28 full GCs totaling
+64.0s; `pressure=0.5` completed in 553.4s with 37 full GCs totaling 85.4s. The lower
+trigger reduced old-generation occupancy at arming, but the end of the run still had
+repeated allocation-failure full GCs. This is a mitigation, not a complete GC fix.
+
 ## What C1GC is explicitly not trying to do
 
 Make worldgen faster. It won't, and if a benchmark run ever claims it did, don't believe it —

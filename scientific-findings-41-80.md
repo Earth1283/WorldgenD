@@ -1187,6 +1187,55 @@ Files:
 
 - **Code:** `HeadlessWorldgen.kt` (new `writeWorldGenSettings` call, right after the existing `saveDataTag`).
 
+## 73. Orion v5.6 reduces chunk latency; C1GC pressure helps but full GC remains
+
+Orion v5.6 keeps v5.5's parallel generation steps, SIMD density batches, optimized Perlin,
+allocation fixes, region chunk memo, and C1GC. It changes the admission default from 64 to 16
+in-flight chunks and lowers the C1GC old-generation pressure threshold from 0.5 to 0.3.
+The lower window was suggested by #62 but had only one sample then. v5.6 also restores
+`-Dorion.telemetry=true` for the v5 path: the live `orion_telemetry.log` contains elapsed time,
+chunk coordinates, in-flight count, and completed count for each dispatch and completion.
+
+**Profile.** A fresh v5.5 tile-5 JFR execution profile contained 22,690 worker samples.
+`ImprovedNoise.sampleAndLerp` (7.66%), `Mth.lerp3` (6.34%), `Mth.lerp2` (5.47%),
+`ImprovedNoise.noise` (4.95%), and `Aquifer.computeSubstance` (3.79%) dominate leaf samples.
+`NoiseChunk.wrap` is 1.36% inclusive. An identity memo around `NoiseChunk.wrap` was tried and
+rejected: one paired 6,400-chunk run went from 50.4s to 72.9s, old-generation peak from
+1.59GB to 5.80GB, and armed C1GC unexpectedly. The patch was removed. The JFR summary is
+`findings/orion56_profile_summary.csv`; extraction code is `findings/orion56_profile.py`.
+
+**Latency and throughput.** Three rotated tile-5 pairs, 6,400 chunks each, used the same
+7 workers, 16GB pretouched ParallelGC heap, and required v5 safety patches. Mean total time
+was 51.71s for v5.5 versus 50.34s for v5.6 (-2.7%, inside the ~9% noise band). Mean chunk
+p50 was 403.29ms versus 96.54ms (-76.1%); mean p99 was 1,601.26ms versus 685.82ms
+(-57.2%). Neither C1GC gate armed. At 65,536 chunks, one v5.5/v5.6 pair took 520.72s/
+519.59s (-0.2%); p50 was 380.87ms/91.15ms (-76.1%) and p99 3,134.27ms/926.75ms
+(-70.4%). Both persisted 62,464 chunks with zero failed chunks and zero leaked cells.
+
+![Orion v5.6 paired throughput and latency results, with large-run full-GC pause time](findings/orion56_performance.png)
+
+**GC remains open.** The large v5.5 run had 35 full GCs totaling 78.76s; v5.6 had 28
+totaling 63.99s. In a separate v5.6 `pressure=0.5` ablation with the same 16-chunk window,
+37 full GCs took 85.42s and total time was 553.37s, compared with v5.6's 519.59s at 0.3.
+These are one run per large configuration, so the threshold is a plausible mitigation rather
+than a proven throughput gain. The last portion still shows repeated 2–3s allocation-failure
+full GCs, despite C1GC persisting the expected 62,464 chunks. A live heap-retention diagnosis
+is needed before changing light storage or ticket handling further.
+
+**Correctness.** With deterministic region features, light patch, parallel-step verification,
+and forced C1GC, v5.5 and v5.6 generated the same 1,024-chunk tile: 0/1,024 full block-position
+hash mismatches. Both persisted 640 chunks, with zero failed chunks and zero parallel-step
+violations. The telemetry integration run recorded exactly 1,024 dispatches and 1,024
+completions and ended at `inFlight=0 completed=1024`. A failed submission or callback now
+terminates `OrionV5.fill()` rather than hanging its wait loop.
+
+**Data.** `findings/orion56_results.csv` has one row per benchmark, including the rejected
+memo experiment and full/young GC counts and pause times where GC logs were captured.
+`findings/run_orion56.py` and `findings/collect_orion56.py` reproduce and collect runs;
+`findings/plot_orion56.py` regenerates the chart above from the CSV.
+Raw benchmark logs and the full JFR tables were moved outside the repository to keep
+`findings/` compact.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):

@@ -84,13 +84,13 @@ object OrionPatchAgent {
         val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
         val patchWorldgenLight = System.getProperty("orion.patchWorldgenLight") == "true"
         val scheduler = System.getProperty("scheduler")
-        val patchDensitySimd = scheduler == "orion5.1" || scheduler == "orion5.2" || scheduler == "orion5.5" ||
+        val patchDensitySimd = scheduler == "orion5.1" || scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" ||
             System.getProperty("orion.patchDensitySimd") == "true"
-        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" ||
+        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" ||
             System.getProperty("orion.patchImprovedNoise") == "true"
-        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" ||
+        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" || scheduler == "orion5.6" ||
             System.getProperty("orion.patchAllocations") == "true"
-        val patchRegionChunkMemo = scheduler == "orion5.5" || System.getProperty("orion.patchRegionChunkMemo") == "true"
+        val patchRegionChunkMemo = scheduler == "orion5.5" || scheduler == "orion5.6" || System.getProperty("orion.patchRegionChunkMemo") == "true"
         if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations && !patchRegionChunkMemo) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return

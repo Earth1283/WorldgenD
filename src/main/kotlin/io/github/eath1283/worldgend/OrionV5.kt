@@ -2,6 +2,7 @@ package io.github.eath1283.worldgend
 
 import java.lang.invoke.MethodHandles
 import java.lang.reflect.Method
+import java.io.File
 import java.util.Collections
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Semaphore
@@ -19,7 +20,12 @@ class OrionV5(
     private val pollTask: Method,
     private val mainThreadProcessor: Any,
     private val maxInFlight: Int,
+    private val telemetryFile: File? = null,
 ) {
+    init {
+        require(maxInFlight > 0) { "maxInFlight must be positive" }
+    }
+
     companion object {
         private const val POLL_BACKOFF_FLOOR_NANOS = 1_000L
         private const val POLL_BACKOFF_CAP_NANOS = 100_000L
@@ -39,8 +45,11 @@ class OrionV5(
         onPoll: () -> Boolean = { false },
     ): Result {
         val start = System.nanoTime()
+        val telemetry = telemetryFile?.let { OrionTelemetry(it, start) }
+        val inFlight = AtomicInteger(0)
         val permits = Semaphore(maxInFlight)
         val completions = AtomicInteger(0)
+        val settled = AtomicInteger(0)
         val progressEvery = maxOf(1, coords.size / 100)
         val stop = AtomicBoolean(false)
         val ok = AtomicInteger(0)
@@ -77,40 +86,77 @@ class OrionV5(
         // here and rethrown from the wait loop instead of thrown from inside a worker thread.
         val fillFailure = AtomicReference<Throwable>()
         val submitThread = Thread({
-            for (coord in coords) {
-                permits.acquireUninterruptibly()
-                val submitNanos = System.nanoTime()
-                @Suppress("UNCHECKED_CAST")
-                val future = getChunkFutureHandle.invoke(chunkSource, coord.first, coord.second, fullStatus, true) as CompletableFuture<Any?>
-                future.whenComplete { result, error ->
-                    chunkMspc.add((System.nanoTime() - submitNanos) / 1_000_000.0)
-                    permits.release()
-                    if (error != null) {
-                        fillFailure.compareAndSet(null, error)
-                    } else if (mc.publicMethodCached(result!!.javaClass, "isSuccess").call(result) as Boolean) {
-                        ok.incrementAndGet()
-                        onComplete(coord.first, coord.second, true, result, null)
-                    } else {
-                        failed.incrementAndGet()
-                        onComplete(coord.first, coord.second, false, null, mc.publicMethodCached(result.javaClass, "getError").call(result))
+            try {
+                for (coord in coords) {
+                    permits.acquire()
+                    if (stop.get()) {
+                        permits.release()
+                        break
                     }
-                    val completed = completions.incrementAndGet()
-                    if (completed == coords.size || completed % progressEvery == 0) {
-                        onProgress(completed, coords.size, (System.nanoTime() - start) / 1_000_000)
+                    try {
+                        val submitNanos = System.nanoTime()
+                        telemetry?.record("DISPATCH", coord.first, coord.second, inFlight.incrementAndGet(), completions.get())
+                        @Suppress("UNCHECKED_CAST")
+                        val future = getChunkFutureHandle.invoke(chunkSource, coord.first, coord.second, fullStatus, true) as CompletableFuture<Any?>
+                        future.whenComplete { result, error ->
+                            try {
+                                chunkMspc.add((System.nanoTime() - submitNanos) / 1_000_000.0)
+                                if (error != null) {
+                                    fillFailure.compareAndSet(null, error)
+                                } else if (mc.publicMethodCached(result!!.javaClass, "isSuccess").call(result) as Boolean) {
+                                    ok.incrementAndGet()
+                                    onComplete(coord.first, coord.second, true, result, null)
+                                } else {
+                                    failed.incrementAndGet()
+                                    onComplete(coord.first, coord.second, false, null, mc.publicMethodCached(result.javaClass, "getError").call(result))
+                                }
+                            } catch (t: Throwable) {
+                                fillFailure.compareAndSet(null, t)
+                            } finally {
+                                val completed = completions.incrementAndGet()
+                                if (telemetry != null) {
+                                    try {
+                                        telemetry.record("COMPLETE", coord.first, coord.second, inFlight.decrementAndGet(), completed)
+                                    } catch (t: Throwable) {
+                                        fillFailure.compareAndSet(null, t)
+                                    }
+                                }
+                                permits.release()
+                                if (completed == coords.size || completed % progressEvery == 0) {
+                                    try {
+                                        onProgress(completed, coords.size, (System.nanoTime() - start) / 1_000_000)
+                                    } catch (t: Throwable) {
+                                        fillFailure.compareAndSet(null, t)
+                                    }
+                                }
+                                settled.incrementAndGet()
+                            }
+                        }
+                    } catch (t: Throwable) {
+                        permits.release()
+                        throw t
                     }
                 }
+            } catch (t: Throwable) {
+                fillFailure.compareAndSet(null, t)
             }
         }, "orion5-submit").apply { isDaemon = true; start() }
 
-        while (completions.get() < coords.size) {
-            pollFailure.get()?.let { throw IllegalStateException("orion5-poll died", it) }
-            fillFailure.get()?.let { throw IllegalStateException("chunk future completed exceptionally", it) }
-            LockSupport.parkNanos(200_000)
+        try {
+            while (settled.get() < coords.size) {
+                pollFailure.get()?.let { throw IllegalStateException("orion5-poll died", it) }
+                fillFailure.get()?.let { throw IllegalStateException("orion5-fill failed", it) }
+                LockSupport.parkNanos(200_000)
+            }
+            fillFailure.get()?.let { throw IllegalStateException("orion5-fill failed", it) }
+        } finally {
+            stop.set(true)
+            submitThread.interrupt()
+            submitThread.join()
+            pollThread.join()
+            telemetry?.close()
         }
-        stop.set(true)
-        submitThread.join()
-        pollThread.join()
-        fillFailure.get()?.let { throw IllegalStateException("chunk future completed exceptionally", it) }
+        fillFailure.get()?.let { throw IllegalStateException("orion5-fill failed", it) }
 
         return Result(ok.get(), failed.get(), (System.nanoTime() - start) / 1_000_000)
     }

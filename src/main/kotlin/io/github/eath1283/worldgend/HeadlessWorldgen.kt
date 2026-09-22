@@ -63,7 +63,7 @@ fun main() {
         if (saveWorld) "World saving enabled: chunks will be flushed after generation timing completes."
         else "World saving disabled (default): benchmark behavior is unchanged."
     )
-    val orionMaxInFlight = System.getProperty("orion.maxinflight", "64").toInt()
+    val orionMaxInFlight = System.getProperty("orion.maxinflight", if (schedulerMode == "orion5.6") "16" else "64").toInt()
     val orionLockRadius = System.getProperty("orion.lockradius", Orion.DEPENDENCY_RADIUS.toString()).toInt()
     val orionTelemetry = System.getProperty("orion.telemetry", "false").toBoolean()
     val orionDispatchThreads = System.getProperty("orion.dispatchthreads", "1").toInt()
@@ -76,15 +76,15 @@ fun main() {
     println("Hammering ${discovered.jar} (${discovered.classpath.size} bundled libraries)")
 
     val loader = discovered.newClassLoader()
-    if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5") DensitySimdPatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.2" || schedulerMode == "orion5.5") ImprovedNoisePatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5") AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
-    if (schedulerMode == "orion5.5") RegionChunkMemo.requireInstalled(loader)
+    if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6") DensitySimdPatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6") ImprovedNoisePatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6") AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
+    if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6") RegionChunkMemo.requireInstalled(loader)
     val mc = Mc(loader)
 
     mc.method(mc.c("net.minecraft.SharedConstants"), "tryDetectVersion").call(null)
     mc.method(mc.c("net.minecraft.server.Bootstrap"), "bootStrap").call(null)
-    if (schedulerMode == "orion5.5") {
+    if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6") {
         // Vanilla's own region-file-compression=lz4 codec (RegionFileVersion id 4). Set before boot:
         // each RegionFile keeps the codec it was opened with, and spawn prep opens the first ones.
         mc.publicMethod(mc.c("net.minecraft.world.level.chunk.storage.RegionFileVersion"), "configure", String::class.java)
@@ -781,7 +781,7 @@ fun main() {
         return
     }
 
-    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5") {
+    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6") {
         for (flag in listOf("orion.patchReentrancy", "orion.patchStructureGenState", "orion.patchParallelSteps")) {
             require(System.getProperty(flag) == "true") { "$schedulerMode requires -D$flag=true (see OrionPatchAgent)" }
         }
@@ -790,19 +790,24 @@ fun main() {
         val backgroundExecutor = mc.publicMethod(mc.c("net.minecraft.util.Util"), "backgroundExecutor").call(null)!!
         val backgroundPool = mc.publicMethod(backgroundExecutor.javaClass, "service").call(backgroundExecutor) as java.util.concurrent.ForkJoinPool
         fun poolReport() = "backgroundPool parallelism=${backgroundPool.parallelism} poolSize=${backgroundPool.poolSize}"
-        val orion = OrionV5(mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor, orionMaxInFlight)
+        val telemetryFile = if (orionTelemetry) File(serversDir.parentFile, "orion_telemetry.log").apply { writeText("") } else null
+        val orion = OrionV5(mc, dedicatedServer, chunkSource, getChunkFuture, fullStatus!!, pollTask, mainThreadProcessor, orionMaxInFlight, telemetryFile)
         // #65: shifting the target lets two runs overlap partially, to test position-only determinism.
         val shift = Integer.getInteger("orion.targetShift", 0)
         val lo = base + shift
         val hi = base + shift + mosaicSide - 1
         val target = (lo..hi).flatMap { cx -> (lo..hi).map { cz -> cx to cz } }
-        val usesC1gc = schedulerMode == "orion5.4" || schedulerMode == "orion5.5"
+        val usesC1gc = schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6"
         val evictChunks = System.getProperty("orion.evictChunks") == "true" && !usesC1gc
         val c1gc = if (usesC1gc) C1GC(
             mc, chunkSource, lo, hi, mosaicSide,
             ringCapacity = Integer.getInteger("orion.c1gc.ringCapacity", C1GC.RING_CAPACITY),
             maxIoWorkers = Integer.getInteger("orion.c1gc.maxIoWorkers", C1GC.MAX_IO_WORKERS),
-            pressure = if (schedulerMode == "orion5.5") System.getProperty("orion.c1gc.pressure", "0.5").toDouble() else 0.0,
+            pressure = when (schedulerMode) {
+                "orion5.6" -> System.getProperty("orion.c1gc.pressure", "0.3").toDouble()
+                "orion5.5" -> System.getProperty("orion.c1gc.pressure", "0.5").toDouble()
+                else -> 0.0
+            },
         ) else null
         val featureOrderMode = System.getProperty("orion.deterministicFeatures")
         // Verified together at tile 2 with -Dorion.targetShift=100: 0/1024 block-position
@@ -859,15 +864,15 @@ fun main() {
         resultFile.writeText(
             "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
                 "parallelSteps ${OrionParallelSteps.report()}\n${poolReport()}\n" +
-                (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5") "densitySimd ${DensityBatch.report()}\n" else "") +
-                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5") "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
+                (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6") "densitySimd ${DensityBatch.report()}\n" else "") +
+                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6") "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
                 (if (evictor != null) {
                     "chunkEvictor ${evictor.report()}\n" +
                         "chunkEvictorGcCheck ${evictor.verifyReclaimed()}\n" +
                         "chunkEvictorRetainerPath ${evictor.findFirstRetainerPath()}\n"
                 } else "") +
                 (if (c1gc != null) "c1gc ${c1gc.report()}\n" else "") +
-                (if (schedulerMode == "orion5.5") "regionFileVersion ${regionFileVersionReport(mc)}\n" else "")
+                (if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6") "regionFileVersion ${regionFileVersionReport(mc)}\n" else "")
         )
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")
         saveWorldIfRequested()

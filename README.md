@@ -50,7 +50,7 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3|orion5.4|orion5.5`.
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3|orion5.4|orion5.5|orion5.6`.
 
 | Generator | Adds | Measured effective MSPC | Current reading |
 |---|---|---:|---|
@@ -60,6 +60,7 @@ Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orio
 | Orion v5.2 | optimized ImprovedNoise kernel | 8.05–8.40 | Perlin CPU share falls; full-generation effect inside noise |
 | Orion v5.3 | allocation-pressure fixes (Ap2/Context/SequenceRule/Aquifer) | 7.87–9.34 | bit-exact, real GC-frequency drop, no confirmed throughput win |
 | Orion v5.4 | C1GC bounded chunk reclamation | 8.66–9.17 (champion scale, post batching-fix), 8.75 (256x256) | fixes a real large-tile hang/OOM; champion-scale cost cut from ~13% to ~6% (inside noise) after fixing a per-chunk distance-graph-settle bottleneck |
+| Orion v5.6 | v5.5 compute patches, 16-chunk admission, earlier C1GC trigger | 7.87 (6,400 chunks, n=3), 7.93 (65,536 chunks, n=1) | 76% lower p50 and 57–70% lower p99 than v5.5; total time is at parity |
 
 **Orion v5 is the architectural jump** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
 at champion scale (eMSPC 8.16-8.65 vs 20.68-20.80, interleaved, n=2 each), steady-state CPU
@@ -139,6 +140,19 @@ applied to `orion5.4`), and writes vanilla's LZ4 region codec (`-Dorion.c1gc.com
 because at 6,400 chunks C1GC never arms. That's parity with v5.3: the compute patches stay inside
 noise, as they did individually. At 65,536 chunks it's at parity with v5.4 (two pairs: -6.1%, +1.0%).
 Deferring reclamation costs more full-GC time there, and the compute patches offset it. See finding #70.
+
+**Orion v5.6** (`-Dscheduler=orion5.6`) keeps v5.5's parallel steps, SIMD, Perlin, allocation,
+region memo, and C1GC patches. It defaults to `-Dorion.maxinflight=16` and
+`-Dorion.c1gc.pressure=0.3`; both remain configurable. Three rotated 6,400-chunk pairs show
+per-chunk p50 latency falling 76% and p99 falling 57% against v5.5, with mean total time
+2.7% lower, inside the measured ~9% run-to-run noise. A 65,536-chunk pair shows p50/p99
+falling 76%/70% and total time at parity. C1GC still incurred 28 full collections and 64s
+of full-GC pauses in that large run. `-Dorion.telemetry=true` writes buffered live
+`DISPATCH`/`COMPLETE` events to `orion_telemetry.log`. Run-level data are in
+`findings/orion56_results.csv`; profile samples are in `findings/orion56_profile_summary.csv`.
+See finding #73.
+
+![Orion v5.6 paired latency and throughput benchmarks, including large-run GC pauses](findings/orion56_performance.png)
 
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see
