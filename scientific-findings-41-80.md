@@ -1236,6 +1236,181 @@ memo experiment and full/young GC counts and pause times where GC logs were capt
 Raw benchmark logs and the full JFR tables were moved outside the repository to keep
 `findings/` compact.
 
+## 74. Orion v5.7: cell-batched density fill is 10-12% faster, bit-exact, and replicated by three parties
+
+Orion v5.7 is v5.6 with one new patch set, `DensityCellPatch` (with `DensityCell`, `DensityCellNode`,
+`DensitySurfaceCache`). It replaces v5.1's per-call SIMD density batches (`DensitySimdPatch` is not
+installed for v5.7). Everything else is v5.6: parallel steps, Perlin port, allocation fixes, region
+memo, C1GC, `maxinflight=16`, `pressure=0.3`. It was one of seven hypotheses tested side by side with C2ME as the reference
+(noise compute, scheduling, allocation, and the non-noise steps). Each one had to survive an
+independent replication from a separate source snapshot before it counted; #75 has the six that did not.
+
+**What changed.** Four pieces, each behind a flag that defaults on:
+- `-Dorion.noiseCell.batch`: the `Ap2` MIN/MAX/MUL and `RangeChoice` nodes fill the whole 128-element
+  cell array in a loop, instead of a per-element `compute(forIndex(i))`; `forIndex` costs three integer
+  div/mod per element. The interpolator trilinear fill is hoisted the same way.
+- `-Dorion.noiseCell.lazy`: of the 7 interpolators, only the ones read outside the cell cache (vein
+  toggle, ridged) are updated, and only when read, not for every block.
+- `-Dorion.noiseCell.surfaceCache`: a process-wide `preliminarySurfaceLevel(x, z)` cache shared across
+  chunks. The value only depends on (x, z) while the blender is empty. ~92% hit rate (1.52M hits, 133k misses).
+- `-Dorion.noiseCell.glue`: removes the ThreadLocal/AtomicInteger scratch bookkeeping and enum
+  `valueOf` from the earlier patches.
+
+**Throughput.** Six blocks, each rotated, at the fixed champion spec (6,400 chunks, 7 workers, 16GB
+pretouched ParallelGC). They came from three separate parties working from three separate source
+snapshots.
+
+| Block | v5.6 median | v5.7 median | Delta | Pairs |
+|---|---:|---:|---:|---:|
+| replication 1 | 50,362 | 44,426 | -11.8% | 5/5 |
+| replication 2 | 47,722 | 44,160 | -7.5% | 5/5 |
+| replication 3 | 49,443 | 43,514 | -12.0% | 5/5 |
+| ablation block | 49,151 | 44,168 | -10.1% | 5/5 |
+| in-flight block (v5.6/v5.7 arms) | 48,325 | 43,634 | -9.7% | 5/5 |
+| Beardifier block (v5.6/v5.7 arms) | 48,119 | 43,906 | -8.8% | 5/5 |
+
+v5.7 won 30/30 pairs. Worker CPU fell ~13-16% (e.g. 291.9s to 253.1s), and every run had
+`armed=false` and identical GC counts (14 young, 3 full). That rules out C1GC and GC as the source.
+A confound check found exactly one difference between arms: the cell patch
+replacing the SIMD patch.
+
+**Ablation.** Leave-one-out, n=5 per arm, one block. The worker-CPU share of the 5.6-to-5.7 gap
+needed to switch each piece off: batch 51%, lazy 33%, surface cache 28%, glue 9%. They sum to 121%,
+so the pieces are mildly super-additive. Wall-clock medians against full v5.7 (44,168): batch off
++5.2%, lazy off +5.5%, surface cache off +4.1%, glue off +1.3%. Nothing is dead weight. The pre-registered prediction of the JFR shares failed: `selectCellYZ` went from 11.7% to 6.25%, not the
+predicted <=2%, and `doFill` dropped 5.6 points, not >=8. The wall-clock win does not depend on it.
+
+![#74 v5.7 throughput across six blocks, and leave-one-out ablation](findings/orion57_74_throughput.png)
+
+**Pair by pair.** No pair crosses zero; the smallest win is -4.6%.
+
+![#74 all 30 rotated pairs](findings/orion57_pairs.png)
+
+**CPU, latency, and the ablation in numbers.** Worker CPU tracks wall time almost linearly across
+every arm, so the win is fewer CPU-seconds per chunk. It is not better overlap. Tail latency
+improved too: pooled p99 is 647 -> 561 ms with no admission change.
+
+![#74 worker CPU vs total time for every run with a CPU total](findings/orion57_cpu_vs_wall.png)
+
+| Arm (six blocks pooled) | Runs | Median total_ms | Median worker CPU-s | Median p50 ms | Median p99 ms |
+|---|---:|---:|---:|---:|---:|
+| v5.6 | 30 | 49,110 | 284.7 | 94 | 647 |
+| v5.7 | 30 | 43,998 | 249.1 | 83 | 561 |
+
+| Ablation arm (noise block) | Runs | Median total_ms | Median worker CPU-s | Median p50 ms | Median p99 ms |
+|---|---:|---:|---:|---:|---:|
+| v5.7 | 5 | 44,168 | 251.4 | 82 | 573 |
+| v5.7 glue off | 5 | 44,735 | 255.9 | 84 | 579 |
+| v5.7 surface cache off | 5 | 45,960 | 257.8 | 86 | 601 |
+| v5.7 batch off | 5 | 46,463 | 266.0 | 89 | 584 |
+| v5.7 lazy off | 5 | 46,608 | 264.8 | 90 | 606 |
+| v5.6 | 5 | 49,151 | 287.0 | 93 | 738 |
+
+**Where the time goes now.** Noise fill falls from 41.7% to 36.1% of worker samples. The other steps
+keep roughly the same absolute samples, so their shares grow: surface 20.3%, biomes 13.7%,
+features 13.7%. `NoiseChunk` construction doubles its share (3.1% -> 6.3%). Part of that is v5.6's
+truncated stacks hiding deep `mapAll` frames, and the untimed mapAll-memo stack (#75) targets it.
+
+![#74 worker CPU share by step and hot frame, v5.6 vs v5.7](findings/orion57_profile.png)
+
+| Worker CPU samples | v5.6 share | v5.7 share | v5.6 samples | v5.7 samples |
+|---|---:|---:|---:|---:|
+| noise fill (stage) | 41.71% | 36.1% | 8662 | 6282 |
+| surface (stage) | 17.61% | 20.33% | 3657 | 3538 |
+| biomes (stage) | 9.28% | 13.74% | 1928 | 2390 |
+| features (stage) | 9.48% | 13.7% | 1968 | 2383 |
+| light (stage) | 4.27% | 4.57% | 887 | 796 |
+| carvers (stage) | 3.0% | 2.77% | 624 | 482 |
+| structure starts (stage) | 1.62% | 2.2% | 337 | 382 |
+| NoiseChunk construction (stage) | 3.12% | 6.34% | 647 | 1104 |
+| selectCellYZ (frame) | 11.7% | 6.25% | 2429 | 1088 |
+| getInterpolatedState (frame) | 9.87% | 10.28% | 2049 | 1788 |
+| fillSlice (corner noise) (frame) | 11.96% | 14.39% | 2483 | 2503 |
+| ImprovedNoise.noise (frame) | 13.69% | 13.92% | 2843 | 2422 |
+| NormalNoise.getValue (frame) | 11.6% | 10.72% | 2409 | 1865 |
+| CubicSpline (frame) | 10.22% | 8.58% | 2123 | 1493 |
+| Aquifer.computeSubstance (frame) | 7.2% | 6.13% | 1496 | 1067 |
+| Beardifier (frame) | 2.77% | 3.18% | 576 | 554 |
+| interpolator updates (frame) | 3.55% | 0.53% | 738 | 92 |
+| preliminarySurfaceLevel (frame) | 3.5% | 0.37% | 726 | 64 |
+| SurfaceRules (frame) | 8.64% | 9.53% | 1795 | 1658 |
+| Climate sampler (frame) | 8.83% | 10.11% | 1834 | 1759 |
+
+
+**Correctness.** Deterministic mode (`deterministicFeatures=region`, `patchWorldgenLight`,
+`targetShift=100`, `parallelSteps.verify`) gave 0/6,400 full block-position hash and count mismatches
+against v5.6. That was checked independently from two separate snapshots, and once per
+ablation arm. A per-chunk biome digest also matched. The merged v5.7 in main was rechecked at tile 2:
+0/1,024. One fix rode along into main: `DensitySurfaceCache.forOwner`'s two volatile fields could pair
+one `RandomState` with another's cache. They are now one immutable record. It only mattered with
+several dimensions generating at once, which no benchmark here does.
+
+**At 65,536 chunks.** One rotated ABBA block (tile 16, same spec, GC logged), all 65,536 chunks
+`ok`, 0 failed, C1GC armed and persisting 62,464 chunks in every run:
+
+| Run | Version | total_ms | eMSPC | p50 ms | p99 ms | Full GCs (pause s) | Peak old gen MB |
+|---|---|---:|---:|---:|---:|---:|---:|
+| 1 | v5.6 | 525,203 | 8.01 | 91.5 | 955 | 29 (67.1) | 3,300 |
+| 2 | v5.7 | 479,544 | 7.32 | 81.1 | 852 | 29 (66.1) | 3,290 |
+| 3 | v5.7 | 486,369 | 7.42 | 82.8 | 812 | 30 (68.8) | 3,346 |
+| 4 | v5.6 | 520,099 | 7.94 | 90.6 | 939 | 29 (66.1) | 3,297 |
+
+Pairs: -8.7% and -6.5% (both won), mean -7.6%. The gap is smaller than at 6,400 chunks because the
+~66 s of full-GC pause and C1GC's persistence work are the same in both versions. Subtracting the logged GC pauses alone
+leaves a ~9% gap, close to the champion-scale win. p50 falls about 10% and p99 about 12%. n=2 per arm at this scale is supporting evidence, not a headline. Data: `findings/orion57_65k.csv`.
+
+![#74 v5.7 vs v5.6 at 65,536 chunks: time split by GC pauses, and latency](findings/orion57_65k.png)
+
+**Not yet measured.** Deterministic feature ordering costs about +14% eMSPC
+on v5.7 (6.38 vs 7.30, n=5, a diagnostic). Deterministic timings stay incomparable with standard rows.
+
+**Data.** `orion_results.csv` / `leaderboard_entries.csv` rows `v57_*` with finding `74`; per-run totals, p50/p99 and worker CPU in `findings/orion57_runs.csv`; profile shares in `findings/orion57_profile_summary.csv`;
+`findings/plot_results.py` (`plot_orion57_74`). Raw logs, JFR files and source snapshots are kept outside the repository.
+
+## 75. Six hypotheses that did not clear the bar, and why they were worth falsifying
+
+Tested alongside #74, same bar: consistently >=3-4% lower total time, bit-exact, and replicated by a
+second party. All six candidates were bit-exact. None was consistent enough. Experiment rows carry
+descriptive `exp-*` scheduler names, not version numbers.
+
+| Experiment (`scheduler`) | Idea | Pooled median vs control | Pairs | Verdict |
+|---|---|---:|---:|---|
+| `exp-mapall-memo` | identity memo for `DensityFunction.mapAll` during `NoiseChunk` construction | -0.2% (n=10) | 6/10 | null; removes ~18 thread-s/run of ctor time, invisible on wall clock (the #68 pattern again) |
+| `exp-structure-lane` | structure steps through a one-at-a-time lane instead of parking pool workers on the lock | +2.6% (n=5) | 2/5 | null; freed slots found no ready work (idle-with-empty-queue 0.22 -> 0.51 slot) |
+| `exp-lockfree-structures` | `structure_starts`/`references` without the global lock (Moonrise precedent) | -0.9% (n=10) | 6/10 | first block -2.9% 4/5, independent replication +3.4% 2/5; falsified |
+| `exp-surface-biome` | five surface/biome shortcuts (flat-cached climate noise, uniform-corner biome skip, direct section reads, provable surface-rule skips, lean column writes) | -3.7% (n=16) | 10/16 | real ~3.5-4.5% worker-CPU saving, but the independent block (-2.9%, 3/5) failed its own falsifiers; conceded |
+| `exp-inflight32` | v5.7 with `maxinflight` 32 | +0.1% vs v5.7 (n=5) | 2/5 | null; p50 latency 82 -> 165 ms, p99 603 -> 855 ms; an n=4 probe at -3.6% did not replicate |
+| `exp-beard-cull` | v5.7 plus per-cell Beardifier culling of provably-zero pieces | -0.2% vs v5.7 (n=5) | 3/5 | null; Beardifier is ~3% of worker samples, so the ceiling was ~1-2% |
+
+![#75: six hypotheses vs their in-block control](findings/orion57_nulls75.png)
+
+**In-flight depth on v5.7.** Total time is flat from 16 to 48 while p50 triples, the same
+latency-dial result as #42/#62/#73. v5.7's default stays 16.
+
+| v5.7 `maxinflight` | Runs | Median total_ms | Median p50 ms | Median p99 ms |
+|---:|---:|---:|---:|---:|
+| 16 | 8 | 43,516 | 82 | 593 |
+| 24 | 3 | 44,290 | 122 | 767 |
+| 32 | 5 | 43,658 | 165 | 855 |
+| 48 | 3 | 44,517 | 251 | 982 |
+
+![#75 in-flight depth sweep on v5.7](findings/orion57_inflight.png)
+
+**What the nulls say.** On v5.7 workers average 5.7 of 7 cores on-CPU (~81%; v5.6 83.6%). The idle
+time is not a queue shortage. The structure-lane and in-flight results both show more admission or
+freed slots buying nothing, so the remainder is inferred to be dependency/lock blocking. It was not
+measured. Surface (20.3%) plus biomes (13.7%) are now ~34% of worker samples on v5.7, the largest
+lane left.
+
+**Method notes.** Absolute times drifted 7-10% between sessions, so only within-block pairs were
+compared. A single noisy block looked like a win twice: an n=4 in-flight probe at -3.6%, and the
+surface/biome patches' first block at -5.7%. Both failed replication. Concurrent runs were serialized
+through a machine-wide lock; every filed run had the machine to itself.
+
+**Data.** Rows `v57_*` with finding `75` in `orion_results.csv` / `leaderboard_entries.csv` (engine
+`Experiment` on the leaderboard); `plot_orion57_nulls75` in `findings/plot_results.py`. Built but never
+timed (no rows): v5.7 + mapAll memo and v5.7 + surface/biome patches, both bit-exact in smoke checks.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -1261,3 +1436,5 @@ Raw benchmark logs and the full JFR tables were moved outside the repository to 
 - **#70's Orion v5.5 is -11.8% vs v5.4 at champion scale (n=5 each, every run faster), but the win is C1GC's pressure gate not arming at 6,400 chunks, not compute.** With reclamation forced, it's -2.7% (noise); vs v5.3 it's parity. At 65,536 chunks it's at parity with v5.4 (-6.1%/+1.0%), paying ~29s more full-GC time for arming late. #70 also fixed a real v5.4 race (C1GC mutating `DistanceManager` off the poll thread). Still open: a lower `pressure` default, a v5.5 JFR profile for the region memo, `NoiseChunk.wrap` record hashing, the gate under G1.
 - **#71's real-scale JFR profile (65,536 chunks) confirms #69's batching fix generalizes** (C1GC's three phases are 2.83% of samples, matching #70's champion-scale ~2.3%) and finds no new hotspot. Disk is not a sustained bottleneck (21% avg utilization, 40.44s total time blocked in `write()` across the whole run) but does show real latency spikes — 8 writes of under 15KB took 2.1-3.5s each, clustered in a ~60s near-100%-utilization burst timed to the pressure gate's backlog drain; none of these stalls ever hit a `Worker-Main` thread. Still open: this profiled run was 12.6% slower than an unprofiled same-day baseline (outside the ~9% noise band), with `parallelSteps maxRunning` and `backgroundPool poolSize` both up — not yet isolated as the disk burst, JFR overhead, or plain single-run noise; needs a second profiled run to compare against.
 - **#72 fixes a real gap found by booting a live server on #71's output**: WorldgenD saved a genuine `level.dat` (vanilla's own `saveDataTag`) but discarded the `WorldGenSettings` half of the same in-memory object instead of also persisting it, so `data/minecraft/world_gen_settings.dat` never existed. Vanilla tolerates that silently (random-seed fallback); Paper hard-fails on it. Fix is one more vanilla-native write call (`LevelStorageSource.writeWorldGenSettings`) at the world root (`LevelResource.ROOT`, not per-dimension — the first attempt guessed wrong and was caught by re-testing, not assumed). Verified via a clean vanilla boot with zero fallback warning. Lives in shared `HeadlessWorldgen.kt`, not `orion5.5`-specific. Still open: an actual Paper-jar end-to-end boot (blocked on its maven-layout classpath, not a code question), whether nether/end need the same treatment, whether this matters at all for a server that immediately re-saves anyway.
+- **#74's Orion v5.7 is 10-12% faster than v5.6 at champion scale, bit-exact, 30/30 pairs across six blocks from three independent parties.** All four cell-patch pieces carry weight (batch > lazy > surface cache > glue on worker CPU). At 65,536 chunks it is -7.6% (n=2 pairs, both won; GC/C1GC cost unchanged dilutes it). Still open: whether `selectCellYZ` (still 6.25%) yields to deeper batching; the stacked v5.7 + mapAll memo and v5.7 + surface/biome builds exist and are bit-exact but were never timed.
+- **#75's six nulls point at two places left to look**: surface + biomes are ~34% of v5.7 worker samples (the surface/biome patch set has a real CPU saving that n=5 wall clock could not separate from zero, worth a larger n on top of v5.7), and ~19% of worker time is idle for reasons that were inferred (dependency/lock blocking) but not measured.

@@ -57,3 +57,4 @@ orion_result.txt
 *.log
 *.txt
 
+findings/__pycache__/

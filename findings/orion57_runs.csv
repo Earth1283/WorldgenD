@@ -1,0 +1,118 @@
+block,arm,run,total_ms,emspc,p50_ms,p99_ms,worker_cpu_s
+replication 1,v5.6,noise_ab1_A56_r1,50362,7.869,93.54,636.48,293.01
+replication 1,v5.6,noise_ab1_A56_r2,50142,7.835,97.01,673.88,287.51
+replication 1,v5.6,noise_ab1_A56_r3,51054,7.977,97.59,689.67,295.65
+replication 1,v5.6,noise_ab1_A56_r4,51565,8.057,99.77,649.19,302.44
+replication 1,v5.6,noise_ab1_A56_r5,48315,7.549,93.77,621.43,280.72
+replication 1,v5.7,noise_ab1_B57_r1,43560,6.806,81.09,576.19,244.26
+replication 1,v5.7,noise_ab1_B57_r2,43924,6.863,81.65,538.55,248.83
+replication 1,v5.7,noise_ab1_B57_r3,44426,6.942,84.11,566.05,250.88
+replication 1,v5.7,noise_ab1_B57_r4,47202,7.375,89.49,666.12,266.33
+replication 1,v5.7,noise_ab1_B57_r5,46111,7.205,86.93,615.07,255.37
+replication 2,v5.6,noise_ab2_A56_r1,47722,7.457,92.96,630.23,276.16
+replication 2,v5.6,noise_ab2_A56_r2,48539,7.584,93.75,660.23,278.49
+replication 2,v5.6,noise_ab2_A56_r3,47561,7.431,91.36,590.57,275.49
+replication 2,v5.6,noise_ab2_A56_r4,47203,7.375,91.21,605.92,273.92
+replication 2,v5.6,noise_ab2_A56_r5,50247,7.851,93.53,772.89,292.45
+replication 2,v5.7,noise_ab2_B57_r1,44160,6.9,83.93,524.38,246.73
+replication 2,v5.7,noise_ab2_B57_r2,43538,6.803,81.37,485.39,243.46
+replication 2,v5.7,noise_ab2_B57_r3,44322,6.925,83.52,552.93,249.41
+replication 2,v5.7,noise_ab2_B57_r4,43567,6.807,81.65,550.83,246.54
+replication 2,v5.7,noise_ab2_B57_r5,44638,6.975,85.06,546.13,253.31
+replication 3,v5.6,ab_5.6_r1,49443,7.725,92.79,666.93,
+replication 3,v5.6,ab_5.6_r2,50677,7.918,96.89,755.72,
+replication 3,v5.6,ab_5.6_r3,52106,8.142,100.43,670.72,
+replication 3,v5.6,ab_5.6_r4,48744,7.616,95.03,645.48,
+replication 3,v5.6,ab_5.6_r5,48461,7.572,91.00,623.70,
+replication 3,v5.7,ab_5.7_r1,43185,6.748,80.76,530.51,
+replication 3,v5.7,ab_5.7_r2,42706,6.673,79.50,543.94,
+replication 3,v5.7,ab_5.7_r3,44603,6.969,81.75,555.95,
+replication 3,v5.7,ab_5.7_r4,43514,6.799,83.15,635.76,
+replication 3,v5.7,ab_5.7_r5,43754,6.837,82.80,613.64,
+in-flight block,exp-inflight32,b15_cand_r1,44523,6.957,166.68,918.99,
+in-flight block,exp-inflight32,b15_cand_r2,43648,6.82,161.61,780.30,
+in-flight block,exp-inflight32,b15_cand_r3,43658,6.822,166.94,844.22,
+in-flight block,exp-inflight32,b15_cand_r4,44168,6.901,164.72,855.19,
+in-flight block,exp-inflight32,b15_cand_r5,43117,6.737,163.81,867.07,
+in-flight block,v5.6,b15_5.6_r1,47855,7.477,92.60,645.51,
+in-flight block,v5.6,b15_5.6_r2,48325,7.551,93.98,576.34,
+in-flight block,v5.6,b15_5.6_r3,48170,7.527,94.14,688.71,
+in-flight block,v5.6,b15_5.6_r4,50416,7.878,95.56,624.86,
+in-flight block,v5.6,b15_5.6_r5,51427,8.035,99.00,693.64,
+in-flight block,v5.7,b15_5.7_r1,43634,6.818,81.61,590.03,
+in-flight block,v5.7,b15_5.7_r2,43168,6.745,82.38,525.75,
+in-flight block,v5.7,b15_5.7_r3,43264,6.76,82.14,676.58,
+in-flight block,v5.7,b15_5.7_r4,45668,7.136,86.14,614.93,
+in-flight block,v5.7,b15_5.7_r5,45904,7.173,85.68,602.63,
+in-flight probe,v5.7 in-flight 16,mif16_r1,44070,6.886,83.74,540.59,
+in-flight probe,v5.7 in-flight 16,mif16_r2,43238,6.756,83.79,573.80,
+in-flight probe,v5.7 in-flight 16,mif16_r3,43971,6.87,81.32,540.30,
+in-flight probe,v5.7 in-flight 16,mif16_r4,43592,6.811,80.93,545.38,
+in-flight probe,v5.7 in-flight 32,mif32_r1,41630,6.505,160.78,811.96,
+in-flight probe,v5.7 in-flight 32,mif32_r2,42389,6.623,165.66,814.69,
+in-flight probe,v5.7 in-flight 32,mif32_r3,42057,6.571,162.51,838.88,
+in-flight probe,v5.7 in-flight 32,mif32_r4,42432,6.63,160.44,819.54,
+in-flight sweep,v5.7 in-flight 16,sw16_r1,43318,6.768,80.19,558.13,
+in-flight sweep,v5.7 in-flight 16,sw16_r2,43397,6.781,79.64,595.25,
+in-flight sweep,v5.7 in-flight 16,sw16_r3,45253,7.071,88.89,574.23,
+in-flight sweep,v5.7 in-flight 24,sw24_r1,44950,7.023,127.43,751.43,
+in-flight sweep,v5.7 in-flight 24,sw24_r2,44290,6.92,118.54,767.34,
+in-flight sweep,v5.7 in-flight 24,sw24_r3,42573,6.652,122.47,777.91,
+in-flight sweep,v5.7 in-flight 48,sw48_r1,44517,6.956,250.18,1019.79,
+in-flight sweep,v5.7 in-flight 48,sw48_r2,42881,6.7,253.37,982.14,
+in-flight sweep,v5.7 in-flight 48,sw48_r3,44809,7.001,250.69,880.38,
+ablation block,v5.6,abl1_A56_r1,52790,8.248,103.53,687.17,311.04
+ablation block,v5.6,abl1_A56_r2,53100,8.297,99.58,759.38,308.14
+ablation block,v5.6,abl1_A56_r3,48587,7.592,90.88,746.43,279.78
+ablation block,v5.6,abl1_A56_r4,49068,7.667,90.02,737.56,287.0
+ablation block,v5.6,abl1_A56_r5,49151,7.68,93.49,640.52,282.43
+ablation block,v5.7,abl1_B57_r1,44168,6.901,82.22,583.88,251.41
+ablation block,v5.7,abl1_B57_r2,45722,7.144,86.47,577.98,260.64
+ablation block,v5.7,abl1_B57_r3,44034,6.88,81.80,521.90,249.42
+ablation block,v5.7,abl1_B57_r4,43962,6.869,82.32,535.55,248.23
+ablation block,v5.7,abl1_B57_r5,45506,7.11,84.71,573.24,253.42
+ablation block,v5.7 batch off,abl1_nobatch_r1,46463,7.26,88.85,573.00,265.97
+ablation block,v5.7 batch off,abl1_nobatch_r2,48910,7.642,96.15,622.45,276.86
+ablation block,v5.7 batch off,abl1_nobatch_r3,53633,8.38,104.96,660.97,306.28
+ablation block,v5.7 batch off,abl1_nobatch_r4,45156,7.056,85.05,583.61,262.05
+ablation block,v5.7 batch off,abl1_nobatch_r5,44505,6.954,85.08,545.38,256.11
+ablation block,v5.7 surface cache off,abl1_nocache_r1,44970,7.027,86.15,600.45,255.18
+ablation block,v5.7 surface cache off,abl1_nocache_r2,51268,8.011,94.10,673.13,285.56
+ablation block,v5.7 surface cache off,abl1_nocache_r3,47199,7.375,86.16,613.26,267.0
+ablation block,v5.7 surface cache off,abl1_nocache_r4,45418,7.097,86.07,575.56,257.77
+ablation block,v5.7 surface cache off,abl1_nocache_r5,45960,7.181,84.43,601.31,256.06
+ablation block,v5.7 glue off,abl1_noglue_r1,45964,7.182,88.52,578.62,258.18
+ablation block,v5.7 glue off,abl1_noglue_r2,47216,7.378,86.73,600.37,265.66
+ablation block,v5.7 glue off,abl1_noglue_r3,44694,6.983,82.98,553.91,255.88
+ablation block,v5.7 glue off,abl1_noglue_r4,44069,6.886,80.73,537.96,247.22
+ablation block,v5.7 glue off,abl1_noglue_r5,44735,6.99,83.71,579.03,253.51
+ablation block,v5.7 lazy off,abl1_nolazy_r1,46608,7.282,90.15,555.80,264.77
+ablation block,v5.7 lazy off,abl1_nolazy_r2,50304,7.86,91.71,609.67,284.39
+ablation block,v5.7 lazy off,abl1_nolazy_r3,47403,7.407,90.65,622.95,264.89
+ablation block,v5.7 lazy off,abl1_nolazy_r4,44597,6.968,82.26,605.71,257.25
+ablation block,v5.7 lazy off,abl1_nolazy_r5,45360,7.088,86.18,593.46,259.86
+Beardifier block,v5.6,n2ab1_A56_r1,48066,7.51,91.97,733.71,278.5
+Beardifier block,v5.6,n2ab1_A56_r2,48119,7.519,91.17,627.97,278.28
+Beardifier block,v5.6,n2ab1_A56_r3,48042,7.507,92.53,645.17,274.98
+Beardifier block,v5.6,n2ab1_A56_r4,51361,8.025,100.11,639.78,304.33
+Beardifier block,v5.6,n2ab1_A56_r5,50704,7.923,98.07,623.85,300.87
+Beardifier block,v5.7,n2ab1_B57_r1,44240,6.912,83.85,574.84,247.56
+Beardifier block,v5.7,n2ab1_B57_r2,45718,7.143,86.65,542.27,259.32
+Beardifier block,v5.7,n2ab1_B57_r3,43136,6.74,82.08,535.90,243.83
+Beardifier block,v5.7,n2ab1_B57_r4,43906,6.86,83.12,593.96,248.05
+Beardifier block,v5.7,n2ab1_B57_r5,43260,6.759,81.93,526.72,239.9
+Beardifier block,exp-beard-cull,n2ab1_beard_r1,44407,6.939,80.26,619.67,245.9
+Beardifier block,exp-beard-cull,n2ab1_beard_r2,43807,6.845,82.78,599.53,246.96
+Beardifier block,exp-beard-cull,n2ab1_beard_r3,43810,6.845,82.65,549.18,243.78
+Beardifier block,exp-beard-cull,n2ab1_beard_r4,43302,6.766,83.69,496.57,244.62
+Beardifier block,exp-beard-cull,n2ab1_beard_r5,41955,6.555,79.95,533.75,234.16
+deterministic overhead,v5.7 deterministic,noise_detoverhead_D_r1,46857,7.321,25.98,741.22,246.8
+deterministic overhead,v5.7 deterministic,noise_detoverhead_D_r2,46707,7.298,25.91,748.74,242.97
+deterministic overhead,v5.7 deterministic,noise_detoverhead_D_r3,45559,7.119,26.45,756.88,236.57
+deterministic overhead,v5.7 deterministic,noise_detoverhead_D_r4,48700,7.609,26.24,741.93,260.46
+deterministic overhead,v5.7 deterministic,noise_detoverhead_D_r5,46434,7.255,26.54,765.44,242.71
+deterministic overhead,v5.7,noise_detoverhead_N_r1,40845,6.382,81.16,496.65,233.01
+deterministic overhead,v5.7,noise_detoverhead_N_r2,40831,6.38,82.50,537.86,233.9
+deterministic overhead,v5.7,noise_detoverhead_N_r3,40570,6.339,81.79,599.99,230.45
+deterministic overhead,v5.7,noise_detoverhead_N_r4,41652,6.508,82.91,622.70,240.8
+deterministic overhead,v5.7,noise_detoverhead_N_r5,41437,6.475,82.91,582.01,238.59

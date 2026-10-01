@@ -1,0 +1,22 @@
+kind,name,v56_samples,v56_share_pct,v57_samples,v57_share_pct
+total,all worker samples,20769,100,17400,100
+stage,noise fill,8662,41.71,6282,36.1
+stage,surface,3657,17.61,3538,20.33
+stage,biomes,1928,9.28,2390,13.74
+stage,features,1968,9.48,2383,13.7
+stage,light,887,4.27,796,4.57
+stage,carvers,624,3.0,482,2.77
+stage,structure starts,337,1.62,382,2.2
+stage,NoiseChunk construction,647,3.12,1104,6.34
+frame,selectCellYZ,2429,11.7,1088,6.25
+frame,getInterpolatedState,2049,9.87,1788,10.28
+frame,fillSlice (corner noise),2483,11.96,2503,14.39
+frame,ImprovedNoise.noise,2843,13.69,2422,13.92
+frame,NormalNoise.getValue,2409,11.6,1865,10.72
+frame,CubicSpline,2123,10.22,1493,8.58
+frame,Aquifer.computeSubstance,1496,7.2,1067,6.13
+frame,Beardifier,576,2.77,554,3.18
+frame,interpolator updates,738,3.55,92,0.53
+frame,preliminarySurfaceLevel,726,3.5,64,0.37
+frame,SurfaceRules,1795,8.64,1658,9.53
+frame,Climate sampler,1834,8.83,1759,10.11

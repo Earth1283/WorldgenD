@@ -50,7 +50,7 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 The second line is **MSPC** (milliseconds per chunk) — per-chunk submission-to-completion
 latency, reported as a full percentile spread rather than one misleading average.
 
-Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3|orion5.4|orion5.5|orion5.6`.
+Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|orion5.2|orion5.3|orion5.4|orion5.5|orion5.6|orion5.7`.
 
 | Generator | Adds | Measured effective MSPC | Current reading |
 |---|---|---:|---|
@@ -61,6 +61,7 @@ Scheduler modes are selected with `-Dscheduler=mosaic|orion|orion2|orion2.1|orio
 | Orion v5.3 | allocation-pressure fixes (Ap2/Context/SequenceRule/Aquifer) | 7.87–9.34 | bit-exact, real GC-frequency drop, no confirmed throughput win |
 | Orion v5.4 | C1GC bounded chunk reclamation | 8.66–9.17 (champion scale, post batching-fix), 8.75 (256x256) | fixes a real large-tile hang/OOM; champion-scale cost cut from ~13% to ~6% (inside noise) after fixing a per-chunk distance-graph-settle bottleneck |
 | Orion v5.6 | v5.5 compute patches, 16-chunk admission, earlier C1GC trigger | 7.87 (6,400 chunks, n=3), 7.93 (65,536 chunks, n=1) | 76% lower p50 and 57–70% lower p99 than v5.5; total time is at parity |
+| Orion v5.7 | v5.6 + cell-batched density fill, on-demand interpolators, shared preliminary-surface cache | 6.80–6.94 (6,400 chunks, six block medians) | 10–12% lower total time than v5.6 (30/30 pairs, bit-exact); −7.6% at 65,536 chunks (2/2 pairs) |
 
 **Orion v5 is the architectural jump** (`scientific-findings-41-80.md` #62): **~2.5x faster than v4**
 at champion scale (eMSPC 8.16-8.65 vs 20.68-20.80, interleaved, n=2 each), steady-state CPU
@@ -153,6 +154,17 @@ of full-GC pauses in that large run. `-Dorion.telemetry=true` writes buffered li
 See finding #73.
 
 ![Orion v5.6 paired latency and throughput benchmarks, including large-run GC pauses](findings/orion56_performance.png)
+
+**Orion v5.7** (`-Dscheduler=orion5.7`) is v5.6 with the noise-cell patch (`DensityCellPatch`) in
+place of v5.1's SIMD density batches. Whole 128-element cells are filled in a loop instead of per
+block, interpolators are updated only when read, and preliminary surface levels are shared across
+chunks. Each piece has a flag (`-Dorion.noiseCell.batch|lazy|surfaceCache|glue`, all default true)
+for ablation. Six rotated 6,400-chunk blocks from three independent parties put it 10–12% below
+v5.6 on total time (30/30 pairs), with 0/6,400 block-position mismatches in deterministic mode.
+Admission and C1GC defaults are unchanged from v5.6. See findings #74 (and #75 for the six
+hypotheses that did not make it).
+
+![Orion v5.7 throughput across six blocks, and leave-one-out ablation](findings/orion57_74_throughput.png)
 
 Orion v4 is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
 required alongside `-Dorion.patchReentrancy=true` — orion4 fails fast without both); see

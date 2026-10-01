@@ -1028,6 +1028,297 @@ def plot_orion55_70(out_path):
     plt.close(fig)
 
 
+def _v57_blocks():
+    import re
+    blocks = {}
+    with (HERE / "orion_results.csv").open(newline="") as source:
+        for row in csv.DictReader(source):
+            if not row["config"].startswith("v57_") or row["mosaic_tile"] != "5":
+                continue
+            block = re.sub(r"_(?:[AB]\d+|(?:orion\d+|A56|B57|beard|cand|ctrl|no[a-z]+|5\.\d+)_r\d+|r\d+)$", "", row["config"])
+            arm = row["scheduler"]
+            ablation = re.search(r"_(no[a-z]+)_r\d+$", row["config"])
+            if ablation:
+                arm = "orion5.7 " + ablation.group(1)
+            blocks.setdefault(block, {}).setdefault(arm, []).append(int(row["total_ms"]))
+    return blocks
+
+
+def plot_orion57_74(out_path):
+    import statistics
+
+    blocks = _v57_blocks()
+    replications = [
+        ("v57_rep1", "replication 1"), ("v57_rep2", "replication 2"),
+        ("v57_rep3", "replication 3"), ("v57_ablation", "ablation block"),
+        ("v57_inflight32", "in-flight block"), ("v57_beardcull", "Beardifier block"),
+    ]
+    fig, (left, right) = plt.subplots(1, 2, figsize=(11.5, 5.2), gridspec_kw={"width_ratios": [3, 2]})
+    for i, (block, label) in enumerate(replications):
+        base = statistics.median(blocks[block]["orion5.6"])
+        deltas = [100 * (v / base - 1) for v in blocks[block]["orion5.7"]]
+        left.scatter([i] * len(deltas), deltas, s=48, color=SERIES[0], edgecolor="white", linewidth=1.5, zorder=3)
+        med = statistics.median(deltas)
+        left.hlines(med, i - 0.25, i + 0.25, color=SERIES[0], linewidth=2, zorder=2)
+        left.annotate(f"{med:+.1f}%", (i + 0.28, med), va="center", fontsize=8.5, color=INK_SECONDARY)
+    left.axhline(0, color=BASELINE, linewidth=1)
+    left.axhspan(-3.5, 0, color=GRIDLINE, alpha=0.5, zorder=0)
+    left.set_xticks(range(len(replications)), [label for _, label in replications], fontsize=8, rotation=20, ha="right")
+    left.set_ylabel("total_ms vs same-block v5.6 median (%) - lower is better")
+    left.set_title("Six independent blocks (dots = v5.7 runs, bar = median)", fontsize=10, loc="left", color=INK_SECONDARY)
+    abl = blocks["v57_ablation"]
+    arms = [("orion5.7", "v5.7 (all on)"), ("orion5.7 noglue", "glue off"), ("orion5.7 nocache", "surface cache off"),
+            ("orion5.7 nobatch", "batching off"), ("orion5.7 nolazy", "lazy off"), ("orion5.6", "v5.6")]
+    for i, (arm, label) in enumerate(arms):
+        values = [v / 1000 for v in abl[arm]]
+        color = BASELINE if arm == "orion5.6" else SERIES[0] if arm == "orion5.7" else SERIES[1]
+        med = statistics.median(values)
+        right.bar(i, med, width=0.6, color=color, zorder=2)
+        right.scatter([i] * len(values), values, s=18, color="white", edgecolor=INK_SECONDARY, linewidth=1, zorder=3)
+        right.annotate(f"{med:.1f}", (i, med + 0.4), ha="center", fontsize=8, color=INK_SECONDARY)
+    right.set_ylim(40, 55)
+    right.set_xticks(range(len(arms)), [label for _, label in arms], fontsize=8, rotation=25, ha="right")
+    right.set_ylabel("Total seconds - lower is better")
+    right.set_title("Leave-one-out ablation (bar = median, dots = runs)", fontsize=10, loc="left", color=INK_SECONDARY)
+    for ax in (left, right):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#74: Orion v5.7's cell-batched density fill is ~10-12% faster, bit-exact", fontsize=14, x=0.06, ha="left")
+    fig.text(0.06, 0.01, "6,400 chunks, 7 workers, 16GB ParallelGC, rotated order within each block. Shaded band: 0 to -3.5% "
+                         "(below the win bar). v5.7 won 30/30 pairs across the six blocks.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.94))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_orion57_nulls75(out_path):
+    import statistics
+
+    blocks = _v57_blocks()
+    experiments = [
+        ("exp-mapall-memo", "mapAll memo", "orion5.6", ["v57_mapallmemo_ab1", "v57_mapallmemo_ab2"]),
+        ("exp-structure-lane", "structure lane", "orion5.6", ["v57_structlane"]),
+        ("exp-lockfree-structures", "lock-free structures", "orion5.6", ["v57_lockfree", "v57_lockfree_rep"]),
+        ("exp-surface-biome", "surface + biome", "orion5.6", ["v57_surfbiome_ab1", "v57_surfbiome_ab2", "v57_surfbiome_rep"]),
+        ("exp-inflight32", "v5.7 + in-flight 32", "orion5.7", ["v57_inflight32"]),
+        ("exp-beard-cull", "v5.7 + Beardifier cull", "orion5.7", ["v57_beardcull"]),
+    ]
+    fig, ax = plt.subplots(figsize=(10, 5.2))
+    for i, (arm, label, control, names) in enumerate(experiments):
+        deltas = []
+        for name in names:
+            base = statistics.median(blocks[name][control])
+            deltas += [100 * (v / base - 1) for v in blocks[name][arm]]
+        color = SERIES[1] if control == "orion5.6" else SERIES[2]
+        ax.scatter([i] * len(deltas), deltas, s=40, color=color, edgecolor="white", linewidth=1.5, zorder=3)
+        med = statistics.median(deltas)
+        ax.hlines(med, i - 0.25, i + 0.25, color=color, linewidth=2, zorder=2)
+        ax.annotate(f"{med:+.1f}% (n={len(deltas)})", (i + 0.28, med), va="center", fontsize=8.5, color=INK_SECONDARY)
+    ax.axhline(0, color=BASELINE, linewidth=1)
+    ax.axhline(-3.5, color=INK_MUTED, linewidth=1)
+    ax.annotate("win bar", (len(experiments) - 0.5, -3.5), va="bottom", ha="right", fontsize=8, color=INK_MUTED)
+    ax.set_xticks(range(len(experiments)), [label for _, label, _, _ in experiments], fontsize=9, rotation=15, ha="right")
+    ax.set_ylabel("total_ms vs same-block control median (%) - lower is better")
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.suptitle("#75: six hypotheses that did not clear the bar", fontsize=14, x=0.06, ha="left")
+    fig.text(0.06, 0.005, "Orange: control is v5.6. Green: control is v5.7. All bit-exact, pooled over every block that tested it.\n"
+                         "The bar is consistency: surface + biome won only 10/16 pairs and failed its independent block.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.08, 1, 0.94))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def _orion57_runs():
+    with (HERE / "orion57_runs.csv").open(newline="") as source:
+        return list(csv.DictReader(source))
+
+
+def plot_orion57_profile(out_path):
+    with (HERE / "orion57_profile_summary.csv").open(newline="") as source:
+        rows = [row for row in csv.DictReader(source) if row["kind"] != "total"]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.6))
+    for ax, kind, title in ((axes[0], "stage", "By chunk step"), (axes[1], "frame", "By hot frame (inclusive)")):
+        subset = sorted((r for r in rows if r["kind"] == kind), key=lambda r: float(r["v56_share_pct"]))
+        for i, row in enumerate(subset):
+            before, after = float(row["v56_share_pct"]), float(row["v57_share_pct"])
+            ax.plot([before, after], [i, i], color=GRIDLINE, linewidth=2, zorder=1)
+            ax.scatter(before, i, s=64, color=BASELINE, edgecolor=SURFACE, linewidth=2, zorder=2)
+            ax.scatter(after, i, s=64, color=SERIES[0], edgecolor=SURFACE, linewidth=2, zorder=3)
+            if abs(after - before) >= 2:
+                ax.annotate(f"{after - before:+.1f} pt", (max(before, after) + 0.035 * ax.get_xlim()[1] + 0.4, i), va="center", fontsize=8, color=INK_SECONDARY)
+        ax.set_yticks(range(len(subset)), [r["name"] for r in subset], fontsize=9)
+        ax.set_xlabel("Share of worker CPU samples (%)")
+        ax.set_title(title, fontsize=10, loc="left", color=INK_SECONDARY)
+        ax.grid(axis="x", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    axes[0].scatter([], [], s=64, color=BASELINE, label="v5.6")
+    axes[0].scatter([], [], s=64, color=SERIES[0], label="v5.7")
+    axes[0].legend(frameon=False, loc="lower right", fontsize=9)
+    fig.suptitle("#74: where v5.7's worker time went - noise shrinks, the rest grows in share", fontsize=14, x=0.06, ha="left")
+    fig.text(0.06, 0.01, "JFR execution samples on Worker-Main threads, one 6,400-chunk run each (20,769 vs 17,400 samples), different sessions. "
+                         "v5.6 had 2,069 truncated stacks, so its step shares undercount.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.93))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_orion57_cpu_vs_wall(out_path):
+    groups = [("v5.6", BASELINE, lambda a: a == "v5.6"), ("v5.7", SERIES[0], lambda a: a == "v5.7"),
+              ("v5.7, one piece off", SERIES[1], lambda a: a.endswith(" off")),
+              ("experiment", SERIES[2], lambda a: a.startswith("exp-"))]
+    rows = [r for r in _orion57_runs() if r["worker_cpu_s"] and r["block"] != "deterministic overhead"]
+    fig, ax = plt.subplots(figsize=(9, 5.6))
+    for label, color, test in groups:
+        pts = [(float(r["worker_cpu_s"]), int(r["total_ms"]) / 1000) for r in rows if test(r["arm"])]
+        if pts:
+            ax.scatter(*zip(*pts), s=56, color=color, edgecolor=SURFACE, linewidth=2, label=f"{label} (n={len(pts)})", zorder=3)
+    ax.set_xlabel("Worker CPU-seconds per run")
+    ax.set_ylabel("Total seconds - lower is better")
+    ax.grid(color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    fig.suptitle("#74: v5.7's wall-clock win is a CPU win", fontsize=14, x=0.08, ha="left")
+    fig.text(0.08, 0.01, "Every 6,400-chunk standard-mode run with a recorded worker CPU total (replications 1-2, ablation, in-flight and Beardifier blocks).",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.93))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_orion57_inflight(out_path):
+    import statistics
+
+    rows = [r for r in _orion57_runs() if r["block"] in ("in-flight sweep", "in-flight block")]
+    def depth(r):
+        if r["arm"] == "exp-inflight32":
+            return 32
+        if r["arm"] == "v5.7":
+            return 16
+        return int(r["arm"].rsplit(" ", 1)[1]) if r["arm"].startswith("v5.7 in-flight") else None
+    by = {}
+    for r in rows:
+        d = depth(r)
+        if d:
+            by.setdefault(d, []).append(r)
+    depths = sorted(by)
+    fig, (left, right) = plt.subplots(1, 2, figsize=(11, 4.8))
+    for d in depths:
+        totals = [int(r["total_ms"]) / 1000 for r in by[d]]
+        left.scatter([d] * len(totals), totals, s=40, color=SERIES[0], edgecolor=SURFACE, linewidth=1.5, zorder=3)
+        left.hlines(statistics.median(totals), d - 1.5, d + 1.5, color=SERIES[0], linewidth=2, zorder=2)
+    for key, color, name in (("p50_ms", SERIES[0], "p50"), ("p99_ms", SERIES[1], "p99")):
+        meds = [statistics.median(float(r[key]) for r in by[d]) for d in depths]
+        right.plot(depths, meds, color=color, linewidth=2, marker="o", markersize=7, zorder=3)
+        right.annotate(name, (depths[-1] + 1, meds[-1]), va="center", fontsize=9, color=INK_SECONDARY)
+    left.set_ylim(40, 48)
+    left.set_ylabel("Total seconds - lower is better")
+    left.set_title("Throughput is flat (dots = runs, bar = median)", fontsize=10, loc="left", color=INK_SECONDARY)
+    right.set_ylabel("Per-chunk latency, median of runs (ms)")
+    right.set_title("Latency grows with depth", fontsize=10, loc="left", color=INK_SECONDARY)
+    for ax in (left, right):
+        ax.set_xticks(depths)
+        ax.set_xlabel("orion.maxinflight on v5.7")
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#75: in-flight depth on v5.7 is a latency dial, not a throughput lever", fontsize=14, x=0.06, ha="left")
+    fig.text(0.06, 0.01, "6,400 chunks. 16/24/48 from a rotated n=3 sweep, 16/32 from the n=5 3-arm block (pooled at 16). "
+                         "The retracted n=4 probe is excluded.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.93))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_orion57_pairs(out_path):
+    import re
+
+    blocks = ["replication 1", "replication 2", "replication 3", "ablation block", "in-flight block", "Beardifier block"]
+    runs = {}
+    for r in _orion57_runs():
+        if r["block"] in blocks and r["arm"] in ("v5.6", "v5.7"):
+            rnd = int(re.search(r"r(\d+)$", r["run"]).group(1))
+            runs.setdefault((r["block"], rnd), {})[r["arm"]] = int(r["total_ms"])
+    grid = np.full((len(blocks), 5), np.nan)
+    for (block, rnd), arms in runs.items():
+        if len(arms) == 2 and rnd <= 5:
+            grid[blocks.index(block), rnd - 1] = 100 * (arms["v5.7"] / arms["v5.6"] - 1)
+    ramp = LinearSegmentedColormap.from_list("blue", ["#dbe9fa", SERIES[0], "#0b3a75"])
+    fig, ax = plt.subplots(figsize=(8.5, 4.6))
+    im = ax.imshow(-grid, cmap=ramp, vmin=0, vmax=16, aspect="auto")
+    for i in range(len(blocks)):
+        for j in range(5):
+            if not np.isnan(grid[i, j]):
+                ax.text(j, i, f"{grid[i, j]:+.1f}%", ha="center", va="center", fontsize=9,
+                        color=SURFACE if -grid[i, j] > 8 else INK_PRIMARY)
+    ax.set_xticks(range(5), [f"pair {k}" for k in range(1, 6)], fontsize=9)
+    ax.set_yticks(range(len(blocks)), blocks, fontsize=9)
+    ax.tick_params(length=0)
+    for side in ax.spines.values():
+        side.set_visible(False)
+    ax.set_xticks(np.arange(-0.5, 5), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(blocks)), minor=True)
+    ax.grid(which="minor", color=SURFACE, linewidth=2)
+    bar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+    bar.set_label("v5.7 faster than its paired v5.6 run (%)", fontsize=9)
+    bar.outline.set_visible(False)
+    fig.suptitle("#74: all 30 rotated pairs, v5.7 vs v5.6", fontsize=14, x=0.04, ha="left")
+    fig.text(0.04, 0.01, f"Each cell: one v5.7 run vs the v5.6 run of the same round in the same block. "
+             f"Range {np.nanmax(grid):+.1f}% to {np.nanmin(grid):+.1f}%; no pair crosses zero.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.93))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_orion57_65k(out_path):
+    with (HERE / "orion57_65k.csv").open(newline="") as source:
+        rows = list(csv.DictReader(source))
+    colors = {"v5.6": BASELINE, "v5.7": SERIES[0]}
+    labels = [f"run {r['run']}\n{r['version']}" for r in rows]
+    fig, (left, right) = plt.subplots(1, 2, figsize=(11.5, 5), gridspec_kw={"width_ratios": [3, 2]})
+    for i, r in enumerate(rows):
+        total = int(r["total_ms"]) / 1000
+        gc = float(r["full_gc_pause_s"]) + float(r["young_gc_pause_s"])
+        left.bar(i, total - gc, width=0.6, color=colors[r["version"]], zorder=2)
+        left.bar(i, gc, width=0.6, bottom=total - gc + 1.5, color=SERIES[1], zorder=2)
+        left.annotate(f"{total:.0f}s\n{int(r['total_ms']) / 65536:.2f} eMSPC", (i, total + 4), ha="center", fontsize=8.5, color=INK_SECONDARY)
+    from matplotlib.patches import Patch
+    handles = [Patch(color=BASELINE, label="v5.6, outside GC pauses"), Patch(color=SERIES[0], label="v5.7, outside GC pauses"),
+               Patch(color=SERIES[1], label="GC pauses (young + full)")]
+    left.set_xticks(range(len(rows)), labels, fontsize=9)
+    left.set_ylim(0, 600)
+    left.set_ylabel("Total seconds - lower is better")
+    left.set_title("Run order A-B-B-A; the GC slice is the same in both versions", fontsize=10, loc="left", color=INK_SECONDARY)
+    left.legend(handles=handles, frameon=False, fontsize=8.5, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.27))
+    for key, color, name in (("p50_ms", SERIES[0], "p50"), ("p99_ms", SERIES[1], "p99")):
+        for version, x in (("v5.6", 0), ("v5.7", 1)):
+            vals = [float(r[key]) for r in rows if r["version"] == version]
+            right.scatter([x] * len(vals), vals, s=48, color=color, edgecolor=SURFACE, linewidth=1.5, zorder=3)
+        means = [sum(float(r[key]) for r in rows if r["version"] == v) / 2 for v in ("v5.6", "v5.7")]
+        right.plot([0, 1], means, color=color, linewidth=2, zorder=2)
+        right.annotate(f"{name} {100 * (means[1] / means[0] - 1):+.0f}%", (1.08, means[1]), va="center", fontsize=9, color=INK_SECONDARY)
+    right.set_xticks([0, 1], ["v5.6", "v5.7"])
+    right.set_xlim(-0.3, 1.5)
+    right.set_ylim(0, 1050)
+    right.set_ylabel("Per-chunk latency (ms)")
+    right.set_title("Latency (dots = runs, line = mean)", fontsize=10, loc="left", color=INK_SECONDARY)
+    for ax in (left, right):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#74: v5.7 at 65,536 chunks is 7.6% faster; fixed GC cost dilutes the 10-12% compute win", fontsize=13, x=0.05, ha="left")
+    fig.text(0.05, 0.01, "Tile 16, 7 workers, 16GB ParallelGC, C1GC armed in every run (62,464 chunks persisted). n=2 per arm: supporting evidence.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -1192,6 +1483,13 @@ def main():
 
     plot_c1gc69_throughput(HERE / "c1gc69_throughput.png")
     plot_orion55_70(HERE / "orion55_70_throughput.png")
+    plot_orion57_74(HERE / "orion57_74_throughput.png")
+    plot_orion57_nulls75(HERE / "orion57_nulls75.png")
+    plot_orion57_profile(HERE / "orion57_profile.png")
+    plot_orion57_cpu_vs_wall(HERE / "orion57_cpu_vs_wall.png")
+    plot_orion57_inflight(HERE / "orion57_inflight.png")
+    plot_orion57_pairs(HERE / "orion57_pairs.png")
+    plot_orion57_65k(HERE / "orion57_65k.png")
 
     print(f"Wrote charts to {HERE}")
 

@@ -84,14 +84,15 @@ object OrionPatchAgent {
         val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
         val patchWorldgenLight = System.getProperty("orion.patchWorldgenLight") == "true"
         val scheduler = System.getProperty("scheduler")
+        val patchNoiseCell = scheduler == "orion5.7"
         val patchDensitySimd = scheduler == "orion5.1" || scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" ||
             System.getProperty("orion.patchDensitySimd") == "true"
-        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" ||
+        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" || scheduler == "orion5.7" ||
             System.getProperty("orion.patchImprovedNoise") == "true"
-        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" || scheduler == "orion5.6" ||
+        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" || scheduler == "orion5.6" || scheduler == "orion5.7" ||
             System.getProperty("orion.patchAllocations") == "true"
-        val patchRegionChunkMemo = scheduler == "orion5.5" || scheduler == "orion5.6" || System.getProperty("orion.patchRegionChunkMemo") == "true"
-        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations && !patchRegionChunkMemo) {
+        val patchRegionChunkMemo = scheduler == "orion5.5" || scheduler == "orion5.6" || scheduler == "orion5.7" || System.getProperty("orion.patchRegionChunkMemo") == "true"
+        if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations && !patchRegionChunkMemo && !patchNoiseCell) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return
         }
@@ -119,7 +120,8 @@ object OrionPatchAgent {
         if (patchImprovedNoise) System.err.println("[OrionPatchAgent] will patch ${ImprovedNoisePatch.target} on load")
         if (patchAllocations) System.err.println("[OrionPatchAgent] will patch $ALLOCATION_PATCH_TARGETS on load (allocation pressure, orion5.3, memory-issue.md)")
         if (patchRegionChunkMemo) System.err.println("[OrionPatchAgent] will memoize $WORLD_GEN_REGION.getChunk on load (orion5.5)")
-        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise, patchAllocations, patchRegionChunkMemo))
+        if (patchNoiseCell) System.err.println("[OrionPatchAgent] will patch ${DensityCellPatch.targets} on load (orion5.7)")
+        inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise, patchAllocations, patchRegionChunkMemo, patchNoiseCell))
     }
 
     private class RaceDetectorTransformer : ClassFileTransformer {
@@ -171,6 +173,7 @@ object OrionPatchAgent {
         private val patchImprovedNoise: Boolean,
         private val patchAllocations: Boolean,
         private val patchRegionChunkMemo: Boolean,
+        private val patchNoiseCell: Boolean,
     ) : ClassFileTransformer {
         override fun transform(
             loader: ClassLoader?,
@@ -181,7 +184,7 @@ object OrionPatchAgent {
         ): ByteArray? {
             val dotted = className.replace('/', '.')
             val structureGenTargets = setOf(STRONGHOLD_PIECES, STRONGHOLD_PIECE_WEIGHT, NETHER_FORTRESS_PIECES, NETHER_FORTRESS_PIECE_WEIGHT)
-            val handled = (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
+            val handled = (patchNoiseCell && dotted in DensityCellPatch.targets) || (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
                 (patchBiomeMemo && dotted == SURFACE_RULES_BIOME_CONDITION) ||
                 (patchStructureGenState && dotted in structureGenTargets) ||
                 (patchDfc && dotted == DENSITY_FUNCTIONS_AP2) ||
@@ -193,7 +196,14 @@ object OrionPatchAgent {
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
-                val result = if (dotted in DensitySimdPatch.targets) DensitySimdPatch.transform(loader, classfileBuffer)
+                val result = if (patchNoiseCell && dotted in DensityCellPatch.targets) {
+                    val base = if (DensityCellPatch.glue) classfileBuffer
+                    else if (dotted in DensitySimdPatch.targets) DensitySimdPatch.transform(loader, classfileBuffer)
+                    else if (dotted == DENSITY_FUNCTIONS_AP2) patchAp2(loader, classfileBuffer, patchDfc, patchAllocations)
+                    else classfileBuffer
+                    DensityCellPatch.transform(loader, base)
+                }
+                else if (dotted in DensitySimdPatch.targets) DensitySimdPatch.transform(loader, classfileBuffer)
                 else if (dotted == ImprovedNoisePatch.target) ImprovedNoisePatch.transform(loader, classfileBuffer)
                 else when (dotted) {
                     BLOCKABLE_EVENT_LOOP -> patchBlockableEventLoop(loader, classfileBuffer)

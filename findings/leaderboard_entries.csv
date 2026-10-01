@@ -184,3 +184,184 @@ Orion v5.5,"#70 256x256, round 2",546059,65536,#70
 Orion v5.4,"#70 256x256, round 3",513438,65536,#70
 Orion v5.5,"#70 256x256, round 3",518565,65536,#70
 Orion v5.5,"#71 256x256, JFR-profiled + disk-polled",584038,65536,#71
+Orion v5.6,"Noise baseline (Orion 5.6, run 0)",54529,6400,75
+Orion v5.6,"Surface and biome JFR profile (Orion 5.6, pass 0, run 1)",56917,6400,75
+Orion v5.6,"Structure scheduling utilization check (Orion 5.6, run 1)",48666,6400,75
+Orion v5.6,"Structure scheduling diagnostic (Orion 5.6, run 1)",53954,6400,75
+Orion v5.6,"Surface and biome JFR profile (Orion 5.6, pass 1, run 1)",53351,6400,75
+Orion v5.6,"Structure lock scheduling (Orion 5.6 control, block 1, pair 1)",48169,6400,75
+Experiment,"[structure lane] Structure lock scheduling (candidate, block 1, pair 1)",47824,6400,75
+Experiment,"[structure lane] Structure lock scheduling (candidate, block 1, pair 2)",49867,6400,75
+Orion v5.6,"Structure lock scheduling (Orion 5.6 control, block 1, pair 2)",53182,6400,75
+Orion v5.6,"Structure lock scheduling (Orion 5.6 control, block 1, pair 3)",48197,6400,75
+Experiment,"[structure lane] Structure lock scheduling (candidate, block 1, pair 3)",49474,6400,75
+Experiment,"[structure lane] Structure lock scheduling (candidate, block 1, pair 4)",48146,6400,75
+Orion v5.6,"Structure lock scheduling (Orion 5.6 control, block 1, pair 4)",47977,6400,75
+Orion v5.6,"Structure lock scheduling (Orion 5.6 control, block 1, pair 5)",48915,6400,75
+Experiment,"[structure lane] Structure lock scheduling (candidate, block 1, pair 5)",52558,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 1, pair 1)",49039,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 1, pair 1)",49677,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 1, pair 2)",48758,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 1, pair 2)",47649,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 1, pair 3)",51114,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 1, pair 3)",49169,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 1, pair 4)",49296,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 1, pair 4)",49793,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 1, pair 5)",48819,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 1, pair 5)",45386,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 1, pair 1)",50344,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 1, pair 1)",45714,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 1, pair 2)",44261,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 1, pair 2)",48837,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 1, pair 3)",47303,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 1, pair 3)",47317,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 1, pair 4)",47458,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 1, pair 4)",46714,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 1, pair 5)",50719,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 1, pair 5)",46065,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 2, pair 1)",47669,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 2, pair 1)",46284,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 2, pair 2)",49856,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 2, pair 2)",48303,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 2, pair 3)",47397,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 2, pair 3)",49805,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 2, pair 4)",47868,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 2, pair 4)",52441,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 2, pair 5)",49060,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 2, pair 5)",45359,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimizations (candidate, block 2, pair 6)",46134,6400,75
+Orion v5.6,"Surface and biome optimizations (Orion 5.6 control, block 2, pair 6)",48396,6400,75
+Orion v5.6,"Parallel structure generation (Orion 5.6 control, block 2, pair 1)",51509,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation (candidate, block 2, pair 1)",51428,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation (candidate, block 2, pair 2)",49473,6400,75
+Orion v5.6,"Parallel structure generation (Orion 5.6 control, block 2, pair 2)",53429,6400,75
+Orion v5.6,"Parallel structure generation (Orion 5.6 control, block 2, pair 3)",49486,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation (candidate, block 2, pair 3)",46516,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation (candidate, block 2, pair 4)",46640,6400,75
+Orion v5.6,"Parallel structure generation (Orion 5.6 control, block 2, pair 4)",47169,6400,75
+Orion v5.6,"Parallel structure generation (Orion 5.6 control, block 2, pair 5)",47961,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation (candidate, block 2, pair 5)",48077,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 2, pair 1)",59838,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 2, pair 1)",49477,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 2, pair 2)",53495,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 2, pair 2)",50948,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 2, pair 3)",52819,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 2, pair 3)",53546,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 2, pair 4)",47159,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 2, pair 4)",48850,6400,75
+Orion v5.6,"Noise router identity memo (Orion 5.6 control, block 2, pair 5)",48355,6400,75
+Experiment,"[mapAll memo] Noise router identity memo (candidate, block 2, pair 5)",45796,6400,75
+Orion v5.6,"Surface and biome optimization replication (Orion 5.6 control, pair 1)",49157,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimization replication (candidate, pair 1)",47719,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimization replication (candidate, pair 2)",54135,6400,75
+Orion v5.6,"Surface and biome optimization replication (Orion 5.6 control, pair 2)",47013,6400,75
+Orion v5.6,"Surface and biome optimization replication (Orion 5.6 control, pair 3)",49349,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimization replication (candidate, pair 3)",46551,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimization replication (candidate, pair 4)",44795,6400,75
+Orion v5.6,"Surface and biome optimization replication (Orion 5.6 control, pair 4)",53687,6400,75
+Orion v5.6,"Surface and biome optimization replication (Orion 5.6 control, pair 5)",48509,6400,75
+Experiment,"[surface+biome patches] Surface and biome optimization replication (candidate, pair 5)",50713,6400,75
+Orion v5.6,"Parallel structure generation replication (Orion 5.6 control, pair 1)",49734,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation replication (candidate, pair 1)",50347,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation replication (candidate, pair 2)",50353,6400,75
+Orion v5.6,"Parallel structure generation replication (Orion 5.6 control, pair 2)",48694,6400,75
+Orion v5.6,"Parallel structure generation replication (Orion 5.6 control, pair 3)",48126,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation replication (candidate, pair 3)",46717,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation replication (candidate, pair 4)",47810,6400,75
+Orion v5.6,"Parallel structure generation replication (Orion 5.6 control, pair 4)",49266,6400,75
+Orion v5.6,"Parallel structure generation replication (Orion 5.6 control, pair 5)",48252,6400,75
+Experiment,"[lock-free structure steps] Parallel structure generation replication (candidate, pair 5)",50791,6400,75
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 1, pair 1)",50362,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 1, pair 1)",43560,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 1, pair 2)",43924,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 1, pair 2)",50142,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 1, pair 3)",51054,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 1, pair 3)",44426,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 1, pair 4)",47202,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 1, pair 4)",51565,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 1, pair 5)",48315,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 1, pair 5)",46111,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 2, pair 1)",47722,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 2, pair 1)",44160,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 2, pair 2)",43538,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 2, pair 2)",48539,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 2, pair 3)",47561,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 2, pair 3)",44322,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 2, pair 4)",43567,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 2, pair 4)",47203,6400,74
+Orion v5.6,"Noise pipeline optimization replication (Orion 5.6 control, block 2, pair 5)",50247,6400,74
+Orion v5.7,"Noise pipeline optimization replication (Orion 5.7 candidate, block 2, pair 5)",44638,6400,74
+Orion v5.6,v5.7 replication 3 ab_5.6_r1,49443,6400,74
+Orion v5.7,v5.7 replication 3 ab_5.7_r1,43185,6400,74
+Orion v5.7,v5.7 replication 3 ab_5.7_r2,42706,6400,74
+Orion v5.6,v5.7 replication 3 ab_5.6_r2,50677,6400,74
+Orion v5.6,v5.7 replication 3 ab_5.6_r3,52106,6400,74
+Orion v5.7,v5.7 replication 3 ab_5.7_r3,44603,6400,74
+Orion v5.7,v5.7 replication 3 ab_5.7_r4,43514,6400,74
+Orion v5.6,v5.7 replication 3 ab_5.6_r4,48744,6400,74
+Orion v5.6,v5.7 replication 3 ab_5.6_r5,48461,6400,74
+Orion v5.7,v5.7 replication 3 ab_5.7_r5,43754,6400,74
+Orion v5.6,v5.7 ablation abl1_A56_r1,52790,6400,74
+Orion v5.7,v5.7 ablation abl1_B57_r1,44168,6400,74
+Orion v5.7 (ablation batch=false),v5.7 ablation abl1_nobatch_r1,46463,6400,74
+Orion v5.7 (ablation lazy=false),v5.7 ablation abl1_nolazy_r1,46608,6400,74
+Orion v5.7 (ablation surfaceCache=false),v5.7 ablation abl1_nocache_r1,44970,6400,74
+Orion v5.7 (ablation glue=false),v5.7 ablation abl1_noglue_r1,45964,6400,74
+Orion v5.7,v5.7 ablation abl1_B57_r2,45722,6400,74
+Orion v5.7 (ablation batch=false),v5.7 ablation abl1_nobatch_r2,48910,6400,74
+Orion v5.7 (ablation lazy=false),v5.7 ablation abl1_nolazy_r2,50304,6400,74
+Orion v5.7 (ablation surfaceCache=false),v5.7 ablation abl1_nocache_r2,51268,6400,74
+Orion v5.7 (ablation glue=false),v5.7 ablation abl1_noglue_r2,47216,6400,74
+Orion v5.6,v5.7 ablation abl1_A56_r2,53100,6400,74
+Orion v5.7 (ablation batch=false),v5.7 ablation abl1_nobatch_r3,53633,6400,74
+Orion v5.7 (ablation lazy=false),v5.7 ablation abl1_nolazy_r3,47403,6400,74
+Orion v5.7 (ablation surfaceCache=false),v5.7 ablation abl1_nocache_r3,47199,6400,74
+Orion v5.7 (ablation glue=false),v5.7 ablation abl1_noglue_r3,44694,6400,74
+Orion v5.6,v5.7 ablation abl1_A56_r3,48587,6400,74
+Orion v5.7,v5.7 ablation abl1_B57_r3,44034,6400,74
+Orion v5.7 (ablation lazy=false),v5.7 ablation abl1_nolazy_r4,44597,6400,74
+Orion v5.7 (ablation surfaceCache=false),v5.7 ablation abl1_nocache_r4,45418,6400,74
+Orion v5.7 (ablation glue=false),v5.7 ablation abl1_noglue_r4,44069,6400,74
+Orion v5.6,v5.7 ablation abl1_A56_r4,49068,6400,74
+Orion v5.7,v5.7 ablation abl1_B57_r4,43962,6400,74
+Orion v5.7 (ablation batch=false),v5.7 ablation abl1_nobatch_r4,45156,6400,74
+Orion v5.7 (ablation surfaceCache=false),v5.7 ablation abl1_nocache_r5,45960,6400,74
+Orion v5.7 (ablation glue=false),v5.7 ablation abl1_noglue_r5,44735,6400,74
+Orion v5.6,v5.7 ablation abl1_A56_r5,49151,6400,74
+Orion v5.7,v5.7 ablation abl1_B57_r5,45506,6400,74
+Orion v5.7 (ablation batch=false),v5.7 ablation abl1_nobatch_r5,44505,6400,74
+Orion v5.7 (ablation lazy=false),v5.7 ablation abl1_nolazy_r5,45360,6400,74
+Experiment,[v5.7 + in-flight 32] in-flight block b15_cand_r1,44523,6400,75
+Experiment,[v5.7 + in-flight 32] in-flight block b15_cand_r2,43648,6400,75
+Experiment,[v5.7 + in-flight 32] in-flight block b15_cand_r3,43658,6400,75
+Experiment,[v5.7 + in-flight 32] in-flight block b15_cand_r4,44168,6400,75
+Experiment,[v5.7 + in-flight 32] in-flight block b15_cand_r5,43117,6400,75
+Orion v5.6,in-flight block b15_5.6_r1,47855,6400,75
+Orion v5.6,in-flight block b15_5.6_r2,48325,6400,75
+Orion v5.6,in-flight block b15_5.6_r3,48170,6400,75
+Orion v5.6,in-flight block b15_5.6_r4,50416,6400,75
+Orion v5.6,in-flight block b15_5.6_r5,51427,6400,75
+Orion v5.7,in-flight block b15_5.7_r1,43634,6400,75
+Orion v5.7,in-flight block b15_5.7_r2,43168,6400,75
+Orion v5.7,in-flight block b15_5.7_r3,43264,6400,75
+Orion v5.7,in-flight block b15_5.7_r4,45668,6400,75
+Orion v5.7,in-flight block b15_5.7_r5,45904,6400,75
+Orion v5.6,Beardifier block n2ab1_A56_r1,48066,6400,75
+Orion v5.7,Beardifier block n2ab1_B57_r1,44240,6400,75
+Experiment,[v5.7 + Beardifier cull] Beardifier block n2ab1_beard_r1,44407,6400,75
+Orion v5.7,Beardifier block n2ab1_B57_r2,45718,6400,75
+Experiment,[v5.7 + Beardifier cull] Beardifier block n2ab1_beard_r2,43807,6400,75
+Orion v5.6,Beardifier block n2ab1_A56_r2,48119,6400,75
+Experiment,[v5.7 + Beardifier cull] Beardifier block n2ab1_beard_r3,43810,6400,75
+Orion v5.6,Beardifier block n2ab1_A56_r3,48042,6400,75
+Orion v5.7,Beardifier block n2ab1_B57_r3,43136,6400,75
+Orion v5.6,Beardifier block n2ab1_A56_r4,51361,6400,75
+Orion v5.7,Beardifier block n2ab1_B57_r4,43906,6400,75
+Experiment,[v5.7 + Beardifier cull] Beardifier block n2ab1_beard_r4,43302,6400,75
+Orion v5.7,Beardifier block n2ab1_B57_r5,43260,6400,75
+Experiment,[v5.7 + Beardifier cull] Beardifier block n2ab1_beard_r5,41955,6400,75
+Orion v5.6,Beardifier block n2ab1_A56_r5,50704,6400,75
+Orion v5.6,65k orion5.6 r1,525203,65536,74
+Orion v5.7,65k orion5.7 r1,479544,65536,74
+Orion v5.7,65k orion5.7 r2,486369,65536,74
+Orion v5.6,65k orion5.6 r2,520099,65536,74
