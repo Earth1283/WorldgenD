@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WorldgenD</title>
+    <meta
+      name="description"
+      content="WorldgenD is an open-source research project that makes vanilla Minecraft world generation faster. Benchmarks, methodology and negative results included."
+    />
+    <meta name="theme-color" content="#171c22" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <a class="skip" href="#performance">Skip to benchmarks</a>
+
+    <header class="site-nav">
+      <div class="wrap nav-inner">
+        <a class="wordmark" href="#top">WorldgenD</a>
+        <nav aria-label="Sections">
+          <a href="#performance">Performance</a>
+          <a href="#evolution">History</a>
+          <a href="#how">How it works</a>
+          <a href="#research">Research</a>
+          <a href="https://github.com/Earth1283/WorldgenD">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- Hero -->
+      <section class="hero wrap">
+        <div class="hero-text">
+          <h1>WorldgenD</h1>
+          <p class="tagline">
+            Doing ethically questionable things to speed up Minecraft world generation.
+          </p>
+          <p class="lede">
+            WorldgenD runs Mojang's own server code, headless, and makes vanilla world
+            generation finish sooner: 6.80&ndash;6.94&nbsp;ms per chunk on our
+            6,400-chunk benchmark.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="https://github.com/Earth1283/WorldgenD">View on GitHub</a>
+            <a class="btn" href="#performance">See the benchmarks</a>
+          </div>
+          <p class="not-this">
+            Not a terrain generator. Iris and its relatives design new worlds; WorldgenD
+            takes the world Mojang already ships and generates it faster.
+          </p>
+        </div>
+
+        <!-- Canvas is drawn by src/main.ts. Without JS it shows an empty chunk grid. -->
+        <figure class="hero-figure">
+          <canvas id="mosaic" width="320" height="320" aria-hidden="true"></canvas>
+          <figcaption>
+            32&thinsp;&times;&thinsp;32 chunks in mosaic phases. Chunks 16 apart share a phase
+            and generate together, because no vanilla generation step reaches more than
+            8&nbsp;chunks (<a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#7-we-asked-the-jar-how-far-far-enough-actually-is-and-it-told-us-8">#7</a>).
+          </figcaption>
+        </figure>
+      </section>
+
+      <!-- Current performance -->
+      <section id="performance" class="section wrap">
+        <h2>Current performance</h2>
+        <p class="section-lede">
+          Orion v5.7 is the newest scheduler. These numbers hold for one setup, listed in
+          full beside them. Change the machine, the heap, or the worker count and they
+          will change too.
+        </p>
+
+        <div class="perf">
+          <dl class="figures">
+            <div class="figure">
+              <dt>Effective ms per chunk</dt>
+              <dd>
+                <span class="num">6.80&ndash;6.94</span>
+                <span class="note">Block medians of total time &divide; 6,400 chunks, six rotated blocks.</span>
+              </dd>
+            </div>
+            <div class="figure">
+              <dt>Chunks per second</dt>
+              <dd>
+                <span class="num">144&ndash;147</span>
+                <span class="note">The same measurement, inverted.</span>
+              </dd>
+            </div>
+            <div class="figure">
+              <dt>Less total time than v5.6</dt>
+              <dd>
+                <span class="num">7.5&ndash;12.0%</span>
+                <span class="note">Won 30 of 30 rotated pairs. Output is bit-exact against v5.6.</span>
+              </dd>
+            </div>
+          </dl>
+
+          <aside class="conditions" aria-labelledby="cond-title">
+            <h3 id="cond-title">Conditions</h3>
+            <dl>
+              <dt>Workload</dt><dd>6,400 chunks (80&thinsp;&times;&thinsp;80), seed 69</dd>
+              <dt>Server jar</dt><dd>Mojang 26.1.1, unmodified on disk</dd>
+              <dt>Machine</dt><dd>8-core AMD EPYC</dd>
+              <dt>JVM</dt><dd>OpenJDK 25, 16&nbsp;GB pretouched heap, ParallelGC</dd>
+              <dt>Workers</dt><dd>7 chunk workers, 16 chunks in flight</dd>
+              <dt>Metric</dt><dd>eMSPC: total wall-clock ms &divide; chunks. Lower is better.</dd>
+              <dt>Noise</dt><dd>Absolute times drift 7&ndash;10% between sessions, so only pairs inside one interleaved block are compared.</dd>
+            </dl>
+            <p class="source">
+              Source: <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#74-orion-v57-cell-batched-density-fill-is-10-12-faster-bit-exact-and-replicated-by-three-parties">finding #74</a>,
+              raw rows in <a href="https://github.com/Earth1283/WorldgenD/tree/main/findings">findings/</a>.
+            </p>
+          </aside>
+        </div>
+
+        <div class="paper">
+          <div class="paper-text">
+            <h3>Against Paper</h3>
+            <p>
+              Paper's chunk system also runs generation steps in parallel. Stock Paper uses
+              2 worker threads on this box. Give it 7 and it becomes a very different
+              server, so this page always says which Paper it means.
+            </p>
+            <p>
+              The last interleaved race (3 rotated rounds) put Orion v5 and 7-worker Paper
+              inside one noise band. The servers also tick and write chunks to disk, which
+              WorldgenD did not, so read that as parity, not a win.
+            </p>
+            <p class="pending">
+              Orion v5.7 has not been raced against Paper yet. Until that race is run and
+              published, we claim no margin over 7-worker Paper.
+            </p>
+          </div>
+
+          <figure class="race">
+            <figcaption>
+              Race #63, mean ms per chunk, lower is better.
+              <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#63-drag-race-63-orion-v5-vs-paperleafleaf-on-crack-interleaved-and-the-paper-control-nobody-had-run-matched-worker-count">Method and caveats</a>
+            </figcaption>
+            <!-- To edit: --v is the value, --max is the chart's right edge. -->
+            <div class="hbars" style="--max: 26">
+              <div class="hbar is-ours" style="--v: 8.61" title="Orion v5: 8.61 ms/chunk">
+                <span class="hbar-name">Orion v5</span>
+                <span class="hbar-track"><span class="hbar-fill"></span></span>
+                <span class="hbar-val">8.61</span>
+              </div>
+              <div class="hbar" style="--v: 9.13" title="Paper, 7 workers: 9.13 ms/chunk">
+                <span class="hbar-name">Paper, 7 workers</span>
+                <span class="hbar-track"><span class="hbar-fill"></span></span>
+                <span class="hbar-val">9.13</span>
+              </div>
+              <div class="hbar is-muted" style="--v: 24.62" title="Paper, stock (2 workers): 24.62 ms/chunk">
+                <span class="hbar-name">Paper, stock (2 workers)</span>
+                <span class="hbar-track"><span class="hbar-fill"></span></span>
+                <span class="hbar-val">24.62</span>
+              </div>
+            </div>
+            <p class="chart-note">
+              Servers generated 6,561 chunks with Chunky, timed from start to finish. The
+              5.7% gap between the top two is inside the ~9% noise band.
+            </p>
+          </figure>
+        </div>
+      </section>
+
+      <!--
+        Evolution (scroll-driven).
+        Plain HTML first: every step and every bar is visible without JS.
+        src/main.ts watches which .evo-step crosses the middle of the viewport and
+        marks the matching .bar-row (same data-step) as active. On wide screens the
+        chart is position: sticky, so it stays in view while the steps scroll past.
+        Scrolling itself is never intercepted.
+        To edit a bar: change --lo and --hi (ms per chunk; equal for a single value).
+        A row without them (class is-untimed) shows an empty track.
+      -->
+      <section id="evolution" class="section wrap">
+        <h2>The evolution of WorldgenD</h2>
+        <p class="section-lede">
+          Every scheduler from the mosaic to Orion v5.7. Effective ms per chunk at
+          6,400&ndash;9,216 chunks, 7 workers unless noted. Rows come from different
+          sessions, which drift 7&ndash;10%, so small gaps between neighbours mean little.
+        </p>
+
+        <div class="evo">
+          <figure class="evo-chart">
+            <!-- Replay: hidden without JS. main.ts fills the 80x80 benchmark grid
+                 at 60x real speed, using the active row's --lo/--hi. -->
+            <div class="replay" hidden>
+              <canvas id="replay" width="160" height="160" aria-hidden="true"></canvas>
+              <div class="replay-text">
+                <p class="replay-name">Scroll to replay each version</p>
+                <p class="replay-time"></p>
+                <p class="replay-rel"></p>
+                <p class="replay-note">6,400 chunks, replayed at 60&times; speed.</p>
+              </div>
+            </div>
+            <div class="bars" style="--max: 46">
+              <div class="bar-row" data-step="mosaic" style="--lo: 35.17; --hi: 35.17">
+                <span class="bar-name">Mosaic</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">35.17</span>
+              </div>
+              <div class="bar-row" data-step="v1" style="--lo: 45.04; --hi: 45.04">
+                <span class="bar-name">v1</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">45.04</span>
+              </div>
+              <div class="bar-row is-untimed" data-step="v11">
+                <span class="bar-name">v1.1</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">not timed</span>
+              </div>
+              <div class="bar-row" data-step="v2" style="--lo: 25.78; --hi: 25.78">
+                <span class="bar-name">v2</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">25.78</span>
+              </div>
+              <div class="bar-row" data-step="v21" style="--lo: 20.77; --hi: 20.77">
+                <span class="bar-name">v2.1</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">20.77</span>
+              </div>
+              <div class="bar-row" data-step="v22" style="--lo: 20.72; --hi: 20.92">
+                <span class="bar-name">v2.2</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">20.72&ndash;20.92</span>
+              </div>
+              <div class="bar-row" data-step="v3" style="--lo: 19.71; --hi: 20.87">
+                <span class="bar-name">v3</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">19.71&ndash;20.87</span>
+              </div>
+              <div class="bar-row" data-step="v31" style="--lo: 20.39; --hi: 20.39">
+                <span class="bar-name">v3.1</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">20.39</span>
+              </div>
+              <div class="bar-row" data-step="v4" style="--lo: 20.68; --hi: 20.80">
+                <span class="bar-name">v4</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">20.68&ndash;20.80</span>
+              </div>
+              <div class="bar-row" data-step="v5" style="--lo: 8.16; --hi: 8.65">
+                <span class="bar-name">v5</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">8.16&ndash;8.65</span>
+              </div>
+              <div class="bar-row" data-step="v51" style="--lo: 7.77; --hi: 8.25">
+                <span class="bar-name">v5.1</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">7.77&ndash;8.25</span>
+              </div>
+              <div class="bar-row" data-step="v52" style="--lo: 8.05; --hi: 8.40">
+                <span class="bar-name">v5.2</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">8.05&ndash;8.40</span>
+              </div>
+              <div class="bar-row" data-step="v53" style="--lo: 7.87; --hi: 9.34">
+                <span class="bar-name">v5.3</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">7.87&ndash;9.34</span>
+              </div>
+              <div class="bar-row" data-step="v54" style="--lo: 8.66; --hi: 9.17">
+                <span class="bar-name">v5.4</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">8.66&ndash;9.17</span>
+              </div>
+              <div class="bar-row" data-step="v55" style="--lo: 8.10; --hi: 8.10">
+                <span class="bar-name">v5.5</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">8.10</span>
+              </div>
+              <div class="bar-row" data-step="v56" style="--lo: 7.87; --hi: 7.87">
+                <span class="bar-name">v5.6</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">7.87</span>
+              </div>
+              <div class="bar-row" data-step="v57" style="--lo: 6.80; --hi: 6.94">
+                <span class="bar-name">v5.7</span>
+                <span class="bar-track"><span class="bar"></span></span>
+                <span class="bar-val">6.80&ndash;6.94</span>
+              </div>
+            </div>
+            <figcaption>Effective ms per chunk. Lower is better. Lighter ends show the spread across runs.</figcaption>
+          </figure>
+
+          <ol class="evo-steps">
+            <li class="evo-step is-major" data-step="mosaic">
+              <h3>Mosaic</h3>
+              <p class="evo-quip">Politely lying to Mojang.</p>
+              <p>WorldgenD never starts a Minecraft server. It assembles just enough of one to build a real world, then asks it for chunks. The server, having no idea it was never turned on, obliges.</p>
+              <p>The jar's own bytecode says no generation step looks further than 8 chunks. So chunk space is tiled into 256 phases at modulus 16, and every chunk in a phase is guaranteed independent of the others.</p>
+              <p class="evo-stat">35.17 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#26-orion-v2-escape-the-mystery-instead-of-solving-it--a-single-threaded-scheduler-multi-threaded-execution">#26</a></p>
+            </li>
+            <li class="evo-step" data-step="v1">
+              <h3>Orion v1</h3>
+              <p>A demand-driven scheduler with an area lock, dispatching from one thread. It was slower than the mosaic it was meant to replace, and the reason was useful: <code>getChunkFuture()</code> blocks when called from the main thread. Measured at 4 workers.</p>
+              <p class="evo-stat">45.04 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#24-where-orions-concurrency-actually-died--and-it-retroactively-answers-13">#24</a></p>
+            </li>
+            <li class="evo-step" data-step="v11">
+              <h3>Orion v1.1</h3>
+              <p>Multi-threaded dispatch, built on that finding. It reported zero failures and was badly wrong: 64 chunks in flight where the geometry allowed one. Never timed at full scale.</p>
+              <p class="evo-stat">Not timed at full scale <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#25-orion-v11-multi-threaded-dispatch-built-exactly-on-24s-finding--and-a-real-confirmed-unexplained-correctness-bug">#25</a></p>
+            </li>
+            <li class="evo-step" data-step="v2">
+              <h3>Orion v2</h3>
+              <p>One scheduler thread decides, worker threads just generate. The first real win in the Orion line: 24&ndash;27% faster than the mosaic.</p>
+              <p class="evo-stat">25.78 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#26-orion-v2-escape-the-mystery-instead-of-solving-it--a-single-threaded-scheduler-multi-threaded-execution">#26</a></p>
+            </li>
+            <li class="evo-step is-major" data-step="v21">
+              <h3>Orion v2.1</h3>
+              <p class="evo-quip">Not a new architecture, just less wasteful.</p>
+              <p>v2 rescanned the whole backlog after every finished chunk. A JFR profile put that scan at 32.4% of all CPU time in the run.</p>
+              <p>v2.1 buckets chunks into a spatial grid once, then checks only the neighbourhood of each finished chunk. The scheduler's share fell to 1.03%.</p>
+              <p class="evo-stat">20.77 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#30-orion-v21-replacing-the-scan-itself-instead-of-gating-around-it--the-real-win">#30</a> <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#33-live-thread-sampling-finds-v21-still-isnt-feeding-its-own-workers-and-7-workers-fixes-a-real-106-of-it">#33</a></p>
+            </li>
+            <li class="evo-step" data-step="v22">
+              <h3>Orion v2.2</h3>
+              <p>Hands chunks out in scattered order, restoring a property the mosaic had for free. Same throughput, roughly half the median latency.</p>
+              <p class="evo-stat">20.72&ndash;20.92 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#35-orion-v22-restoring-the-mosaics-own-scatter-property-and-a-genuinely-mixed-result">#35</a> <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#42-tuning-orionmaxinflight-not-a-magic-number-but-not-a-lever-on-total-time-either--its-a-latency-dial">#42</a></p>
+            </li>
+            <li class="evo-step" data-step="v3">
+              <h3>Orion v3</h3>
+              <p>Multi-threaded admission. It deadlocked inside vanilla's own task polling; a two-method bytecode patch fixed it. Parity with v2.1: a correctness fix, not a speedup.</p>
+              <p class="evo-stat">19.71&ndash;20.87 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#44-orionv3-multi-threaded-admission-and-a-severe-regression-diagnosed-by-live-thread-dump-before-it-finished">#44</a> <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#49-4748s-deadlock-actually-fixed--a-two-method-bytecode-patch-gated-and-reversible-correctness-verified-against-a-vanilla-control">#49</a></p>
+            </li>
+            <li class="evo-step" data-step="v31">
+              <h3>Orion v3.1</h3>
+              <p>Memoizes a biome predicate in surface rules. The cost it removed was real and too small to see: +0.8%, a null result.</p>
+              <p class="evo-stat">20.39 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#53-orion-v31-memoizing-the-biome-condition-predicate-in-surfacerules">#53</a></p>
+            </li>
+            <li class="evo-step" data-step="v4">
+              <h3>Orion v4</h3>
+              <p>Ports C2ME's fix for structure generation's thread-safety races. Costs nothing measurable, and it is what made parallel structure steps possible later.</p>
+              <p class="evo-stat">20.68&ndash;20.80 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#56-orion-v4-porting-c2mes-structure-generator-thread-safety-fix-and-why-proving-it-needed-a-stress-harness-instead-of-real-generation">#56</a> <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#62-orion-v5-the-radius-8-scarcity-was-vanillas-serial-worldgen-lane-all-along--parallel-chunk-steps-25x-v4">#62</a></p>
+            </li>
+            <li class="evo-step is-major" data-step="v5">
+              <h3>Orion v5</h3>
+              <p class="evo-quip">The ceiling was one lane wide.</p>
+              <p>Vanilla sends surface, carvers, features and structures for the whole world through a single executor, one chunk step at a time. Four findings had blamed "dependency scarcity" for what was really that lane.</p>
+              <p>v5 patches one method so those steps run on the worker pool under area locks. CPU use went from about 313% to 709% of a possible 800%, and total time fell 59.5%.</p>
+              <p class="evo-stat">8.16&ndash;8.65 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#62-orion-v5-the-radius-8-scarcity-was-vanillas-serial-worldgen-lane-all-along--parallel-chunk-steps-25x-v4">#62</a></p>
+            </li>
+            <li class="evo-step" data-step="v51">
+              <h3>Orion v5.1</h3>
+              <p>SIMD density batches. Real in the microbenchmark, invisible at full scale.</p>
+              <p class="evo-stat">7.77&ndash;8.25 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#66-orion-v51-simd-density-batches-are-real-at-the-microbenchmark-invisible-at-champion-scale-and-correctness-clean--plus-the-fix-to-65s-palette-only-checker">#66</a></p>
+            </li>
+            <li class="evo-step" data-step="v52">
+              <h3>Orion v5.2</h3>
+              <p>An optimized Perlin noise port removes the hottest lookup method. Total generation time: a statistical tie.</p>
+              <p class="evo-stat">8.05&ndash;8.40 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#67-orion-v52-the-optimized-perlin-port-removes-the-hottest-lookup-method-but-total-generation-remains-a-statistical-tie">#67</a></p>
+            </li>
+            <li class="evo-step" data-step="v53">
+              <h3>Orion v5.3</h3>
+              <p>Four allocation-pressure fixes from a JFR profile. Bit-exact and fewer GCs, but no confirmed throughput win.</p>
+              <p class="evo-stat">7.87&ndash;9.34 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#68-orion-v53-four-allocation-pressure-fixes-from-a-jfr-profile-bit-exact-but-no-confirmed-throughput-win">#68</a></p>
+            </li>
+            <li class="evo-step" data-step="v54">
+              <h3>Orion v5.4</h3>
+              <p>C1GC, a bounded chunk-reclamation pipeline. It fixes a real hang and out-of-memory at 65,536 chunks, at a cost of about 6% at 6,400.</p>
+              <p class="evo-stat">8.66&ndash;9.17 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#69-orion-v54-c1gc-a-bounded-chunk-reclamation-pipeline-fixes-a-real-large-tile-failure-at-a-real-champion-scale-cost">#69</a></p>
+            </li>
+            <li class="evo-step" data-step="v55">
+              <h3>Orion v5.5</h3>
+              <p>C1GC reclaims only under heap pressure and on the right thread, fixing a v5.4 race. Bundles the v5.1 and v5.2 kernels. About 12% faster than v5.4.</p>
+              <p class="evo-stat">8.10 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#70-orion-v55-c1gc-pays-only-under-pressure-reclaims-on-the-right-thread-and-a-v54-race-it-fixed-along-the-way">#70</a></p>
+            </li>
+            <li class="evo-step" data-step="v56">
+              <h3>Orion v5.6</h3>
+              <p>Admits 16 chunks at a time and triggers C1GC earlier. Median chunk latency down 76%, p99 down 57&ndash;70%. Total time at parity.</p>
+              <p class="evo-stat">7.87 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#73-orion-v56-reduces-chunk-latency-c1gc-pressure-helps-but-full-gc-remains">#73</a></p>
+            </li>
+            <li class="evo-step is-major" data-step="v57">
+              <h3>Orion v5.7</h3>
+              <p class="evo-quip">Arithmetic, done in bulk.</p>
+              <p>With the lane gone, generator math is the bottleneck. v5.7 fills density cells in whole arrays, updates interpolators only when read, and shares a surface cache across chunks.</p>
+              <p>Three independent replications, an ablation, and two more blocks: 30 wins in 30 pairs, bit-exact output.</p>
+              <p class="evo-stat">6.80&ndash;6.94 ms per chunk <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#74-orion-v57-cell-batched-density-fill-is-10-12-faster-bit-exact-and-replicated-by-three-parties">#74</a></p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- How it works -->
+      <section id="how" class="section wrap">
+        <h2>How it works</h2>
+        <p class="section-lede">
+          Mojang's generator does the generating. WorldgenD changes who waits for whom.
+        </p>
+
+        <!-- Schematic: cells are decorative; the text and numbers carry the meaning. -->
+        <figure class="lanes">
+          <div class="lane-group">
+            <p class="lane-title">Vanilla</p>
+            <div class="lane-grid lane-grid-vanilla" aria-hidden="true">
+              <span class="lane"><i class="w"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="w"></i></span>
+              <span class="lane"><i class="n"></i><i></i><i class="n"></i><i></i><i></i><i class="n"></i><i></i><i></i><i class="n"></i><i></i></span>
+              <span class="lane"><i></i><i class="n"></i><i></i><i></i><i class="n"></i><i></i><i></i><i class="n"></i><i></i><i></i></span>
+              <span class="lane"><i></i><i></i><i></i><i class="n"></i><i></i><i></i><i></i><i></i><i></i><i class="n"></i></span>
+              <span class="lane"><i></i><i></i><i></i><i></i><i></i><i></i><i class="n"></i><i></i><i></i><i></i></span>
+              <span class="lane"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              <span class="lane"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
+            <p class="lane-note">Noise and biomes use the pool. Everything else queues in one lane. About 313% CPU of 800%.</p>
+          </div>
+          <div class="lane-group">
+            <p class="lane-title">Orion v5 and later</p>
+            <div class="lane-grid" aria-hidden="true">
+              <span class="lane"><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i></span>
+              <span class="lane"><i class="n"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="w"></i><i></i><i class="w"></i><i class="w"></i></span>
+              <span class="lane"><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="n"></i></span>
+              <span class="lane"><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="w"></i></span>
+              <span class="lane"><i class="n"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i></span>
+              <span class="lane"><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i></i></span>
+              <span class="lane"><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i><i class="w"></i><i class="n"></i><i class="w"></i></span>
+            </div>
+            <p class="lane-note">Every step runs on all 7 workers under area locks. About 709% CPU.</p>
+          </div>
+          <figcaption>
+            <span class="key key-n"></span> noise and biomes
+            <span class="key key-w"></span> surface, carvers, features, structures
+            <span class="key-gap"></span> Schematic, not to scale. CPU figures from
+            <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#62-orion-v5-the-radius-8-scarcity-was-vanillas-serial-worldgen-lane-all-along--parallel-chunk-steps-25x-v4">#62</a>.
+          </figcaption>
+        </figure>
+
+        <div class="mechanisms">
+          <article>
+            <h3>Parallel scheduling</h3>
+            <p>
+              Orion admits 16 chunks at a time into a bounded window and feeds 7 workers.
+              A spatial index means a finished chunk only wakes its neighbours, so the
+              scheduler costs about 1% of CPU instead of a third.
+            </p>
+          </article>
+          <article>
+            <h3>Runtime patching</h3>
+            <p>
+              WorldgenD's compiled code names no Minecraft class. A Java agent rewrites a
+              few methods of the jar you supply as it loads: chunk steps move onto the
+              worker pool under write-radius locks, and structures take one global lock.
+              Every patch sits behind a flag.
+            </p>
+          </article>
+          <article>
+            <h3>C1GC</h3>
+            <p>
+              Vanilla keeps every chunk it hands back alive for the life of the JVM. At
+              65,536 chunks that heap only grows. C1GC releases finished chunks in bounded
+              batches, and only when the heap is under pressure. It is a bouncer, not a
+              garbage collector.
+            </p>
+          </article>
+          <article>
+            <h3>Batching</h3>
+            <p>
+              Density functions compute terrain one block at a time. v5.7 fills each
+              128-entry cell array per node in one loop, skips interpolators nobody reads,
+              and caches surface height across chunks, with a 92% hit rate.
+            </p>
+          </article>
+          <article>
+            <h3>Version adapters</h3>
+            <p>
+              Every Mojang class is a string looked up at runtime, so a new Minecraft
+              version means a new mapping, not a fork. Today WorldgenD targets the 26.1.1
+              server jar; adapters for other versions are not shipped yet.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Research -->
+      <section id="research" class="section wrap">
+        <h2>Research, including the parts that failed</h2>
+        <p class="section-lede">
+          75 numbered findings and 366 filed runs, each with a CSV row, a profile, or
+          bytecode behind it. A lab notebook that only records the wins is marketing.
+        </p>
+
+        <div class="research">
+          <div class="method">
+            <h3>How a result gets counted</h3>
+            <dl>
+              <dt>Interleaved</dt>
+              <dd>Arms alternate inside one block and leg order rotates every round, so drift over time can't favour either side.</dd>
+              <dt>Replicated</dt>
+              <dd>A win needs a consistent 3&ndash;4% or better, repeated by a separate run from a separate source snapshot.</dd>
+              <dt>Bit-exact</dt>
+              <dd>Block-state histograms are hashed and diffed. "0 failed" is not a correctness check.</dd>
+              <dt>Filed</dt>
+              <dd>Every run goes into the CSVs and charts are regenerated from them, including runs that make us look worse.</dd>
+            </dl>
+          </div>
+
+          <div class="nulls">
+            <h3>Ideas that did not survive</h3>
+            <ul>
+              <li>
+                <a href="https://github.com/Earth1283/WorldgenD/blob/main/cursed-scientific-advancements.md#act-3-orion-v1--an-ambitious-swing-that-mostly-just-hurt">Orion v1</a>
+                <span>45.04 ms per chunk, slower than the mosaic it was built to replace.</span>
+              </li>
+              <li>
+                <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#32-the-interleaved-rerun-31-asked-for--and-the-win-was-mostly-a-lucky-draw">The first "we beat Paper"</a>
+                <span>An interleaved rerun showed it was mostly a lucky draw.</span>
+              </li>
+              <li>
+                <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md#28-the-cheap-fix-for-27s-reflective-poll-cost-tried-it-it-didnt-work-and-the-profile-says-exactly-why">Poll-gating the scheduler</a>
+                <span>Two null results. The fix was to stop scanning, not scan less often.</span>
+              </li>
+              <li>
+                <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#55-five-swings-at-radius-8-scarcity-all-misses-simd-ffm-aot-cache-and-with-a-twist-disabling-structures">SIMD, FFM, AOT cache, no structures</a>
+                <span>Five misses at a ceiling that turned out to be a serial lane.</span>
+              </li>
+              <li>
+                <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#59-wiring-dfc-into-real-generation-a-genuine-23-27-regression-root-caused-with-real-counters-not-guessed">A density-function compiler</a>
+                <span>23&ndash;27% slower once wired into real generation.</span>
+              </li>
+              <li>
+                <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#75-six-hypotheses-that-did-not-clear-the-bar-and-why-they-were-worth-falsifying">Six v5.7-era hypotheses</a>
+                <span>All bit-exact, none consistent enough to ship.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Open source / homelab -->
+      <section id="open" class="section wrap">
+        <div class="open">
+          <div>
+            <h2>Open source, and staying that way</h2>
+            <p>
+              The generator is meant to stay open source. Nothing of Mojang's ships in the
+              repository: you bring the official server jar, and WorldgenD reads it at
+              runtime. It is a remote control, not a copy of the TV.
+            </p>
+            <p>
+              It runs headless on whatever box you have spare. No network, no RCON, no
+              tick loop. Java 25 and a server jar are the whole install.
+            </p>
+          </div>
+          <pre class="code" aria-label="Quick start"><code>git clone https://github.com/Earth1283/WorldgenD
+cd WorldgenD
+# put the official server jar in servers/
+./gradlew run</code></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <nav aria-label="Project links">
+          <a href="https://github.com/Earth1283/WorldgenD">GitHub</a>
+          <a href="https://github.com/Earth1283/WorldgenD/blob/main/TUTORIAL.md">Docs</a>
+          <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#74-orion-v57-cell-batched-density-fill-is-10-12-faster-bit-exact-and-replicated-by-three-parties">Methodology</a>
+          <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-1-40.md">Findings 1&ndash;40</a>
+          <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md">Findings 41&ndash;75</a>
+        </nav>
+        <p class="footer-small">
+          Not affiliated with Mojang or Microsoft. This page's performance budget: if the
+          Intel MacBook Air survives, ship it.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

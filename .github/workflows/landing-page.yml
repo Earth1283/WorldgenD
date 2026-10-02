@@ -1,0 +1,64 @@
+# Builds landing-page/ and publishes it to earth1283.github.io/worldgend/.
+# Needs secret PAGES_DEPLOY_KEY: private half of a write-enabled deploy key
+# on Earth1283/earth1283.github.io.
+name: Landing page
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing-page/**'
+      - '.github/workflows/landing-page.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: landing-page
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: landing-page/package-lock.json
+
+      - name: Build
+        working-directory: landing-page
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Earth1283/earth1283.github.io
+          ssh-key: ${{ secrets.PAGES_DEPLOY_KEY }}
+          path: site
+
+      - name: Publish to worldgend/
+        run: |
+          rsync -a --delete landing-page/dist/ site/worldgend/
+          # Pages paths are case-sensitive; send the repo's own casing to the site.
+          mkdir -p site/WorldgenD
+          cat > site/WorldgenD/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>WorldgenD</title>
+          <link rel="canonical" href="https://earth1283.github.io/worldgend/">
+          <meta http-equiv="refresh" content="0; url=/worldgend/">
+          <a href="/worldgend/">WorldgenD has moved to /worldgend/</a>
+          HTML
+          cd site
+          git add -A worldgend WorldgenD
+          if git diff --cached --quiet; then
+            echo "No changes to publish."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update worldgend from WorldgenD@${GITHUB_SHA::7}"
+          git push
