@@ -1,0 +1,11 @@
+kind,thread,class,events,total_ms
+park,worker,java.util.concurrent.ForkJoinPool,472,939030.3
+park,io-worker,java.util.concurrent.SynchronousQueue$Transferer,3974,578047.0
+park,orion5-submit,java.util.concurrent.Semaphore$NonfairSync,1166,30297.9
+park,worker,java.util.concurrent.CompletableFuture$Signaller,562,25996.5
+park,worker,java.util.concurrent.locks.ReentrantLock$NonfairSync,369,20718.4
+monitor,worker,java.lang.Object,34,1401.4
+park,main,?,18,1010.3
+park,orion5-poll,?,15,928.5
+monitor,worker,it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap,6,67.6
+monitor,worker,[I,6,65.3

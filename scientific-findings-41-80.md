@@ -1411,6 +1411,137 @@ through a machine-wide lock; every filed run had the machine to itself.
 `Experiment` on the leaderboard); `plot_orion57_nulls75` in `findings/plot_results.py`. Built but never
 timed (no rows): v5.7 + mapAll memo and v5.7 + surface/biome patches, both bit-exact in smoke checks.
 
+## 76. Orion v5.7 JFR profile: noise fill is still 41% of worker samples, and the light engine's map copy is the largest allocator and the likely driver of the young-GC pause climb
+
+One profiled run of `orion5.7` at the champion spec (tile 5, 6,400 chunks, 7 workers, 16GB pretouched
+ParallelGC, `maxinflight=16`, `pressure=0.3`, seed 69; Corretto 25.0.4, 8-vCPU AMD EPYC-Milan KVM guest, 31GB RAM;
+full specs in `findings/orion57_jfr_environment.txt`) with `-XX:StartFlightRecording=settings=profile`. Result: 6,400 ok,
+0 failed, `total_ms` 46,468, p50 80.3 ms, p99 548.7 ms, max 6,203 ms. This is n=1 with JFR attached, so it is a profile, not a
+throughput row (it sits +5.6% over #74's 43,998 ms v5.7 median, inside the ~9% noise band plus JFR overhead). It is filed as
+`v57_jfr_profile` in `orion_results.csv` and deliberately not in the leaderboard. Everything below is the 49.7 s window between the
+first and last worker sample (18,322 worker execution samples). Raw: `findings/orion57_detailed.jfr`;
+tables: `findings/orion57_jfr_*.csv`; regenerate with `orion57_jfr_breakdown.py` then `plot_orion57_jfr.py`.
+
+**Where worker time goes.** Stages are attributed by the outermost recognised frame in each sample's stack. JFR truncates deep stacks at
+the root end, so 19.2% of samples have no stage marker and stay "other". #74's table used a different mapping, so these shares are
+not a before/after comparison with it.
+
+| Stage | Share of worker samples |
+|---|---:|
+| noise fill (density, aquifer, noise) | 41.0% |
+| unattributed (truncated stacks, scheduling, chunk bookkeeping) | 19.2% |
+| surface rules | 18.5% |
+| features | 7.3% |
+| biomes (Climate/BiomeManager) | 6.6% |
+| light | 4.6% |
+| carvers | 2.7% |
+| NoiseChunk construction, structure starts | 0.1% |
+
+![#76 worker samples by stage](findings/orion57_jfr_stages.png)
+
+The flat leaves are still dominated by Perlin noise: `ImprovedNoise.sampleAndLerp` 7.7% and `ImprovedNoise.noise` 6.7% together are
+14.4% of all worker samples, then `Aquifer.computeSubstance` 5.0%, the biome R-tree `SubTree.search` 4.8%, and
+`SurfaceRules$TestRule.tryApply` 4.2%. `NoiseChunk.lambda$new$0` (3.6%) and `LevelReader.getNoiseBiome` (3.5%) are next.
+The Perlin port from #67 means `ImprovedNoise` is now the inner loop itself, not dispatch around it.
+
+![#76 top leaf frames](findings/orion57_jfr_hot_frames.png)
+
+**CPU.** JVM user CPU averaged 81% of the 8 vCPUs (machine total 85%) across the window. With 7 workers the ceiling is 87.5%,
+so the run is near saturation; after the first 10 s the minimum is 60% (dips near seconds 18 and 29). There is no idle headroom,
+so further wins have to come from fewer CPU-seconds per chunk, matching #74.
+
+**GC.** 14 young collections (all `Allocation Failure`) and no full GC inside the window; the 3 `ParallelOld`
+collections in the recording are boot-time `Metadata GC Threshold` events (176 ms total, before the first worker sample). Scavenge
+pauses total 946 ms, or 1.9% of the window. They do not stay flat: 24, 38, 59, 72, 99, 113, **121**, 112, 83, 67, 50, 35, 38, 36 ms, a
+rise to the 7th collection and then a fall. Promotion was 640 MB, 55% of it outside PLABs (350 MB vs 290 MB), which is the signature of
+large arrays being promoted directly.
+
+![#76 CPU utilisation and scavenge pauses](findings/orion57_jfr_timeline.png)
+
+**Allocation.** From JFR's `ObjectAllocationSample` (weights are TLAB-based estimates, not exact bytes): `long[]` is 19.1% of sampled bytes,
+then `Object[]` 7.1%, the `NoiseChunk` lambda 6.0%, `BlockPos` 4.6%, `Holder$Direct` 4.4%. By site, the largest is
+`Long2ObjectOpenHashMap.clone` at **13.4%**, and every sampled clone traced to the light engine: `LayerLightSectionStorage.swapSectionMap`
+-> `SkyDataLayerStorageMap.copy` (4.0 GB sampled) and `BlockDataLayerStorageMap.copy` (3.8 GB). `Long2IntOpenHashMap.clone` adds
+3.3%. So the light engine is 4.6% of CPU but the single largest allocation source, because each update copies the whole section map. The
+rest: `DensityFunctions$HolderHolder.mapAll` 6.5% (plus `MarkerOrMarked.mapAll` 2.1%), `NoiseChunk.wrap` 6.4%, and
+`XoroshiroRandomSource.<init>` 6.2% - all per-chunk rebuilds, not per-block.
+
+![#76 allocation by site](findings/orion57_jfr_alloc_sites.png)
+
+**Sync, JIT, deopts, exceptions.** Worker monitor contention is negligible: 34 events, 1.4 s summed across all threads. Workers parked
+26.0 s in `ForkJoinPool.managedBlock` (`CompletableFuture$Signaller`) and 20.7 s on `ReentrantLock$Sync.lock`; the first is why the
+pool grew to 129 threads against `parallelism=7`, and compensation keeps CPU high, so it is not visible as idle time. 82 JIT compilations
+ran in the window (23.2 s of compiler thread time) and 683 deoptimizations, mostly C2 `class_check`/`unstable_if` recompiles on
+`PalettedContainer`, `LevelChunkSection.setBlockState`, and `Heightmap.update`; none repeat enough to stand out. Workers threw 474
+exceptions in the window (`NoSuchMethodError` from method-handle linking, javassist `NoFieldException`/`CompileError`), which looks like the
+agent's class patching and linkage probing during warm-up; at this count the cost is small but nobody has timed it.
+
+**What this does and does not show.** It does not prove the light map copy causes the pause climb; the timing is consistent
+(the section map grows as chunks load, and the copied array is promoted outside PLABs), but only a profile of one run supports it.
+Samples cap at JFR's default period, so absolute CPU-seconds from this run are not comparable to #74's worker-CPU totals; only shares are.
+
+**Next, if you pick this up.** (a) A/B the light-map copy (tested in #77: null even as an unsafe ceiling) (a persistent or chunked section map, or skipping the swap for sections nobody reads): predict
+the `long[]` share and scavenge pause peak both fall, with 7-worker wall time unchanged within noise since light is 4.6% of CPU.
+(b) Cache `NoiseChunk.wrap`/`mapAll` results across chunks, if the density-function tree can be shared (~15% of sampled allocation).
+(c) Re-profile with `-XX:FlightRecorderOptions:stackdepth=256` to shrink the 19.2% unattributed bucket.
+
+## 77. Removing the light engine's section-map copy does not speed up Orion v5.7: #76's allocation lead is a null on wall clock and does not cause the GC pause climb
+
+#76 found `LayerLightSectionStorage.swapSectionMap` was the top allocator (13.4% of sampled bytes, plus
+`Long2IntOpenHashMap.clone` 3.3%) while light is only 4.6% of CPU, and speculated the copy drove both the
+young-GC pause climb and some wall time. This tests an upper bound on that fix: if even deleting the copy
+does not clear the bar (consistently >=3-4%, ~9% noise band), no safe implementation is worth building.
+
+**Is the copy even needed?** Vanilla copies the whole map whenever `changedSections` is non-empty so readers of
+`visibleSectionData` see a stable snapshot. A counting arm (`-Dorion.lightSwap=count`, vanilla behavior plus
+counters) over one champion-spec run: 16,850 swaps (~2.6 per chunk), but only 1,064 of them (6.3%) were followed
+by any visible-map read before the next swap, and the whole run made 112,358 visible reads. So a lazy snapshot
+could skip ~94% of copies in principle. That is why the ceiling probe below is worth running.
+
+**Ceiling probe.** `-Dorion.lightSwap=skip` aliases `visibleSectionData` to the updating map: no copy at all. It is
+unsafe for concurrent readers and is only an upper bound; it also calls `disableCache()` on the shared map (the
+vanilla call on the fresh copy), which costs the mutator its 2-entry lookup cache. Interleaved pairs, n=5, orion5.7
+champion spec (6,400 chunks, 7 workers, 16GB pretouched ParallelGC, `maxinflight=16`, `pressure=0.3`), no JFR:
+
+| Pair | base ms | skip ms | Delta |
+|---|---:|---:|---:|
+| 1 | 44,598 | 43,036 | -3.5% |
+| 2 | 45,207 | 41,663 | -7.8% |
+| 3 | 44,815 | 47,175 | +5.3% |
+| 4 | 43,727 | 44,680 | +2.2% |
+| 5 | 42,900 | 47,992 | +11.9% |
+
+Medians 44,598 vs 44,680 ms (+0.2%), means 44,249 vs 44,909 (+1.5%); skip was faster in 2/5 pairs. It does not
+clear the bar, and the spread within each arm (42.9-45.2 s base, 41.7-48.0 s skip) is as large as any plausible win.
+
+**The mechanism did change; the wall clock did not.** Young collections fell from 14 to 10 in all five skip runs
+(-29%) and peak old gen from ~1,563 MB to ~1,325 MB (median). But total scavenge pause did not fall: median
+956 ms base vs 1,019 ms skip, and p99 chunk latency 513 vs 564 ms. The pause climb from #76 is still there in skip
+runs, with fewer, longer pauses (base: 28, 44, 67, 91, 107, 114, 135, 116, 84, 68, 50, 36, 38, 39 ms; skip: 27, 44, 68, 87, 114,
+129, **198**, 112, 110, 87 ms). So the climb tracks live chunk data being copied and promoted, not the number of
+short-lived map copies, and #76's "likely driver" guess is falsified. The garbage was cheap; fewer scavenges just
+moved the same copying into bigger ones.
+
+**A second variant crashed.** A rerun that also left the map cache enabled (to remove the `disableCache()` confound)
+produced base 48,188 ms vs skip 48,477 ms (+0.6%) in its first pair, then died in the second skip run with
+`NullPointerException ... DataLayer.get ... "layer" is null` in `BlockLightEngine.propagateIncrease` via
+`getStoredLevel`. Concurrent visible-map readers corrupt the mutator's cached section lookup once the two share one
+map, so aliasing is not just unsafe in theory. Those runs are in `findings/lightswap_runs/ceiling2/` and are not
+in the CSVs (the machine also ran ~5% slower that hour, so they are not comparable to the first batch). I did not
+rerun the cache-on arm, so the `disableCache()` cost on the mutator is not separated from the copy savings; it could
+mask a small win, but nothing here suggests one big enough to clear the bar.
+
+**Verdict.** Null, with a clean mechanism check. Not built: the lazy snapshot (it would need a lock or seqlock between
+the light executor and readers, and its best case is the failed ceiling). Rows are filed as `exp-light-swap-skip`
+(`Experiment`) and `lswap77_base_*` control rows. The flag and runner stay for reproduction:
+`-Dorion.lightSwap=off|count|skip` (default off, `LightSwapPatch.kt`) and `findings/run_lightswap.py`.
+
+**What this narrows.** Allocation volume from the light engine is not a throughput lever. The pause climb is the live-set
+cost of holding generated chunks un-persisted (`unreclaimed=5440`, C1GC `armed=false` at this scale), which is
+the lever #69-#71 already studied. #76's other leads (`mapAll`/`NoiseChunk.wrap` ~15% of allocation, per-chunk
+`XoroshiroRandomSource` ~6%) are allocation-volume leads too, and #75's `exp-mapall-memo` already saw a ~18 thread-s/run
+ctor saving with no wall-clock change, so expect the same unless the live set shrinks.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -1438,3 +1569,5 @@ timed (no rows): v5.7 + mapAll memo and v5.7 + surface/biome patches, both bit-e
 - **#72 fixes a real gap found by booting a live server on #71's output**: WorldgenD saved a genuine `level.dat` (vanilla's own `saveDataTag`) but discarded the `WorldGenSettings` half of the same in-memory object instead of also persisting it, so `data/minecraft/world_gen_settings.dat` never existed. Vanilla tolerates that silently (random-seed fallback); Paper hard-fails on it. Fix is one more vanilla-native write call (`LevelStorageSource.writeWorldGenSettings`) at the world root (`LevelResource.ROOT`, not per-dimension — the first attempt guessed wrong and was caught by re-testing, not assumed). Verified via a clean vanilla boot with zero fallback warning. Lives in shared `HeadlessWorldgen.kt`, not `orion5.5`-specific. Still open: an actual Paper-jar end-to-end boot (blocked on its maven-layout classpath, not a code question), whether nether/end need the same treatment, whether this matters at all for a server that immediately re-saves anyway.
 - **#74's Orion v5.7 is 10-12% faster than v5.6 at champion scale, bit-exact, 30/30 pairs across six blocks from three independent parties.** All four cell-patch pieces carry weight (batch > lazy > surface cache > glue on worker CPU). At 65,536 chunks it is -7.6% (n=2 pairs, both won; GC/C1GC cost unchanged dilutes it). Still open: whether `selectCellYZ` (still 6.25%) yields to deeper batching; the stacked v5.7 + mapAll memo and v5.7 + surface/biome builds exist and are bit-exact but were never timed.
 - **#75's six nulls point at two places left to look**: surface + biomes are ~34% of v5.7 worker samples (the surface/biome patch set has a real CPU saving that n=5 wall clock could not separate from zero, worth a larger n on top of v5.7), and ~19% of worker time is idle for reasons that were inferred (dependency/lock blocking) but not measured.
+- **#76's JFR profile of v5.7 finds the light engine's `swapSectionMap` copy is the top allocator (13.4% of sampled bytes) while using only 4.6% of CPU**, and young-GC pauses climb 24->121 ms then fall; untested whether the copy drives the climb. Noise fill is 41% of worker samples (Perlin leaves 14.4%); CPU is near the 7-worker ceiling (81% of 8 vCPUs).
+- **#77 falsifies #76's light-copy lead**: skipping `swapSectionMap`'s map copy entirely (unsafe ceiling probe, n=5 pairs) cuts young GCs 14 -> 10 but total scavenge pause and wall time do not move (+0.2% median, 2/5 pairs faster) and the pause climb persists, so it tracks the live chunk set, not allocation volume.

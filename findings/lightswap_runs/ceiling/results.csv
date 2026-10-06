@@ -1,0 +1,11 @@
+label,arm,tile,chunks,total_ms,mspc_p50,mspc_p99,young_gcs,gc_pause_ms,gc_max_pause_ms,peak_old_gen_mb,light
+base_r1,base,5,6400,44598,81.83,545.37,14,955.9,133.605,1574,
+skip_r1,skip,5,6400,43036,78.93,564.48,10,984.6,175.041,1118,mode=skip swaps=17022 epochsWithRead=0 visibleReads=112392
+skip_r2,skip,5,6400,41663,78.77,550.32,10,976.6,197.945,1345,mode=skip swaps=16912 epochsWithRead=0 visibleReads=112404
+base_r2,base,5,6400,45207,84.61,603.29,14,1015.7,135.056,1559,
+base_r3,base,5,6400,44815,85.42,513.33,14,1029.0,141.623,1563,
+skip_r3,skip,5,6400,47175,88.03,638.12,10,1046.2,147.284,1325,mode=skip swaps=16959 epochsWithRead=0 visibleReads=112355
+skip_r4,skip,5,6400,44680,79.84,542.45,10,1023.6,217.306,1325,mode=skip swaps=16760 epochsWithRead=0 visibleReads=112271
+base_r4,base,5,6400,43727,81.26,497.59,14,939.2,119.898,1573,
+base_r5,base,5,6400,42900,80.36,481.25,14,945.2,114.328,1560,
+skip_r5,skip,5,6400,47992,88.11,577.67,10,1018.9,156.67,1336,mode=skip swaps=16988 epochsWithRead=0 visibleReads=112280

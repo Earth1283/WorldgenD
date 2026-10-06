@@ -1,0 +1,18 @@
+t_sec,collector,cause,pause_ms,longest_ms
+-7.35,ParallelOld,Metadata GC Threshold,49.1,49.1
+-5.77,ParallelOld,Metadata GC Threshold,45.5,45.5
+-2.98,ParallelOld,Metadata GC Threshold,81.7,81.7
+3.89,ParallelScavenge,Allocation Failure,23.8,23.8
+12.66,ParallelScavenge,Allocation Failure,38.1,38.1
+18.36,ParallelScavenge,Allocation Failure,59.0,59.0
+22.92,ParallelScavenge,Allocation Failure,71.8,71.8
+26.45,ParallelScavenge,Allocation Failure,99.3,99.3
+29.88,ParallelScavenge,Allocation Failure,112.5,112.5
+32.81,ParallelScavenge,Allocation Failure,121.1,121.1
+35.49,ParallelScavenge,Allocation Failure,112.2,112.2
+37.61,ParallelScavenge,Allocation Failure,83.0,83.0
+39.78,ParallelScavenge,Allocation Failure,66.7,66.7
+41.97,ParallelScavenge,Allocation Failure,49.9,49.9
+44.08,ParallelScavenge,Allocation Failure,35.3,35.3
+46.33,ParallelScavenge,Allocation Failure,37.6,37.6
+48.42,ParallelScavenge,Allocation Failure,36.2,36.2

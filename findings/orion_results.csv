@@ -324,3 +324,14 @@ v57_65k_orion56_r1,Orion orion5.6 (65k r1),orion5.6,16,65536,7,525203,0.32,58.06
 v57_65k_orion57_r1,Orion orion5.7 (65k r1),orion5.7,16,65536,7,479544,0.15,50.81,69.83,81.11,103.33,852.38,3459.72
 v57_65k_orion57_r2,Orion orion5.7 (65k r2),orion5.7,16,65536,7,486369,0.14,50.65,70.70,82.79,106.08,811.95,3505.24
 v57_65k_orion56_r2,Orion orion5.6 (65k r2),orion5.6,16,65536,7,520099,0.23,57.98,78.80,90.60,112.71,939.08,3588.01
+v57_jfr_profile,Orion orion5.7 (JFR profile),orion5.7,5,6400,7,46468,0.09,47.68,68.88,80.34,105.32,548.68,6203.46
+lswap77_base_r1,"Orion orion5.7 (light swap control, run 1)",orion5.7,5,6400,7,44598,0.32,47.37,68.44,81.83,106.61,545.37,4636.46
+lswap77_skip_r1,"Experiment (light swap) Skip light section-map snapshot (ceiling probe, run 1)",exp-light-swap-skip,5,6400,7,43036,0.37,45.79,66.85,78.93,104.36,564.48,3571.24
+lswap77_base_r2,"Orion orion5.7 (light swap control, run 2)",orion5.7,5,6400,7,45207,0.34,50.07,72.08,84.61,114.82,603.29,3357.44
+lswap77_skip_r2,"Experiment (light swap) Skip light section-map snapshot (ceiling probe, run 2)",exp-light-swap-skip,5,6400,7,41663,0.22,48.57,67.73,78.77,102.76,550.32,3101.27
+lswap77_base_r3,"Orion orion5.7 (light swap control, run 3)",orion5.7,5,6400,7,44815,0.28,48.46,71.89,85.42,109.58,513.33,3880.76
+lswap77_skip_r3,"Experiment (light swap) Skip light section-map snapshot (ceiling probe, run 3)",exp-light-swap-skip,5,6400,7,47175,0.29,50.80,73.14,88.03,118.22,638.12,3674.22
+lswap77_base_r4,"Orion orion5.7 (light swap control, run 4)",orion5.7,5,6400,7,43727,0.18,48.07,67.62,81.26,107.82,497.59,3580.90
+lswap77_skip_r4,"Experiment (light swap) Skip light section-map snapshot (ceiling probe, run 4)",exp-light-swap-skip,5,6400,7,44680,0.06,47.53,67.56,79.84,108.97,542.45,3435.83
+lswap77_base_r5,"Orion orion5.7 (light swap control, run 5)",orion5.7,5,6400,7,42900,1.12,47.31,67.46,80.36,104.37,481.25,3859.35
+lswap77_skip_r5,"Experiment (light swap) Skip light section-map snapshot (ceiling probe, run 5)",exp-light-swap-skip,5,6400,7,47992,0.35,52.17,74.09,88.11,115.33,577.67,4060.49

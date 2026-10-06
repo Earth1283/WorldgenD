@@ -365,3 +365,13 @@ Orion v5.6,65k orion5.6 r1,525203,65536,74
 Orion v5.7,65k orion5.7 r1,479544,65536,74
 Orion v5.7,65k orion5.7 r2,486369,65536,74
 Orion v5.6,65k orion5.6 r2,520099,65536,74
+Orion v5.7,6400 orion5.7 light swap control r1,44598,6400,77
+Experiment,"Skip light section-map snapshot (ceiling probe, run 1)",43036,6400,77
+Orion v5.7,6400 orion5.7 light swap control r2,45207,6400,77
+Experiment,"Skip light section-map snapshot (ceiling probe, run 2)",41663,6400,77
+Orion v5.7,6400 orion5.7 light swap control r3,44815,6400,77
+Experiment,"Skip light section-map snapshot (ceiling probe, run 3)",47175,6400,77
+Orion v5.7,6400 orion5.7 light swap control r4,43727,6400,77
+Experiment,"Skip light section-map snapshot (ceiling probe, run 4)",44680,6400,77
+Orion v5.7,6400 orion5.7 light swap control r5,42900,6400,77
+Experiment,"Skip light section-map snapshot (ceiling probe, run 5)",47992,6400,77

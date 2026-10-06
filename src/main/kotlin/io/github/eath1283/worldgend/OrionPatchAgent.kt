@@ -92,6 +92,10 @@ object OrionPatchAgent {
         val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" || scheduler == "orion5.6" || scheduler == "orion5.7" ||
             System.getProperty("orion.patchAllocations") == "true"
         val patchRegionChunkMemo = scheduler == "orion5.5" || scheduler == "orion5.6" || scheduler == "orion5.7" || System.getProperty("orion.patchRegionChunkMemo") == "true"
+        if (LightSwapPatch.enabled) {
+            System.err.println("[OrionPatchAgent] will patch ${LightSwapPatch.targets} on load (light swap, finding #76, mode=${LightSwapPatch.mode})")
+            inst.addTransformer(LightSwapTransformer())
+        }
         if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations && !patchRegionChunkMemo && !patchNoiseCell) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return

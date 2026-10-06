@@ -874,6 +874,7 @@ fun main() {
                 } else "") +
                 (if (c1gc != null) "c1gc ${c1gc.report()}\n" else "") +
                 (if (schedulerMode == "orion5.7") "noiseCell ${DensityCellPatch.report()}\n" else "") +
+                (if (LightSwapPatch.enabled) "lightSwap ${LightSwapPatch.report()}\n" else "") +
                 (if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || schedulerMode == "orion5.7") "regionFileVersion ${regionFileVersionReport(mc)}\n" else "")
         )
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")

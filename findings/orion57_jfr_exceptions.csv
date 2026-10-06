@@ -1,0 +1,31 @@
+thread,class,in_fill_window,count
+main,java.lang.ClassNotFoundException,False,1919
+worker,java.lang.ClassNotFoundException,True,356
+main,java.lang.NoSuchMethodError,False,140
+worker,java.lang.NoSuchMethodError,True,118
+main,java.lang.ClassNotFoundException,True,113
+main,java.nio.file.NoSuchFileException,False,78
+main,javassist.compiler.NoFieldException,False,65
+main,javassist.compiler.CompileError,False,51
+main,javassist.NotFoundException,False,48
+io-worker,sun.nio.fs.UnixException,True,39
+io-worker,java.nio.file.FileAlreadyExistsException,True,39
+worker,javassist.compiler.NoFieldException,True,15
+Yggdrasil Key Fetcher,java.lang.ClassNotFoundException,False,13
+main,java.lang.NoSuchMethodError,True,12
+worker,javassist.compiler.CompileError,True,12
+main,java.lang.IncompatibleClassChangeError,False,11
+worker,javassist.NotFoundException,True,8
+main,com.sun.org.apache.xerces.internal.xni.parser.XMLConfigurationException,False,6
+main,sun.nio.fs.UnixException,False,5
+worker,java.lang.IncompatibleClassChangeError,True,4
+main,sun.nio.fs.UnixException,True,4
+main,java.nio.file.NoSuchFileException,True,4
+main,java.lang.IncompatibleClassChangeError,True,4
+worker,java.lang.NoSuchMethodError,False,3
+io-worker,java.lang.ClassNotFoundException,True,3
+Yggdrasil Key Fetcher,java.security.NoSuchAlgorithmException,False,2
+orion5-poll,java.lang.NoSuchMethodError,True,2
+main,com.sun.org.apache.xerces.internal.impl.XMLEntityScanner$1,False,1
+main,java.nio.file.FileSystemNotFoundException,False,1
+main,java.nio.file.FileAlreadyExistsException,False,1
