@@ -109,7 +109,7 @@ Every run now also prints one more line after `Done:` — something like:
 MSPC (ms/chunk, n=6400): min=0.04 p1=1.57 p25=8.20 p50=35.80 p75=44.05 p99=137.03 max=1492.91
 ```
 
-That's **MSPC**, milliseconds-per-chunk: the submission-to-completion latency of every individual chunk, not a phase-level average. The `chunks/sec` numbers in the table above are still true, but a single average across a run this lopsided (one 9-second cold phase next to 60ms warm ones) hides more than it shows — see `scientific-findings.md` #11 for the exact definition and #13 for it in use.
+That's **MSPC**, milliseconds-per-chunk: the submission-to-completion latency of every individual chunk, not a phase-level average. The `chunks/sec` numbers in the table above are still true, but a single average across a run this lopsided (one 9-second cold phase next to 60ms warm ones) hides more than it shows — see `scientific-findings-1-40.md` #11 for the exact definition and #13 for it in use.
 
 ## ICBM Or Just Cheap Mosaics? A Controlled Experiment
 
@@ -176,3 +176,34 @@ max (`-Dorion.c1gc.pressure`). Below that it does nothing, so small fills cost t
 The result file's `c1gc` line shows `armed=` and where it armed. World data lands under
 `servers/.run/headless/dimensions/` as vanilla LZ4 regions (`-Dorion.c1gc.compression=deflate`
 for the default codec); wipe it between runs. See [finding #70](scientific-findings-41-80.md).
+
+## Orion v5.6 and v5.7: the current line
+
+Same flags as v5.5, with `-Dscheduler=orion5.6` or `orion5.7`. Both default to
+`-Dorion.maxinflight=16` (v5.5 used 64) and `-Dorion.c1gc.pressure=0.3`, so a smaller window of
+chunks is in flight and C1GC arms earlier. That trades nothing in total time and cuts per-chunk
+p50 latency by 76% (finding #73).
+
+v5.7 swaps v5.1's SIMD density batches for `DensityCellPatch`: whole NoiseChunk cells are filled
+in one loop, interpolators are computed only when read, and preliminary surface levels are shared
+across chunks through `DensitySurfaceCache`. It is the shipped winner, 10-12% faster than v5.6
+and bit-exact in deterministic mode (finding #74). Each piece can be switched off for ablation
+with `-Dorion.noiseCell.batch|lazy|surfaceCache|glue=false`.
+
+```bash
+python3 run_direct.py -Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC \
+  -Dmax.bg.threads=7 -Dmosaic.tile=5 -Dscheduler=orion5.7 \
+  -javaagent:build/libs/orion-agent.jar \
+  -Dorion.patchReentrancy=true -Dorion.patchStructureGenState=true \
+  -Dorion.patchParallelSteps=true
+```
+
+Use `-Dmosaic.tile=16` for the 65,536-chunk run; that is where C1GC matters. Timing claims
+should be read against this box's ~9% run-to-run noise (findings #16/#17), so look for paired,
+rotated runs before believing a small win.
+
+## Where to go next
+
+[`ARCHITECTURE.md`](ARCHITECTURE.md) maps the scheduler, the agent patches and C1GC onto the
+files, and lists the traps that only show up at scale. Findings #75 to #77 record what was
+tried on top of v5.7 and did not pay off.

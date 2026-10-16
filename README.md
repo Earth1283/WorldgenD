@@ -34,7 +34,7 @@ That's the whole install.
 ```
 
 Watch the logs for the mosaic fill — a gapless 96x96 block (9216 chunks) tiled across 256
-phases, each one provably independent by construction (see `scientific-findings.md` #7-#8
+phases, each one provably independent by construction (see `scientific-findings-1-40.md` #7-#8
 for why 16 is the magic modulus). Every run ends with two summary lines:
 
 The seed defaults to `69`. User-facing launchers may set a signed 64-bit seed with
@@ -90,7 +90,8 @@ rebuild the agent before use. Direct Java launches should add
 `--add-modules=jdk.incubator.vector`; without that module, `auto` falls back to scalar batches.
 `-Dorion.simd=scalar` selects the scalar batch control. The result file reports the actual
 backend and lane count. All operations retain vanilla's rounding order; FMA is not substituted.
-The harness defaults to v5.1 and retains v5 for comparisons. See finding #66 for correctness,
+The harness still defaults to v5.1 (`../harness/src/config.rs`) and retains v5 for comparisons; the
+engine itself defaults to `mosaic`, and the current best is v5.7. See finding #66 for correctness,
 measured performance, and the correction to earlier palette-based world checks.
 
 **Orion v5.2** (`-Dscheduler=orion5.2`) adds an optimized `ImprovedNoise` kernel to v5.1.
@@ -182,7 +183,7 @@ cup, from "I'll have a latte" to it hitting the counter. Most come out fast; a f
 unlucky and land behind a rush. MSPC is that stopwatch, run per chunk instead of per
 coffee — reported as fastest, typical, and worst-1%, instead of one average that blurs
 the good cups and the bad one together. Smaller is better, everywhere. No CPU-architecture
-knowledge required. Full formal definition in `scientific-findings.md` #11.
+knowledge required. Full formal definition in `scientific-findings-1-40.md` #11.
 
 ![Typical milliseconds per chunk, naive solid-block fill vs the mosaic algorithm at two tile sizes — trending down](findings/mspc_progress.png)
 
@@ -196,7 +197,7 @@ result on record, are plotted alongside for scale.
 
 That's the whole point of building MSPC in the first place: a number you can watch go
 down as the fill algorithm improves, instead of an average that hides whether it
-actually did. See `scientific-findings.md` #13 for the thread-pool experiment that
+actually did. See `scientific-findings-1-40.md` #13 for the thread-pool experiment that
 motivated bumping the mosaic tile size, #14 for a three-way GC comparison (default G1
 vs. a throughput-tuned G1 vs. ZGC, all at a fixed pretouched heap), #15 for what
 happens when GC choice is crossed with a smaller worker pool (short version: the
@@ -223,7 +224,7 @@ This forwards `-Dmax.bg.threads=N` to the forked JVM (wired up in `build.gradle.
 it's a **ceiling**, not a target: `threads = clamp(availableProcessors() - 1, 1, N)`, so on
 an 8-core box any `N ≥ 7` clamps to the same 7 workers you already had — only `N < 7` (like
 the `4` above) actually changes anything. Verified live with `jcmd <pid> Thread.print` in
-`scientific-findings.md` #13, which also has the more interesting follow-up: cutting workers
+`scientific-findings-1-40.md` #13, which also has the more interesting follow-up: cutting workers
 from 7 to 4 didn't cost any measurable throughput either.
 
 To try a different garbage collector (or any other raw JVM flags):
@@ -234,7 +235,7 @@ To try a different garbage collector (or any other raw JVM flags):
 
 `-PgcArgs` is a plain string, space-split into `jvmArgs` — pass whatever flags you want.
 Every run now logs `Active GC(s): ...` at startup (via `ManagementFactory.getGarbageCollectorMXBeans()`),
-so you can confirm what actually loaded instead of trusting the flag. `scientific-findings.md`
+so you can confirm what actually loaded instead of trusting the flag. `scientific-findings-1-40.md`
 #14 ran this three ways (default G1, a throughput-tuned G1, and generational ZGC) at a fixed
 16GB pretouched heap, all at 7 workers — ZGC came out ~6% ahead across every MSPC percentile,
 G1's own tuning knob made basically no difference. #15 reran the same collectors (plus a fourth,
@@ -246,7 +247,7 @@ to tune in isolation.
 
 Every scheduler this project has ever shipped, plus real unmodified Paper, Leaf, and
 Leaf-with-crack-flags, ranked by **effective MSPC** (`total_ms / chunks` — the same "true
-average" metric `scientific-findings.md` #18 used to compare against real servers, distinct
+average" metric `scientific-findings-1-40.md` #18 used to compare against real servers, distinct
 from the percentile-spread MSPC everywhere else on this page). Every row is one *individual*
 run, not an average — 31 of them, sorted best to worst, generated straight from
 `findings/leaderboard_entries.csv` rather than typed by hand:
@@ -257,33 +258,53 @@ python3 findings/generate_leaderboard.py   # regenerates findings/leaderboard.ht
 
 Open `findings/leaderboard.html` — sortable by any column, filterable by engine. **It is not a
 rigorous ranking and isn't trying to be one**: rows span different sessions and box states, and
-two of them are a genuinely different chunk count and scale entirely. `scientific-findings.md`
+two of them are a genuinely different chunk count and scale entirely. `scientific-findings-1-40.md`
 #16/#17 already put this box's own run-to-run noise at ~9%, and #32 exists specifically because
 block-sequential comparisons like most of this table can't be trusted at face value — Orion v2.1
 shows up at rank #3 *and* rank #18, sandwiched between two Paper legs, which is the whole point
 of leaving every run in separately instead of averaging them away. The rigorous version, with
-every caveat intact, is `scientific-findings.md` #1-#35 and its unhinged sibling
+every caveat intact, is `scientific-findings-1-40.md` #1-#35 and its unhinged sibling
 `cursed-scientific-advancements.md`.
 
 ## Project layout
 
-| File | What it is |
+Sources live under `src/main/kotlin/io/github/eath1283/worldgend/` (plus `src/main/java/...` for the
+vector and cell kernels). See [`ARCHITECTURE.md`](ARCHITECTURE.md) for how the pieces fit together.
+
+| Path | What it is |
 |---|---|
-| `src/main/kotlin/io/github/eath1283/worldgend/HeadlessWorldgen.kt` | The whole heist: bootstrap replay, `DedicatedServer` construction, the mosaic fill loop, MSPC instrumentation |
-| `src/main/kotlin/io/github/eath1283/worldgend/ServerRuntime.kt` | Finds the server jar, unpacks the bundler payload, builds the `URLClassLoader` |
-| `src/main/kotlin/io/github/eath1283/worldgend/Reflect.kt` | Thin `Class`/`Method`/`Constructor` lookup helpers (`Mc`) |
+| `HeadlessWorldgen.kt` | The whole heist: bootstrap replay, `DedicatedServer` construction, scheduler selection, the fill loop, result file, MSPC instrumentation |
+| `ServerRuntime.kt`, `Reflect.kt` | Finds the server jar and builds the `URLClassLoader`; thin reflection helpers (`Mc`) |
+| `Orion.kt`, `OrionV2.kt`, `OrionV2_1.kt`, `OrionV2_2.kt`, `OrionV3.kt` | Frontier schedulers v1-v3 (conflict-checked admission). Kept as benchmark baselines |
+| `OrionV5.kt`, `OrionParallelSteps.kt` | Current scheduler: dispatches chunks and runs vanilla's generation steps on a worker pool (v4 is v3 plus the structure-gen patch) |
+| `OrionPatchAgent.kt` | Java agent (`Premain-Class`): javassist patches selected per `-Dscheduler` and `-Dorion.patch*` flags |
+| `DensityCellPatch.kt`, `DensitySimdPatch.kt`, `ImprovedNoisePatch.kt`, `AllocationPatch.kt` | Compute patches: v5.7 cell fill, v5.1 SIMD batches, v5.2 Perlin kernel, v5.3 allocation fixes |
+| `RegionChunkMemo.kt`, `MemoizingPredicate.kt` | Lookup memos (`WorldGenRegion.getChunk`, biome-condition tests) |
+| `LightSwapPatch.kt` | Opt-in light-engine instrumentation (`-Dorion.lightSwap`); experiment closed by finding #77 |
+| `ChunkEvictor.kt`, `c1gc/` | Chunk reclamation: v5.4-era evictor and the C1GC lifecycle that replaced it (see `c1gc/README.md`) |
+| `PendingSpatialIndex.kt`, `HeldCenterIndex.kt`, `OrionTelemetry.kt` | Admission indexes and the `-Dorion.telemetry` event log |
+| `Dfc.kt`, `DfcRuntime.kt` | Density-function compiler prototype, parked at Stage 1 (finding #58) |
+| `*.java` | `DensityBatch`/`DensityVector` (SIMD), `DensityCell*`/`DensitySurfaceCache` (v5.7), `BlockStateSnapshot` |
+| `src/test/` | Unit tests for the kernels, snapshotting, and the v5 failure path |
+| `run_direct.py` | Direct launcher: adds the Vector API module, rebuilds the agent, runs a scheduler |
+| `wrapper/` | `worldgend-wrap.jar` / TUI front end for end users (own README) |
+| `landing-page/` | Vite site deployed by `.github/workflows/landing-page.yml` |
 | `TUTORIAL.md` | The narrative: what this does and why it works, written for a human |
-| `scientific-findings.md` | The lab notebook: every empirical claim above, backed by `jcmd` thread dumps and `javap` bytecode disassembly instead of vibes |
-| `findings/` | Raw data (`mspc_results.csv`, `algorithm_progress.csv`, `gc_results.csv`, `gc_4w_results.csv`, ...) and the matplotlib script (`plot_results.py`) that generates every chart in this README and in `scientific-findings.md` |
-| `findings/leaderboard_entries.csv`, `findings/generate_leaderboard.py` | Source data and generator for `findings/leaderboard.html`, the sortable cursed leaderboard |
+| `ARCHITECTURE.md` | Runtime map: scheduler, patches, C1GC, and the hard-won gotchas |
+| `findings/` | Raw data (`mspc_results.csv`, `algorithm_progress.csv`, `gc_results.csv`, ...), JFR profiles, and the matplotlib scripts (`plot_results.py`) behind every chart |
+| `findings/leaderboard_entries.csv`, `findings/generate_leaderboard.py` | Source and generator for `findings/leaderboard.html`, the sortable cursed leaderboard |
 | `cursed-scientific-advancements.md` | The highlight reel: the whole Orion arc, same receipts, deliberately unhinged tone |
+| `moonrise-diff-findings.md` | Comparison against Paper's Moonrise scheduler |
 
 ## Docs
 
+- **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — how the runtime fits together, and the
+  gotchas that cost real debugging time.
 - **[`TUTORIAL.md`](TUTORIAL.md)** — start here. How the reflection heist works, step by
   step, and the ground rules that keep it correct (`managedBlock()` is load-bearing, the
   seed is pinned to `69`, etc).
-- **[`scientific-findings.md`](scientific-findings.md)** — the evidence. Thread-pool sizing,
+- **[`scientific-findings-1-40.md`](scientific-findings-1-40.md)** and
+  **[`scientific-findings-41-80.md`](scientific-findings-41-80.md)** — the evidence. Thread-pool sizing,
   the confirmed radius-8 chunk dependency ceiling (straight out of the jar's bytecode), the
   mosaic algorithm it justifies, the MSPC metric, and an open-questions list for anyone
   picking this up next.

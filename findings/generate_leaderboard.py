@@ -38,11 +38,11 @@ ENGINE_COLORS = {
 DISCLAIMER = (
     "This is not a rigorous ranking and isn't trying to be one. Rows come from different "
     "sessions, different box states, and (for two of them) a genuinely different chunk count "
-    "and scale entirely — scientific-findings.md #16/#17 already put this box's own "
+    "and scale entirely — scientific-findings-1-40.md #16/#17 already put this box's own "
     "run-to-run noise at ~9%, and #32 exists specifically because block-sequential comparisons "
     "like most of this table can't be trusted at face value. Treat this as a highlight reel, "
     "not a leaderboard you'd cite in a paper. The rigorous version, with all the caveats "
-    "intact, is scientific-findings.md #1-#35 and its unhinged sibling "
+    "intact, is scientific-findings-1-40.md #1-#35 and its unhinged sibling "
     "cursed-scientific-advancements.md."
 )
 
