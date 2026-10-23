@@ -35,6 +35,8 @@ MSPC (ms/chunk, n=9216): min=NN p1=NN p25=NN p50=NN p75=NN p99=NN max=NN
 **MSPC** is milliseconds per chunk (submission to completion), reported as a percentile spread
 instead of one misleading average. Smaller is better. Formal definition: `scientific-findings-1-40.md` #11.
 
+![Typical milliseconds per chunk, naive solid-block fill vs the mosaic algorithm at two tile sizes - trending down](findings/mspc_progress.png)
+
 Options (all inert when omitted):
 
 - `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|...|orion5.7`
@@ -57,6 +59,11 @@ Options (all inert when omitted):
 | Orion v5.4 | C1GC bounded chunk reclamation | 8.66-9.17 (6,400 chunks), 8.75 (256x256) | fixes a large-tile hang/OOM; cost inside noise after batching fix |
 | Orion v5.6 | v5.5 compute patches, 16-chunk admission, earlier C1GC trigger | 7.87 (6,400 chunks), 7.93 (65,536) | 76% lower p50 and 57-70% lower p99 than v5.5; total time at parity |
 | Orion v5.7 | v5.6 + cell-batched density fill, lazy interpolators, shared surface cache | 6.80-6.94 (6,400 chunks) | 10-12% lower total time than v5.6 (30/30 pairs, bit-exact) |
+
+Across every scheduler generation, **effective MSPC** (`total_ms / chunks`) has fallen roughly 78%
+from the original mosaic to Orion v5.5. Paper and Leaf's best real-server results are plotted for scale.
+
+![Bar chart of effective MSPC across every WorldgenD scheduler generation through Orion v5.5, plus Paper and Leaf's best real-server results](findings/emspc_integration_progress.png)
 
 The engine defaults to `mosaic`; the current best is **v5.7**. The harness defaults to v5.1
 (`../harness/src/config.rs`).
@@ -94,15 +101,6 @@ The engine defaults to `mosaic`; the current best is **v5.7**. The harness defau
 ![Orion v5.7 throughput across six blocks, and leave-one-out ablation](findings/orion57_74_throughput.png)
 
 Orion v2.1 uses raster target order; v2.2 is the scatter-ordered variant.
-
-## Progress
-
-![Typical milliseconds per chunk, naive solid-block fill vs the mosaic algorithm at two tile sizes - trending down](findings/mspc_progress.png)
-
-Across every scheduler generation, **effective MSPC** (`total_ms / chunks`) has fallen roughly 78%
-from the original mosaic to Orion v5.5. Paper and Leaf's best real-server results are plotted for scale.
-
-![Bar chart of effective MSPC across every WorldgenD scheduler generation through Orion v5.5, plus Paper and Leaf's best real-server results](findings/emspc_integration_progress.png)
 
 The full experiment log (GC comparisons, JFR profiles, Paper/Leaf head-to-heads, MC-55596) is in
 `scientific-findings-1-40.md` and `scientific-findings-41-80.md`.
