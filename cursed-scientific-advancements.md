@@ -2,7 +2,7 @@
 
 A field guide to the crimes committed in this repository, presented in roughly the order we
 committed them. `TUTORIAL.md` has the heist. `scientific-findings-1-40.md` and
-`scientific-findings-41-80.md` have the receipts, all 68 of them and counting, in a tone somewhere
+`scientific-findings-41-80.md` have the receipts, all 77 of them and counting, in a tone somewhere
 between lab notebook and confession. This document is the highlight reel — the parts where a bit,
 a busy-spin, and a spreadsheet's worth of stubbornness turned into a headless Java process that
 got genuinely competitive with a real, production-grade, professionally-maintained Paper server
@@ -564,6 +564,40 @@ time: a profiler telling you where the CPU goes is not the same claim as a stopw
 the total got smaller, and this document has now learned that lesson from a scheduler, a compiler,
 and a memory allocator.
 
+## Act 19: The Last Lever That Wasn't — cell-batched noise, six nulls, and a copy that was never the problem
+
+After Act 18 convinced us the compute side was spent, one idea finally cleared the bar that every
+earlier one had failed. Orion v5.7 (#74) replaces v5.1's per-call SIMD batches with
+`DensityCellPatch`: whole `NoiseChunk` cells filled in one loop, interpolators computed only when
+something reads them, and preliminary surface levels shared across chunks. Against v5.6 it won 30
+of 30 paired runs across six blocks, medians 7.5-12% faster, worker CPU down 13-16%, output
+bit-exact. An independent party reran it from a separate source snapshot and got the same answer.
+Switching each piece off in turn cost wall clock every time, the glue the least (+1.3%).
+
+Then came the part that usually gets cut from the highlight reel. #75 tested six more ideas under
+the same bar (at least 3-4% consistent, bit-exact, replicated). All six were bit-exact. None was
+consistent. A lock-free structure map went -2.9% on one block and +3.4% on replication. Doubling
+in-flight chunks to 32 made p99 latency worse (603 to 855 ms) and bought nothing. The surface
+shortcuts saved 3.5-4.5% of worker CPU on paper, and the independent block failed its own
+falsifiers. We conceded. The losing column is why the winning one can be believed.
+
+#76 profiled v5.7 and found that the light engine's section-map copy
+(`LayerLightSectionStorage.swapSectionMap`) was the biggest allocator in the run, 13.4% of sampled
+bytes, and guessed it drove the young-GC pause climb. Plausible, and wrong. #77 deleted the copy as
+an upper bound. Of 16,850 swaps, only 6.3% were read before the next one, so a lazy snapshot looked
+like free money. Paired runs came out +0.2% on median wall clock. Young collections fell from 14 to
+10, but total scavenge pause did not fall. The climb tracks live chunk data being copied and
+promoted, not the count of short-lived map copies. The garbage was cheap. Fewer scavenges just
+moved the same copying into bigger ones. One variant also died with an NPE in
+`BlockLightEngine.propagateIncrease`: concurrent readers of a shared visible map corrupt the
+mutator's cached section lookup. Aliasing is not just unsafe in theory.
+
+Side quest (#72): WorldgenD-generated worlds now write their own `world_gen_settings.dat`. Paper
+26.1.2 used to refuse to boot on them with `Overworld settings missing`, because vanilla had been
+quietly falling back to defaults. That one was a real bug, and it was filed under "it works".
+
+The light engine is off the table. The noise fill is still the biggest slice of worker time.
+
 ## The Whole Arc, In One Table
 
 | Stage | Effective ms/chunk (this box) | vs. where we started |
@@ -580,6 +614,8 @@ and a memory allocator.
 | **Orion v5 (parallel chunk steps, #62)** | **8.16-8.65** | **~2.5x v4, ~77% faster than mosaic: vanilla's serial worldgen lane was the ceiling all along** |
 | Orion v5.1 / v5.2 / v5.3 (SIMD, Perlin port, allocation fixes; #66-68) | 8.05-9.34 | each a real, bit-exact local win; all three a champion-scale tie with v5 |
 | Orion v5 deterministic (region / closure + unlit light; #65) | +6.7% / +19.3% vs plain v5 | bit-identical worlds, at a real and measured cost |
+| Orion v5.6 (16 in flight, C1GC at 0.3; #73) | ~7.7 (ablation block, #74 pairs) | same total time, p50 latency down 76% |
+| **Orion v5.7 (cell-batched density fill, #74)** | **6.90 (paired median, 44,168 ms / 6,400)** | **10-12% faster than v5.6, bit-exact, replicated independently** |
 | *(for reference) Paper, interleaved same-session mean, 4 workers* | 24.02 | *genuine parity with v2.1 @ 4 workers, per Act 8* |
 | *(for reference) Paper, matched 7 workers, interleaved twice; #63/#64* | 9.07-9.13 | *genuine parity with v5, pooled n=6: -4.2%, inside noise* |
 
@@ -591,7 +627,7 @@ always working toward, not the one it almost ran with back in Act 7.
 Every single number in that table is backed by a JFR recording, a `top -bH` snapshot, a CSV in
 `findings/`, or a `javap` disassembly — nothing here is vibes. `scientific-findings-1-40.md` and
 `scientific-findings-41-80.md` have the full, unabridged, occasionally-wrong-and-corrected version
-of this story, findings #1 through #68 and counting, wrong turns and all, because a lab notebook
+of this story, findings #1 through #77 and counting, wrong turns and all, because a lab notebook
 that only records the wins isn't a lab notebook, it's marketing.
 
 Go make some land. The Paper number got run interleaved, at matched thread count, twice — and it

@@ -187,7 +187,8 @@ p50 latency by 76% (finding #73).
 v5.7 swaps v5.1's SIMD density batches for `DensityCellPatch`: whole NoiseChunk cells are filled
 in one loop, interpolators are computed only when read, and preliminary surface levels are shared
 across chunks through `DensitySurfaceCache`. It is the shipped winner, 10-12% faster than v5.6
-and bit-exact in deterministic mode (finding #74). Each piece can be switched off for ablation
+and bit-exact in deterministic mode (finding #74). The experiments that were tested alongside it and
+did not clear the bar are in #75; the light engine's section-map copy is not worth touching (#77). Each piece can be switched off for ablation
 with `-Dorion.noiseCell.batch|lazy|surfaceCache|glue=false`.
 
 ```bash
@@ -203,6 +204,9 @@ should be read against this box's ~9% run-to-run noise (findings #16/#17), so lo
 rotated runs before believing a small win.
 
 ## Where to go next
+
+Worlds WorldgenD writes include `world_gen_settings.dat`, so a real Paper 26.1.2 server boots on
+them without a splice (#72).
 
 [`ARCHITECTURE.md`](ARCHITECTURE.md) maps the scheduler, the agent patches and C1GC onto the
 files, and lists the traps that only show up at scale. Findings #75 to #77 record what was
