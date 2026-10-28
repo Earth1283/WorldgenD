@@ -335,3 +335,8 @@ lswap77_base_r4,"Orion orion5.7 (light swap control, run 4)",orion5.7,5,6400,7,4
 lswap77_skip_r4,"Experiment (light swap) Skip light section-map snapshot (ceiling probe, run 4)",exp-light-swap-skip,5,6400,7,44680,0.06,47.53,67.56,79.84,108.97,542.45,3435.83
 lswap77_base_r5,"Orion orion5.7 (light swap control, run 5)",orion5.7,5,6400,7,42900,1.12,47.31,67.46,80.36,104.37,481.25,3859.35
 lswap77_skip_r5,"Experiment (light swap) Skip light section-map snapshot (ceiling probe, run 5)",exp-light-swap-skip,5,6400,7,47992,0.35,52.17,74.09,88.11,115.33,577.67,4060.49
+dr78_v57_r1,"Orion orion5.7 (drag race #78, round 1)",orion5.7,5,6400,7,40821,0.13,43.74,61.70,71.74,95.92,512.46,3645.63
+dr78_v57_r2,"Orion orion5.7 (drag race #78, round 2)",orion5.7,5,6400,7,38483,0.13,44.21,61.30,71.07,90.13,489.18,3293.40
+dr78_v57_r3,"Orion orion5.7 (drag race #78, round 3)",orion5.7,5,6400,7,38224,0.11,41.64,60.74,71.01,91.48,548.40,3176.82
+dr78_v57_r4,"Orion orion5.7 (drag race #78, round 4)",orion5.7,5,6400,7,38841,0.21,45.08,62.07,72.66,92.80,483.56,2948.37
+dr78_v57_r5,"Orion orion5.7 (drag race #78, round 5)",orion5.7,5,6400,7,38251,0.10,43.85,62.12,72.52,92.37,483.35,2577.40

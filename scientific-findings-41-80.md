@@ -1542,6 +1542,71 @@ the lever #69-#71 already studied. #76's other leads (`mapAll`/`NoiseChunk.wrap`
 `XoroshiroRandomSource` ~6%) are allocation-volume leads too, and #75's `exp-mapall-memo` already saw a ~18 thread-s/run
 ctor saving with no wall-clock change, so expect the same unless the live set shrinks.
 
+## 78. Drag race #78: Orion v5.7 beats every 7-worker Moonrise server in all 15 head-to-heads, by a median ~22%
+
+#64 left v5 at parity with 7-worker Paper, Leaf, and Leaf-on-crack, and the homepage has claimed no margin over 7-worker Paper since #74 because v5.7 had never been raced. This is that race.
+
+**Method.** #64's design, more rounds: 5 rounds x 4 legs, leg order rotated every round, so each engine runs in every slot. Driver: `findings/run_dragrace5.py` (the old `dragrace4.sh` was no longer on disk), which reuses `control/run-drag-race.sh` for the servers.
+- **Orion v5.7:** champion spec (6,400 chunks, tile 5, 7 workers, 16GB pretouched ParallelGC, `maxinflight=16`, `pressure=0.3`, agent + patch flags). No disk writes (`saveworld=false` default).
+- **Servers:** `worker-threads: 7` in `paper-global.yml` (every log says `is using 7 worker threads`), stock 16GB Aikar G1 scripts, fresh world per leg, Chunky square radius 640 (6,561 chunks), ticking and saving, raced on port 25565. The driver restores `worker-threads: -1` and port 9090 on exit (checked).
+- **JVM:** every leg ran on Corretto 25.0.4.1 (`/root/minecraft-server/runtime/java`). #63/#64's servers ran on Ubuntu's OpenJDK 25.0.4, which has since left the box. See #79.
+- 20/20 legs, 0 failures.
+
+| engine (all 7 workers) | r1 | r2 | r3 | r4 | r5 | mean | median | spread |
+|---|---|---|---|---|---|---|---|---|
+| **Orion v5.7** | 6.38 | 6.01 | 5.97 | 6.07 | 5.98 | **6.08** | 6.01 | 6.9% |
+| Leaf | 8.18 | 6.79 | 8.02 | 6.79 | 7.87 | 7.53 | 7.87 | 20.5% |
+| Leaf-on-crack | 7.87 | 6.95 | 8.02 | 8.18 | 7.71 | 7.75 | 7.87 | 17.7% |
+| Paper | 8.19 | 7.87 | 7.10 | 7.87 | 8.02 | 7.81 | 7.87 | 15.4% |
+
+(ms/chunk; `findings/dragrace5_results.csv`.)
+
+Paired within each round (v5.7 vs the engine, same round):
+
+| vs | r1 | r2 | r3 | r4 | r5 | median |
+|---|---|---|---|---|---|---|
+| Paper | -22.1% | -23.6% | -15.9% | -22.9% | -25.4% | -22.9% |
+| Leaf | -22.0% | -11.5% | -25.6% | -10.6% | -24.0% | -22.0% |
+| Leaf-on-crack | -18.9% | -13.5% | -25.6% | -25.8% | -22.4% | -22.4% |
+
+![Drag race #78: Orion v5.7 6.08 ms/chunk vs Leaf 7.53, Leaf-on-crack 7.75, Paper 7.81, all at 7 workers, 5 rounds](findings/dragrace5_summary.png)
+
+**Reading.**
+- **v5.7 wins 15/15 pairs, every one outside the ~9% band.** Against Paper the closest round is -15.9%. A 5/5 sign test per server is p=0.031 one-sided. #74's 10-12% over v5.6, which was already at parity with Paper, adds up to roughly this margin.
+- **The claim is generation speed with WorldgenD not saving.** The servers also write region files and tick, and WorldgenD does not (the same caveat as #63/#64). The full like-for-like number needs a v5.7 race with saving on.
+- **v5.7 is also the steadiest engine** (6.9% spread vs 15-20%). Its latency held across rounds: p50 71.0-72.7 ms, p99 483-548 ms.
+- **The Leaf-on-crack flags still buy nothing.** Crack vs Leaf by round: -3.8, +2.4, 0.0, +20.5, -2.0%. The +20.5% is Leaf landing one of its fast legs, not the flags.
+- **Leaf is bimodal:** 6.79 ms twice, about 8.0-8.2 three times. Chunky's own timer agrees (43s vs 52-53s), and world-save counts match (2 per leg), so it is not measurement or saving. Leaf-on-crack moves with it in rounds 2 and 3, so most of it looks like drift across the session, not anything Leaf-specific. Unexplained.
+- **Server timings were quantized to ~1s.** `run-drag-race.sh` polled for `Task finished` with `sleep 1`, so every server total is whole seconds plus ~0.6s (both fast Leaf legs read exactly 44,570 ms). The bias is ~1% against servers, small next to these margins. The poll is now 0.1s (#79 used it).
+- **This session ran fast for everyone.** v5.7's 5.97-6.38 beats #74's best (6.67) on unchanged code, and the servers ran ~14% under #64 (Paper 7.81 vs 9.07). Use the in-session pairs above, not cross-session numbers. #79 rules out the JVM.
+
+**Filed.** `findings/dragrace5_results.csv`, `findings/dragrace5_logs/` (server logs, v5.7 result files), 20 `#78` rows in `findings/leaderboard_entries.csv`, 5 `dr78_v57_*` rows in `findings/orion_results.csv`, `findings/dragrace5_summary.png`. Leaderboard regenerated.
+
+## 79. The session drift in #78 is not the JVM: Paper on Ubuntu OpenJDK vs Corretto is a null
+
+#78's servers ran ~14% faster than in #64, and the obvious change was the JVM (Ubuntu OpenJDK 25.0.4 then, Corretto 25.0.4.1 now). This tests that.
+
+**Method.** `apt install openjdk-25-jre-headless` (25.0.4.1+1-1~26.04.4; the exact 25.0.4+7 build from #64 is no longer the candidate, so this is Ubuntu's build vs Corretto's at the same point release). Paper-7w only, same stock script and Chunky square as #78, 5 rounds, order alternated each round. `PATH` picks the JVM; every log's `Running Java` line confirms it. Driver `findings/run_paper_jvm_ab.py`, first run on the 0.1s-poll `run-drag-race.sh`. 10/10 legs.
+
+| round | Corretto | Ubuntu | Ubuntu vs Corretto | ran second |
+|---|---|---|---|---|
+| 1 | 8.30 | 7.76 | -6.5% | Ubuntu |
+| 2 | 7.39 | 7.85 | +6.2% | Corretto |
+| 3 | 7.51 | 7.15 | -4.8% | Ubuntu |
+| 4 | 7.77 | 7.17 | -7.7% | Corretto |
+| 5 | 7.34 | 7.70 | +4.9% | Ubuntu |
+| mean / median | 7.66 / 7.51 | 7.53 / 7.70 | -1.8% / -4.8% | |
+
+(ms/chunk; `findings/paper_jvm_ab_results.csv`.)
+
+**Reading.**
+- **Null.** Ubuntu wins 3/5, the means differ by 1.8% in Ubuntu's favour and the medians by 2.5% in Corretto's, well inside the noise band. If anything Ubuntu's build, the one #64 used, is the faster one, so the JVM does not explain why the servers got faster.
+- **So the drift is the host.** v5.7 ran on Corretto both in #74 and in #78 and still got ~10% faster, which the JVM cannot explain either. A sample during this A/B showed 0% steal at 93-99% user CPU, but no earlier race logged steal, so higher steal back then is not shown; host clock behaviour the guest cannot see (EPYC Milan) is just as possible.
+- **The "second leg is faster" pattern was a mirage.** It held for the first three rounds (-6.5, -5.9, -4.8%) and broke in rounds 4-5, so 3/5. #78's slot data agrees: first-slot server legs ran +4.3% vs their engine mean and last-slot -4.4%, but the fast legs (6, 7, 12, 16) follow no position or neighbour pattern, and running right after Orion is +1.1% vs -0.6% otherwise.
+- **The 0.1s poll works.** Totals now land on sub-second values (50,900, 48,490, 46,930 ms) instead of #78's whole-seconds-plus-0.6s grid.
+
+**Filed.** `findings/paper_jvm_ab_results.csv`, `findings/paper_jvm_ab_logs/`, 10 `#79` rows in `findings/leaderboard_entries.csv`. Ubuntu's OpenJDK 25 stays installed at `/usr/lib/jvm/java-25-openjdk-amd64`.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -1571,3 +1636,5 @@ ctor saving with no wall-clock change, so expect the same unless the live set sh
 - **#75's six nulls point at two places left to look**: surface + biomes are ~34% of v5.7 worker samples (the surface/biome patch set has a real CPU saving that n=5 wall clock could not separate from zero, worth a larger n on top of v5.7), and ~19% of worker time is idle for reasons that were inferred (dependency/lock blocking) but not measured.
 - **#76's JFR profile of v5.7 finds the light engine's `swapSectionMap` copy is the top allocator (13.4% of sampled bytes) while using only 4.6% of CPU**, and young-GC pauses climb 24->121 ms then fall; untested whether the copy drives the climb. Noise fill is 41% of worker samples (Perlin leaves 14.4%); CPU is near the 7-worker ceiling (81% of 8 vCPUs).
 - **#77 falsifies #76's light-copy lead**: skipping `swapSectionMap`'s map copy entirely (unsafe ceiling probe, n=5 pairs) cuts young GCs 14 -> 10 but total scavenge pause and wall time do not move (+0.2% median, 2/5 pairs faster) and the pause climb persists, so it tracks the live chunk set, not allocation volume.
+- **#78 gives v5.7 its first win over Moonrise**: 15/15 pairs against 7-worker Paper, Leaf, and Leaf-on-crack, median ~22% (Paper -22.9%), all on Corretto in one session. Still open: the same race with WorldgenD saving chunks (`-Dsaveworld=true`) for a like-for-like number; a 65,536-chunk race, where the servers' disk writes should compound; and Leaf's bimodal 6.8/8.1 ms legs.
+- **#79 rules out the JVM for #78's session-wide speedup** (Ubuntu OpenJDK vs Corretto on Paper-7w, -1.8%, 3/5), leaving the host. Still open: logging steal time and CPU clock in every race driver, so drift between sessions can be attributed next time instead of inferred.

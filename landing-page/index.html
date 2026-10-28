@@ -40,7 +40,8 @@
           <p class="lede">
             WorldgenD runs Mojang's own server code, headless, and makes vanilla world
             generation finish sooner: 6.80&ndash;6.94&nbsp;ms per chunk on our
-            6,400-chunk benchmark.
+            6,400-chunk benchmark. In race <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#78-drag-race-78-orion-v57-beats-every-7-worker-moonrise-server-in-all-15-head-to-heads-by-a-median-22">#78</a> it finished
+            22% ahead of Paper running the same 7 workers, with WorldgenD not saving chunks.
           </p>
           <div class="actions">
             <a class="btn btn-primary" href="https://github.com/Earth1283/WorldgenD">View on GitHub</a>
@@ -124,42 +125,49 @@
               server, so this page always says which Paper it means.
             </p>
             <p>
-              The last interleaved race (3 rotated rounds) put Orion v5 and 7-worker Paper
-              inside one noise band. The servers also tick and write chunks to disk, which
-              WorldgenD did not, so read that as parity, not a win.
+              In race #78 (5 rotated rounds, all four engines in one session) Orion v5.7
+              beat 7-worker Paper, Leaf and Leaf-on-crack in every round: 15 of 15
+              head-to-heads, by a median of about 22%.
             </p>
             <p class="pending">
-              Orion v5.7 has not been raced against Paper yet. Until that race is run and
-              published, we claim no margin over 7-worker Paper.
+              The servers also tick and write chunks to disk; WorldgenD did not. Read this
+              as faster generation, not yet a like-for-like server comparison. A race with
+              WorldgenD saving its chunks is next.
             </p>
           </div>
 
           <figure class="race">
             <figcaption>
-              Race #63, mean ms per chunk, lower is better.
-              <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#63-drag-race-63-orion-v5-vs-paperleafleaf-on-crack-interleaved-and-the-paper-control-nobody-had-run-matched-worker-count">Method and caveats</a>
+              Race #78, mean ms per chunk, lower is better.
+              <a href="https://github.com/Earth1283/WorldgenD/blob/main/scientific-findings-41-80.md#78-drag-race-78-orion-v57-beats-every-7-worker-moonrise-server-in-all-15-head-to-heads-by-a-median-22">Method and caveats</a>
             </figcaption>
             <!-- To edit: --v is the value, --max is the chart's right edge. -->
-            <div class="hbars" style="--max: 26">
-              <div class="hbar is-ours" style="--v: 8.61" title="Orion v5: 8.61 ms/chunk">
-                <span class="hbar-name">Orion v5</span>
+            <div class="hbars" style="--max: 9">
+              <div class="hbar is-ours" style="--v: 6.08" title="Orion v5.7: 6.08 ms/chunk">
+                <span class="hbar-name">Orion v5.7</span>
                 <span class="hbar-track"><span class="hbar-fill"></span></span>
-                <span class="hbar-val">8.61</span>
+                <span class="hbar-val">6.08</span>
               </div>
-              <div class="hbar" style="--v: 9.13" title="Paper, 7 workers: 9.13 ms/chunk">
+              <div class="hbar" style="--v: 7.53" title="Leaf, 7 workers: 7.53 ms/chunk">
+                <span class="hbar-name">Leaf, 7 workers</span>
+                <span class="hbar-track"><span class="hbar-fill"></span></span>
+                <span class="hbar-val">7.53</span>
+              </div>
+              <div class="hbar" style="--v: 7.75" title="Leaf-on-crack, 7 workers: 7.75 ms/chunk">
+                <span class="hbar-name">Leaf-on-crack, 7 workers</span>
+                <span class="hbar-track"><span class="hbar-fill"></span></span>
+                <span class="hbar-val">7.75</span>
+              </div>
+              <div class="hbar" style="--v: 7.81" title="Paper, 7 workers: 7.81 ms/chunk">
                 <span class="hbar-name">Paper, 7 workers</span>
                 <span class="hbar-track"><span class="hbar-fill"></span></span>
-                <span class="hbar-val">9.13</span>
-              </div>
-              <div class="hbar is-muted" style="--v: 24.62" title="Paper, stock (2 workers): 24.62 ms/chunk">
-                <span class="hbar-name">Paper, stock (2 workers)</span>
-                <span class="hbar-track"><span class="hbar-fill"></span></span>
-                <span class="hbar-val">24.62</span>
+                <span class="hbar-val">7.81</span>
               </div>
             </div>
             <p class="chart-note">
-              Servers generated 6,561 chunks with Chunky, timed from start to finish. The
-              5.7% gap between the top two is inside the ~9% noise band.
+              Servers generated 6,561 chunks with Chunky, timed from start to finish. This
+              session ran faster for every engine than earlier ones, so compare these bars
+              with each other, not with older races.
             </p>
           </figure>
         </div>
@@ -477,7 +485,7 @@
       <section id="research" class="section wrap">
         <h2>Research, including the parts that failed</h2>
         <p class="section-lede">
-          75 numbered findings and 366 filed runs, each with a CSV row, a profile, or
+          79 numbered findings and 406 filed runs, each with a CSV row, a profile, or
           bytecode behind it. A lab notebook that only records the wins is marketing.
         </p>
 

@@ -1,0 +1,21 @@
+round,order,engine,total_ms,chunks,ms_per_chunk,chunky_total,workers
+1,1,Orion v5.7,40821,6400,6.38,,7
+1,2,Paper (7 workers),53710,6561,8.19,0:00:53,7
+1,3,Leaf (7 workers),53670,6561,8.18,0:00:53,7
+1,4,Leaf-on-crack (7 workers),51640,6561,7.87,0:00:50,7
+2,1,Paper (7 workers),51610,6561,7.87,0:00:50,7
+2,2,Leaf (7 workers),44570,6561,6.79,0:00:43,7
+2,3,Leaf-on-crack (7 workers),45590,6561,6.95,0:00:45,7
+2,4,Orion v5.7,38483,6400,6.01,,7
+3,1,Leaf (7 workers),52650,6561,8.02,0:00:52,7
+3,2,Leaf-on-crack (7 workers),52640,6561,8.02,0:00:52,7
+3,3,Orion v5.7,38224,6400,5.97,,7
+3,4,Paper (7 workers),46570,6561,7.1,0:00:46,7
+4,1,Leaf-on-crack (7 workers),53650,6561,8.18,0:00:53,7
+4,2,Orion v5.7,38841,6400,6.07,,7
+4,3,Paper (7 workers),51620,6561,7.87,0:00:51,7
+4,4,Leaf (7 workers),44570,6561,6.79,0:00:43,7
+5,1,Orion v5.7,38251,6400,5.98,,7
+5,2,Paper (7 workers),52620,6561,8.02,0:00:51,7
+5,3,Leaf (7 workers),51610,6561,7.87,0:00:51,7
+5,4,Leaf-on-crack (7 workers),50590,6561,7.71,0:00:49,7

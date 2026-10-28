@@ -1,0 +1,11 @@
+round,order,jvm,java_version,total_ms,chunks,ms_per_chunk,chunky_total,workers
+1,1,corretto,OpenJDK 64-Bit Server VM 25.0.4.1+10-LTS,54470,6561,8.3,0:00:54,7
+1,2,ubuntu,OpenJDK 64-Bit Server VM 25.0.4.1+1-1-26.04.4-Ubuntu,50900,6561,7.76,0:00:50,7
+2,1,ubuntu,OpenJDK 64-Bit Server VM 25.0.4.1+1-1-26.04.4-Ubuntu,51480,6561,7.85,0:00:51,7
+2,2,corretto,OpenJDK 64-Bit Server VM 25.0.4.1+10-LTS,48490,6561,7.39,0:00:48,7
+3,1,corretto,OpenJDK 64-Bit Server VM 25.0.4.1+10-LTS,49280,6561,7.51,0:00:49,7
+3,2,ubuntu,OpenJDK 64-Bit Server VM 25.0.4.1+1-1-26.04.4-Ubuntu,46930,6561,7.15,0:00:46,7
+4,1,ubuntu,OpenJDK 64-Bit Server VM 25.0.4.1+1-1-26.04.4-Ubuntu,47050,6561,7.17,0:00:46,7
+4,2,corretto,OpenJDK 64-Bit Server VM 25.0.4.1+10-LTS,50980,6561,7.77,0:00:50,7
+5,1,corretto,OpenJDK 64-Bit Server VM 25.0.4.1+10-LTS,48160,6561,7.34,0:00:48,7
+5,2,ubuntu,OpenJDK 64-Bit Server VM 25.0.4.1+1-1-26.04.4-Ubuntu,50490,6561,7.7,0:00:50,7

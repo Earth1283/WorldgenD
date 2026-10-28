@@ -375,3 +375,33 @@ Orion v5.7,6400 orion5.7 light swap control r4,43727,6400,77
 Experiment,"Skip light section-map snapshot (ceiling probe, run 4)",44680,6400,77
 Orion v5.7,6400 orion5.7 light swap control r5,42900,6400,77
 Experiment,"Skip light section-map snapshot (ceiling probe, run 5)",47992,6400,77
+Orion v5.7,"7-worker drag race #78 (Corretto session), round 1 (leg 1)",40821,6400,#78
+Paper (7 workers),"7-worker drag race #78 (Corretto session), round 1 (leg 2)",53710,6561,#78
+Leaf (7 workers),"7-worker drag race #78 (Corretto session), round 1 (leg 3)",53670,6561,#78
+Leaf-on-crack (7 workers),"7-worker drag race #78 (Corretto session), round 1 (leg 4)",51640,6561,#78
+Paper (7 workers),"7-worker drag race #78 (Corretto session), round 2 (leg 1)",51610,6561,#78
+Leaf (7 workers),"7-worker drag race #78 (Corretto session), round 2 (leg 2)",44570,6561,#78
+Leaf-on-crack (7 workers),"7-worker drag race #78 (Corretto session), round 2 (leg 3)",45590,6561,#78
+Orion v5.7,"7-worker drag race #78 (Corretto session), round 2 (leg 4)",38483,6400,#78
+Leaf (7 workers),"7-worker drag race #78 (Corretto session), round 3 (leg 1)",52650,6561,#78
+Leaf-on-crack (7 workers),"7-worker drag race #78 (Corretto session), round 3 (leg 2)",52640,6561,#78
+Orion v5.7,"7-worker drag race #78 (Corretto session), round 3 (leg 3)",38224,6400,#78
+Paper (7 workers),"7-worker drag race #78 (Corretto session), round 3 (leg 4)",46570,6561,#78
+Leaf-on-crack (7 workers),"7-worker drag race #78 (Corretto session), round 4 (leg 1)",53650,6561,#78
+Orion v5.7,"7-worker drag race #78 (Corretto session), round 4 (leg 2)",38841,6400,#78
+Paper (7 workers),"7-worker drag race #78 (Corretto session), round 4 (leg 3)",51620,6561,#78
+Leaf (7 workers),"7-worker drag race #78 (Corretto session), round 4 (leg 4)",44570,6561,#78
+Orion v5.7,"7-worker drag race #78 (Corretto session), round 5 (leg 1)",38251,6400,#78
+Paper (7 workers),"7-worker drag race #78 (Corretto session), round 5 (leg 2)",52620,6561,#78
+Leaf (7 workers),"7-worker drag race #78 (Corretto session), round 5 (leg 3)",51610,6561,#78
+Leaf-on-crack (7 workers),"7-worker drag race #78 (Corretto session), round 5 (leg 4)",50590,6561,#78
+Paper (7 workers),"Paper JVM A/B #79, Corretto 25.0.4.1, round 1 (leg 1)",54470,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Ubuntu OpenJDK 25.0.4.1, round 1 (leg 2)",50900,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Ubuntu OpenJDK 25.0.4.1, round 2 (leg 1)",51480,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Corretto 25.0.4.1, round 2 (leg 2)",48490,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Corretto 25.0.4.1, round 3 (leg 1)",49280,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Ubuntu OpenJDK 25.0.4.1, round 3 (leg 2)",46930,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Ubuntu OpenJDK 25.0.4.1, round 4 (leg 1)",47050,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Corretto 25.0.4.1, round 4 (leg 2)",50980,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Corretto 25.0.4.1, round 5 (leg 1)",48160,6561,#79
+Paper (7 workers),"Paper JVM A/B #79, Ubuntu OpenJDK 25.0.4.1, round 5 (leg 2)",50490,6561,#79

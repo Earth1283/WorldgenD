@@ -791,7 +791,7 @@ def plot_dragrace3(rows, out_path, title="#63: drag race vs Orion v5 — interle
                    subtitle=None, reference="Paper"):
     # #63: interleaved, rotating-order drag race. Bars are per-engine means, dots are the individual rounds.
     colors = {
-        "Orion v5": "#0f9d8a", "Orion v4": "#c0392b", "Paper": "#eb6834",
+        "Orion v5": "#0f9d8a", "Orion v5.7": "#0f9d8a", "Orion v4": "#c0392b", "Paper": "#eb6834",
         "Paper (7 workers)": "#a8471d", "Leaf": "#e87ba4", "Leaf-on-crack": "#b6547a",
         "Leaf (7 workers)": "#c2577f", "Leaf-on-crack (7 workers)": "#8d3a5c",
     }
@@ -1471,6 +1471,15 @@ def main():
             title="#64: every Moonrise server at 7 workers vs Orion v5 — interleaved, rotating order, 3 rounds",
             subtitle=("Bars = mean of 3 rounds, dots = each round. All servers: chunk-system.worker-threads=7 (log-confirmed), Chunky radius 640\n"
                       "(6561 chunks), Aikar G1, ticking + saving. Orion v5: 6400 chunks, 7 workers, ParallelGC, no disk writes."),
+            reference="Paper (7 workers)",
+        )
+
+    with (HERE / "dragrace5_results.csv").open() as f:
+        plot_dragrace3(
+            list(csv.DictReader(f)), HERE / "dragrace5_summary.png",
+            title="#78: Orion v5.7 vs every Moonrise server at 7 workers, interleaved, rotating order, 5 rounds",
+            subtitle=("Bars = mean of 5 rounds, dots = each round. All servers: chunk-system.worker-threads=7 (log-confirmed), Chunky radius 640\n"
+                      "(6561 chunks), Aikar G1, ticking + saving. Orion v5.7: 6400 chunks, 7 workers, ParallelGC, no disk writes. All on Corretto 25."),
             reference="Paper (7 workers)",
         )
 
