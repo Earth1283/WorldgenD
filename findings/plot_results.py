@@ -1319,6 +1319,44 @@ def plot_orion57_65k(out_path):
     plt.close(fig)
 
 
+def plot_replication80(out_path):
+    with (HERE / "replication_20261031.csv").open(newline="") as source:
+        rows = list(csv.DictReader(source))
+    colors = {"orion5.6": BASELINE, "orion5.7": SERIES[0]}
+    fig, (short, large) = plt.subplots(1, 2, figsize=(11.5, 4.8))
+    for scheduler, color in colors.items():
+        runs = sorted((r for r in rows if r["scheduler"] == scheduler and r["mosaic_tile"] == "5"),
+                      key=lambda r: int(r["round"]))
+        short.plot([int(r["round"]) for r in runs], [float(r["emspc"]) for r in runs],
+                   color=color, marker="o", linewidth=2, label=scheduler.replace("orion", "v"), zorder=3)
+    short.set_xticks(range(1, 6), [f"pair {i}" for i in range(1, 6)])
+    short.set_ylim(0, 9)
+    short.set_ylabel("eMSPC (ms/chunk) - lower is better")
+    short.set_title("6,400 chunks: v5.7 wins 5/5 alternating AB/BA pairs", fontsize=10, loc="left")
+    short.legend(frameon=False, loc="lower right")
+    sustained = [r for r in rows if r["mosaic_tile"] == "16"]
+    for i, row in enumerate(sustained):
+        cps = float(row["cps"])
+        large.bar(i, cps, width=0.55, color=colors[row["scheduler"]], zorder=3)
+        large.annotate(f"{cps:.2f} CPS\n{float(row['emspc']):.3f} eMSPC", (i, cps + 4),
+                       ha="center", fontsize=9, color=INK_SECONDARY)
+    large.set_xticks(range(len(sustained)), [r["scheduler"].replace("orion", "v") for r in sustained])
+    large.set_ylim(0, 190)
+    large.set_ylabel("Chunks per second - higher is better")
+    large.set_title("65,536 chunks: one pair, supporting evidence", fontsize=10, loc="left")
+    for ax in (short, large):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#80: v5.6/v5.7 replication, 2026-10-31", fontsize=14, x=0.05, ha="left")
+    fig.text(0.05, 0.01, "16 GiB pretouched ParallelGC, 7 configured workers, maxinflight=16, pressure=0.3, seed 69.\n"
+             "C1GC inactive at 6,400 chunks; both large runs arm at 13,760 completions and persist 62,464 chunks.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.09, 1, 0.92))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -1499,6 +1537,7 @@ def main():
     plot_orion57_inflight(HERE / "orion57_inflight.png")
     plot_orion57_pairs(HERE / "orion57_pairs.png")
     plot_orion57_65k(HERE / "orion57_65k.png")
+    plot_replication80(HERE / "replication_20261031.png")
 
     print(f"Wrote charts to {HERE}")
 

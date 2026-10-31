@@ -405,3 +405,15 @@ Paper (7 workers),"Paper JVM A/B #79, Ubuntu OpenJDK 25.0.4.1, round 4 (leg 1)",
 Paper (7 workers),"Paper JVM A/B #79, Corretto 25.0.4.1, round 4 (leg 2)",50980,6561,#79
 Paper (7 workers),"Paper JVM A/B #79, Corretto 25.0.4.1, round 5 (leg 1)",48160,6561,#79
 Paper (7 workers),"Paper JVM A/B #79, Ubuntu OpenJDK 25.0.4.1, round 5 (leg 2)",50490,6561,#79
+Orion v5.6,orion5.6 replication 2026-10-31 round 1 leg 1,47470,6400,#80
+Orion v5.7,orion5.7 replication 2026-10-31 round 1 leg 2,40934,6400,#80
+Orion v5.7,orion5.7 replication 2026-10-31 round 2 leg 1,40189,6400,#80
+Orion v5.6,orion5.6 replication 2026-10-31 round 2 leg 2,46907,6400,#80
+Orion v5.6,orion5.6 replication 2026-10-31 round 3 leg 1,47468,6400,#80
+Orion v5.7,orion5.7 replication 2026-10-31 round 3 leg 2,39851,6400,#80
+Orion v5.7,orion5.7 replication 2026-10-31 round 4 leg 1,40276,6400,#80
+Orion v5.6,orion5.6 replication 2026-10-31 round 4 leg 2,47894,6400,#80
+Orion v5.6,orion5.6 replication 2026-10-31 round 5 leg 1,46574,6400,#80
+Orion v5.7,orion5.7 replication 2026-10-31 round 5 leg 2,40335,6400,#80
+Orion v5.6,orion5.6 replication 2026-10-31 tile 16 round 1 leg 1,509171,65536,#80
+Orion v5.7,orion5.7 replication 2026-10-31 tile 16 round 1 leg 2,437484,65536,#80

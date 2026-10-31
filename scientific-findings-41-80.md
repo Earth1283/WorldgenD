@@ -1607,6 +1607,102 @@ Paired within each round (v5.7 vs the engine, same round):
 
 **Filed.** `findings/paper_jvm_ab_results.csv`, `findings/paper_jvm_ab_logs/`, 10 `#79` rows in `findings/leaderboard_entries.csv`. Ubuntu's OpenJDK 25 stays installed at `/usr/lib/jvm/java-25-openjdk-amd64`.
 
+## 80. Orion v5.7 replication: 5/5 short pairs won, and 149.80 CPS with C1GC active at 65,536 chunks
+
+Re-ran the existing v5.6/v5.7 comparison on 2026-10-31, then increased the area on request so
+C1GC would activate naturally. No engine changes: original and isolated source hashes match
+commit `c8babc88c3ae8b42d06e85d32eb87bbf214e5829`. This checks #74's throughput result and
+#73's sustained-run GC behavior on the current host; it is not another Paper/Leaf race.
+
+**Method.** Corretto `25.0.4.1+10`, 16 GiB pretouched heap, ParallelGC, seven configured
+background workers, default seed `69`, `maxinflight=16`, C1GC pressure `0.3`, and
+`saveworld=false`. Five tile-5 pairs alternate AB/BA order; one subsequent tile-16 pair runs
+v5.6 then v5.7. Every leg starts a fresh JVM and world, using an unmodified copy at
+`../team/wt-codex-rerun-20261031/`. Both blocks ran through `../team/bench.sh` under the shared
+benchmark lock. No deterministic scheduling, histogram verification, or profiler was enabled.
+One `jcmd Thread.print` dump per leg verifies live workers; runtime output confirms
+`backgroundPool parallelism=7` and the actual collector. ForkJoinPool compensation means live
+thread count can exceed seven. The thread dump adds some measurement overhead to both arms.
+
+Exact common flags, launched through `python3 run_direct.py`:
+
+```text
+-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC -Dmax.bg.threads=7
+-javaagent:build/libs/orion-agent.jar -Dorion.patchReentrancy=true
+-Dorion.patchStructureGenState=true -Dorion.patchParallelSteps=true
+-Dorion.maxinflight=16 -Dorion.c1gc.pressure=0.3 -Dsaveworld=false
+```
+
+Add `-Dscheduler=orion5.6` or `-Dscheduler=orion5.7` and `-Dmosaic.tile=5` (6,400 chunks) or
+`-Dmosaic.tile=16` (65,536 chunks). Each leg also writes a separate unified GC log using
+`-Xlog:gc:file=<path>:time,uptime,level,tags`. The large pair adds
+`-Dworldgen.progressfile=<path>` to both arms and samples progress, GC counts, and region-file
+bytes every 30 seconds. The pressure threshold stays at `0.3`; activation is not forced.
+
+**Short block: 6,400 chunks, C1GC inactive in all ten legs.**
+
+| Round | Order | v5.6 total_ms | v5.7 total_ms | v5.7 change |
+|---|---|---:|---:|---:|
+| 1 | 5.6 / 5.7 | 47,470 | 40,934 | -13.77% |
+| 2 | 5.7 / 5.6 | 46,907 | 40,189 | -14.32% |
+| 3 | 5.6 / 5.7 | 47,468 | 39,851 | -16.05% |
+| 4 | 5.7 / 5.6 | 47,894 | 40,276 | -15.91% |
+| 5 | 5.6 / 5.7 | 46,574 | 40,335 | -13.40% |
+
+| Scheduler | Median total_ms | Mean total_ms | eMSPC at median total | CPS at median total | Median p50 ms | Median p99 ms |
+|---|---:|---:|---:|---:|---:|---:|
+| v5.6 | 47,468 | 47,262.6 | 7.417 | 134.83 | 91.82 | 565.77 |
+| v5.7 | 40,276 | 40,317.0 | 6.293 | 158.90 | 73.61 | 502.84 |
+
+v5.7 wins **5/5 pairs**, with a **14.32% median paired reduction in total time**. The latter is
+the median of the five paired percentage changes, not the ratio of the two median totals.
+Every short run has 14 young and three full GCs, so a change in GC frequency or C1GC activation
+does not explain this block's gap. The direction replicates #74; compare within this session
+rather than treating its absolute timings as a new cross-session ranking (#79).
+
+**Large pair: 256 x 256 chunks, C1GC active in both legs.**
+
+| Scheduler | total_ms | eMSPC | CPS | p50 ms | p99 ms | Full GCs | Full-GC pause s |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v5.6 | 509,171 | 7.769 | 128.71 | 91.35 | 928.86 | 29 | 60.66 |
+| v5.7 | 437,484 | 6.675 | 149.80 | 72.51 | 760.71 | 31 | 64.93 |
+
+Here `eMSPC = total_ms / chunks` and `CPS = 1000 / eMSPC`. The engine timer includes C1GC's
+final flush. JVM startup is outside that timer; GC counts and pause sums above cover the whole
+JVM log, including bootstrap, and must not be subtracted from `total_ms` as though their
+measurement windows were identical.
+
+Both runs arm after **13,760 completions** and finish with
+`quarantined=collectible=detached=persisted=62464`, `lifecycleCounts={PERSISTED=62464}`,
+`unreclaimed=0`, and empty ring/IO queues. The persistence path is exercised even with
+`saveworld=false`; the remaining frontier is not a claim of a fully saved world. Every one of
+the twelve legs has the expected chunk count, zero failed chunks, and `leakedCells=0`.
+
+**Reading.** v5.7 uses **14.08% less total time** at the large scale, equivalent to **16.39%
+higher CPS**, while paying slightly more full-GC pause time. The gap survives active chunk
+reclamation and persistence in this pair; it does not come from v5.7 avoiding C1GC. The late
+full-GC tail remains, consistent with #73: successful reclamation does not eliminate those
+pauses. This is **one large pair**, supporting evidence rather than a new replicated estimate
+of the sustained-run margin. No new block-equality or saved-world correctness check was run.
+Also, `peakOldGenUsedMb` only observes pressure checks up to arming; it is not a whole-run
+memory high-water mark.
+
+**Filed.** All twelve runs, including GC pause totals, CPS, and C1GC counters, are in
+[`findings/replication_20261031.csv`](findings/replication_20261031.csv). Per-run MSPC percentiles
+remain in `findings/orion_results.csv` under `rerun20261031_*` and `large20261031_*`; the twelve
+leaderboard rows are labeled `#80`. Raw commands, JVM/server-jar/source identities, thread
+dumps, agent logs, GC logs, result files, and large-run progress samples are retained in
+`../team/logs/codex-rerun-20261031/` (large pair in `large/`). Drivers: `bench.py` and
+`large_bench.py` there. The last generated world is retained in the isolated copy.
+
+![Finding 80: five short v5.6/v5.7 pairs and the large-area CPS comparison with C1GC active](findings/replication_20261031.png)
+Chart regenerated by `python3 findings/plot_results.py`; leaderboard by
+`python3 findings/generate_leaderboard.py`.
+
+**Still open.** Rotate and repeat the tile-16 pair to measure its variance, then diagnose the
+retention behind the late full-GC tail before changing reclamation or JVM defaults. This run
+does not establish the size of that margin on another host, seed, or worker count.
+
 ## Open questions / where you pick this up
 
 (Imported from end of #1-40 document, still valid):
@@ -1638,3 +1734,4 @@ Paired within each round (v5.7 vs the engine, same round):
 - **#77 falsifies #76's light-copy lead**: skipping `swapSectionMap`'s map copy entirely (unsafe ceiling probe, n=5 pairs) cuts young GCs 14 -> 10 but total scavenge pause and wall time do not move (+0.2% median, 2/5 pairs faster) and the pause climb persists, so it tracks the live chunk set, not allocation volume.
 - **#78 gives v5.7 its first win over Moonrise**: 15/15 pairs against 7-worker Paper, Leaf, and Leaf-on-crack, median ~22% (Paper -22.9%), all on Corretto in one session. Still open: the same race with WorldgenD saving chunks (`-Dsaveworld=true`) for a like-for-like number; a 65,536-chunk race, where the servers' disk writes should compound; and Leaf's bimodal 6.8/8.1 ms legs.
 - **#79 rules out the JVM for #78's session-wide speedup** (Ubuntu OpenJDK vs Corretto on Paper-7w, -1.8%, 3/5), leaving the host. Still open: logging steal time and CPU clock in every race driver, so drift between sessions can be attributed next time instead of inferred.
+- **#80 independently repeats v5.7's win**: 5/5 short pairs, median paired total-time reduction 14.32%; at 65,536 chunks, one pair gives 149.80 vs 128.71 CPS with both C1GC lifecycles reaching 62,464 persisted chunks. Full-GC pauses still total about a minute. Still open: rotating and repeating the large pair, and diagnosing the retention behind its late full-GC tail.
