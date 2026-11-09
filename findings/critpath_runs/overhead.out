@@ -1,0 +1,8 @@
+base_r1: 44331 ms gc=26x/1079ms trace inject=none steps=78289 lane.IOWorker-chunk=0.007 lane.IOWorker-entities=0.003 lane.IOWorker-poi=0.004 lane.dispatcher=0.017 lane.light=0.295 lane.worldgen=0.117 structureLock=0.165 structureWaitS=25.91
+base_r1: 42234 ms gc=25x/1098ms 
+base_r1: 43452 ms gc=25x/1016ms 
+base_r1: 42220 ms gc=25x/1022ms trace inject=none steps=78289 lane.IOWorker-chunk=0.008 lane.IOWorker-entities=0.003 lane.IOWorker-poi=0.003 lane.dispatcher=0.019 lane.light=0.314 lane.worldgen=0.129 structureLock=0.178 structureWaitS=23.91
+base_r1: 41712 ms gc=25x/1113ms trace inject=none steps=78289 lane.IOWorker-chunk=0.007 lane.IOWorker-entities=0.003 lane.IOWorker-poi=0.003 lane.dispatcher=0.016 lane.light=0.319 lane.worldgen=0.121 structureLock=0.177 structureWaitS=24.13
+base_r1: 42048 ms gc=25x/1044ms 
+base_r1: 41627 ms gc=25x/1046ms 
+base_r1: 41218 ms gc=25x/1074ms trace inject=none steps=78289 lane.IOWorker-chunk=0.008 lane.IOWorker-entities=0.002 lane.IOWorker-poi=0.004 lane.dispatcher=0.016 lane.light=0.311 lane.worldgen=0.115 structureLock=0.174 structureWaitS=22.37

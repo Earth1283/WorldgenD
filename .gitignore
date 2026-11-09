@@ -58,3 +58,11 @@ orion_result.txt
 *.txt
 
 findings/__pycache__/
+
+# finding #81 raw traces (large); summaries live in findings/critpath81_*.csv
+findings/critpath_runs/*/*.steps.csv
+findings/critpath_runs/*/*.targets.csv
+findings/critpath_runs/*/*.samples.csv
+findings/critpath_runs/*/*.lanes.csv
+findings/critpath_runs/*/*.gc.log
+findings/critpath_runs/*/*.log

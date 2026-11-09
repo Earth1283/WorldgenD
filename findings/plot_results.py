@@ -1136,6 +1136,103 @@ def _orion57_runs():
         return list(csv.DictReader(source))
 
 
+
+def plot_critpath81(dose_path, where_path):
+    with (HERE / "critpath81_runs.csv").open(newline="") as source:
+        runs = [r for r in csv.DictReader(source) if r["block"].startswith("dose")]
+    base = {(r["block"], r["round"]): int(r["total_ms"]) / 1000 for r in runs if r["arm"] == "base"}
+    arms = {}
+    for r in runs:
+        if r["arm"] != "base":
+            arms.setdefault(r["arm"], []).append((float(r["injected_cpu_s"]), int(r["total_ms"]) / 1000 - base[(r["block"], r["round"])]))
+
+    fig, ax = plt.subplots(figsize=(9, 5.6))
+    xmax = 46
+    ax.plot([0, xmax], [0, xmax / 7], color=BASELINE, linewidth=2, linestyle="--", zorder=1)
+    ax.text(xmax - 6, xmax / 7 - 1.6, "expected if all 7 workers are fully used\n(1/7 s per CPU-second)", ha="right", va="top", fontsize=9, color=INK_SECONDARY)
+    ax.axhline(0, color=GRIDLINE, linewidth=1, zorder=0)
+    for arm, pts in arms.items():
+        color = SERIES[1] if arm.startswith("structure") else SERIES[0]
+        xs, ys = zip(*pts)
+        ax.scatter(xs, ys, s=18, color=color, alpha=0.35, linewidth=0, zorder=2)
+        mean = float(np.mean(ys))
+        se = float(np.std(ys, ddof=1) / np.sqrt(len(ys)))
+        ax.errorbar(xs[0], mean, yerr=se, fmt="o", markersize=8, color=color, ecolor=color, elinewidth=2, capsize=0,
+                    markeredgecolor=SURFACE, markeredgewidth=2, zorder=3)
+    lock_x = float(arms["structure_starts:500"][0][0])
+    ax.scatter([lock_x], [lock_x], s=64, facecolor=SURFACE, edgecolor=SERIES[1], linewidth=2, zorder=3)
+    ax.annotate("expected for the lock arm if the\nlock were a true bottleneck (+4.9 s)", (lock_x, lock_x), xytext=(10, 5.6), fontsize=9, color=INK_SECONDARY,
+                arrowprops=dict(arrowstyle="-", color=INK_MUTED, linewidth=1))
+    ax.annotate("0.5 ms inside the\nstructures lock", (lock_x, 1.9), xytext=(lock_x + 3, -2.2), fontsize=9, color=INK_SECONDARY,
+                arrowprops=dict(arrowstyle="-", color=INK_MUTED, linewidth=1))
+    ax.annotate("1, 2, 3 and 6 ms of extra\nwork per noise step", (21.1, 3.3), xytext=(23, 6.4), fontsize=9, color=INK_SECONDARY,
+                arrowprops=dict(arrowstyle="-", color=INK_MUTED, linewidth=1))
+    ax.scatter([], [], s=64, color=SERIES[0], label="noise-step injection (arm mean ±1 SE)")
+    ax.scatter([], [], s=64, color=SERIES[1], label="structures-lock injection (mean ±1 SE)")
+    ax.scatter([], [], s=18, color=INK_MUTED, alpha=0.5, label="single run vs its round's base")
+    ax.set_xlim(-1, xmax)
+    ax.set_xlabel("Worker CPU-seconds added per run")
+    ax.set_ylabel("Seconds added to the run vs same-round base")
+    ax.grid(color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.legend(frameon=False, fontsize=9, loc="lower right")
+    fig.suptitle("#81: extra worker CPU makes the run longer at the full 1/7 rate", fontsize=13, x=0.08, ha="left")
+    fig.text(0.08, 0.01, "Orion v5.7, tile 5, 10 GiB heap, traced. 39 runs in two interleaved blocks (n=3 and n=6 rounds). "
+             "Fitted slope 0.135 +/- 0.022 s per CPU-s.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.93))
+    fig.savefig(dose_path, dpi=150)
+    plt.close(fig)
+
+    with (HERE / "critpath81_runs.csv").open(newline="") as source:
+        bases = [r for r in csv.DictReader(source) if r["block"] == "dose2" and r["arm"] == "base"]
+    with (HERE / "critpath81_attribution.csv").open(newline="") as source:
+        attribution = [r for r in csv.DictReader(source) if not r["segment"].startswith("target latency")]
+    fig, (left, right) = plt.subplots(1, 2, figsize=(12.5, 5.4), gridspec_kw=dict(width_ratios=[1, 1.25]))
+    lanes = [("light lane", "light_lane_busy"), ("structures lock held", "structure_lock_busy"),
+             ("main thread (poll)", None), ("worldgen lane", "worldgen_lane_busy")]
+    values = []
+    for name, key in lanes:
+        if key:
+            values.append(100 * float(np.mean([float(r[key]) for r in bases])))
+        else:
+            values.append(100 * float(np.mean([float(r["poll_cpu_s"]) / (int(r["total_ms"]) / 1000) for r in bases])))
+    y = np.arange(len(lanes))[::-1]
+    left.barh(y, values, height=0.55, color=SERIES[0], zorder=2)
+    left.axvline(100, color=BASELINE, linewidth=2, linestyle="--")
+    left.text(99, y[0] + 0.45, "saturated", ha="right", fontsize=9, color=INK_SECONDARY)
+    for yi, v in zip(y, values):
+        left.text(v + 1.5, yi, f"{v:.0f}%", va="center", fontsize=9, color=INK_PRIMARY)
+    left.set_yticks(y, [n for n, _ in lanes])
+    left.set_xlim(0, 105)
+    left.set_xlabel("% of run time busy")
+    left.set_title("No serial resource is saturated", loc="left", fontsize=11)
+    plain = {"area wait": "waiting for neighbors' area locks", "dispatch latency": "waiting to be scheduled",
+             "lock wait": "waiting for the structures lock", "exec queue": "waiting for a free worker"}
+    names = [plain.get(r["segment"], r["segment"].replace("step work: ", "running: ")) for r in attribution][:10]
+    vals = [float(r["mean_ms"]) for r in attribution][:10]
+    y = np.arange(len(names))[::-1]
+    colors = [SERIES[2] if n.startswith("running") else SERIES[3] for n in names]
+    right.barh(y, vals, height=0.6, color=colors, zorder=2)
+    for yi, v in zip(y, vals):
+        right.text(v + 0.4, yi, f"{v:.1f}", va="center", fontsize=9, color=INK_PRIMARY)
+    right.set_yticks(y, names)
+    right.set_xlabel("ms on the slowest dependency chain, mean per target chunk")
+    right.set_title("Where a target chunk's latency goes", loc="left", fontsize=11)
+    from matplotlib.patches import Patch
+    right.legend(handles=[Patch(color=SERIES[2], label="running a step"), Patch(color=SERIES[3], label="waiting")],
+                 frameon=False, fontsize=9, loc="lower right")
+    for ax in (left, right):
+        ax.grid(axis="x", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#81: nothing single-threaded is the bottleneck; chunks mostly wait for busy workers", fontsize=13, x=0.06, ha="left")
+    fig.text(0.06, 0.01, "dose2 base runs (n=6). Light/worldgen lanes and the lock are timed by OrionTrace; main thread is orion5-poll CPU time.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.92))
+    fig.savefig(where_path, dpi=150)
+    plt.close(fig)
+
 def plot_orion57_profile(out_path):
     with (HERE / "orion57_profile_summary.csv").open(newline="") as source:
         rows = [row for row in csv.DictReader(source) if row["kind"] != "total"]
@@ -1532,6 +1629,7 @@ def main():
     plot_orion55_70(HERE / "orion55_70_throughput.png")
     plot_orion57_74(HERE / "orion57_74_throughput.png")
     plot_orion57_nulls75(HERE / "orion57_nulls75.png")
+    plot_critpath81(HERE / "critpath81_dose.png", HERE / "critpath81_where.png")
     plot_orion57_profile(HERE / "orion57_profile.png")
     plot_orion57_cpu_vs_wall(HERE / "orion57_cpu_vs_wall.png")
     plot_orion57_inflight(HERE / "orion57_inflight.png")

@@ -46,6 +46,7 @@ class OrionV5(
     ): Result {
         val start = System.nanoTime()
         val telemetry = telemetryFile?.let { OrionTelemetry(it, start) }
+        OrionTrace.begin { OrionParallelSteps.executor }
         val inFlight = AtomicInteger(0)
         val permits = Semaphore(maxInFlight)
         val completions = AtomicInteger(0)
@@ -96,11 +97,13 @@ class OrionV5(
                     try {
                         val submitNanos = System.nanoTime()
                         telemetry?.record("DISPATCH", coord.first, coord.second, inFlight.incrementAndGet(), completions.get())
+                        if (OrionTrace.enabled) OrionTrace.dispatched(coord.first, coord.second)
                         @Suppress("UNCHECKED_CAST")
                         val future = getChunkFutureHandle.invoke(chunkSource, coord.first, coord.second, fullStatus, true) as CompletableFuture<Any?>
                         future.whenComplete { result, error ->
                             try {
                                 chunkMspc.add((System.nanoTime() - submitNanos) / 1_000_000.0)
+                                if (OrionTrace.enabled) OrionTrace.completed(coord.first, coord.second)
                                 if (error != null) {
                                     fillFailure.compareAndSet(null, error)
                                 } else if (mc.publicMethodCached(result!!.javaClass, "isSuccess").call(result) as Boolean) {
@@ -149,6 +152,7 @@ class OrionV5(
                 LockSupport.parkNanos(200_000)
             }
             fillFailure.get()?.let { throw IllegalStateException("orion5-fill failed", it) }
+            OrionTrace.end()
         } finally {
             stop.set(true)
             submitThread.interrupt()

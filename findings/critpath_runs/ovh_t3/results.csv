@@ -1,0 +1,2 @@
+label,arm,tile,chunks,total_ms,mspc_p50,mspc_p99,gcs,gc_pause_ms,trace
+base_r1,base,5,6400,41712,78.05,530.3,25,1113.2,trace inject=none steps=78289 lane.IOWorker-chunk=0.007 lane.IOWorker-entities=0.003 lane.IOWorker-poi=0.003 lane.dispatcher=0.016 lane.light=0.319 lane.worldgen=0.121 structureLock=0.177 structureWaitS=24.13

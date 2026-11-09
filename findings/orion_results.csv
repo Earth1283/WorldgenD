@@ -352,3 +352,50 @@ rerun20261031_orion56_r5,orion5.6 replication 2026-10-31 round 5 leg 1,orion5.6,
 rerun20261031_orion57_r5,orion5.7 replication 2026-10-31 round 5 leg 2,orion5.7,5,6400,7,40335,0.09,45.03,63.06,73.64,96.29,517.81,3739.54
 large20261031_orion56_r1,orion5.6 replication 2026-10-31 tile 16 round 1 leg 1,orion5.6,16,65536,7,509171,0.11,60.16,80.42,91.35,109.50,928.86,4177.58
 large20261031_orion57_r1,orion5.7 replication 2026-10-31 tile 16 round 1 leg 2,orion5.7,16,65536,7,437484,0.12,46.41,63.00,72.51,91.70,760.71,4816.47
+cp81_dose1_base_r1,"orion5.7 #81 dose1 round 1, traced baseline, 10g heap",orion5.7,5,6400,7,47508,1.92,47.68,68.74,81.28,107.48,667.82,4477.59
+cp81_dose1_noise-2000_r1,"orion5.7 #81 dose1 round 1, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,49223,0.32,52.80,74.67,88.42,111.65,627.44,5252.41
+cp81_dose1_noise-6000_r1,"orion5.7 #81 dose1 round 1, CPU injection noise:6000, 10g heap",orion5.7,5,6400,7,54213,0.36,60.27,84.26,97.81,120.41,615.86,5873.70
+cp81_dose1_noise-6000_r2,"orion5.7 #81 dose1 round 2, CPU injection noise:6000, 10g heap",orion5.7,5,6400,7,53737,0.31,58.22,82.08,96.08,120.43,606.85,7654.72
+cp81_dose1_noise-2000_r2,"orion5.7 #81 dose1 round 2, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,44515,0.14,50.12,72.15,85.35,107.02,598.65,3547.98
+cp81_dose1_base_r2,"orion5.7 #81 dose1 round 2, traced baseline, 10g heap",orion5.7,5,6400,7,45302,0.38,46.82,66.52,79.73,106.11,529.09,5867.22
+cp81_dose1_base_r3,"orion5.7 #81 dose1 round 3, traced baseline, 10g heap",orion5.7,5,6400,7,43714,0.93,46.47,67.50,80.41,104.06,595.88,3703.28
+cp81_dose1_noise-2000_r3,"orion5.7 #81 dose1 round 3, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,45312,0.06,51.04,70.21,82.88,107.68,566.45,4410.42
+cp81_dose1_noise-6000_r3,"orion5.7 #81 dose1 round 3, CPU injection noise:6000, 10g heap",orion5.7,5,6400,7,48402,1.07,57.16,80.11,93.26,116.82,577.80,3881.86
+cp81_dose2_base_r1,"orion5.7 #81 dose2 round 1, traced baseline, 10g heap",orion5.7,5,6400,7,42724,0.14,46.82,68.56,80.22,102.59,542.44,3222.29
+cp81_dose2_noise-1000_r1,"orion5.7 #81 dose2 round 1, CPU injection noise:1000, 10g heap",orion5.7,5,6400,7,49032,0.65,50.63,71.65,84.79,110.96,595.57,5056.93
+cp81_dose2_noise-2000_r1,"orion5.7 #81 dose2 round 1, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,45726,0.43,50.79,72.29,84.99,106.58,536.10,4651.94
+cp81_dose2_noise-3000_r1,"orion5.7 #81 dose2 round 1, CPU injection noise:3000, 10g heap",orion5.7,5,6400,7,47522,0.07,53.89,73.53,86.47,110.45,598.65,5188.44
+cp81_dose2_structure-starts-500_r1,"orion5.7 #81 dose2 round 1, CPU injection structure_starts:500, 10g heap",orion5.7,5,6400,7,47714,0.32,51.10,71.27,84.75,112.22,638.97,4852.57
+cp81_dose2_structure-starts-500_r2,"orion5.7 #81 dose2 round 2, CPU injection structure_starts:500, 10g heap",orion5.7,5,6400,7,45617,0.36,50.10,69.80,83.41,106.33,658.28,3757.93
+cp81_dose2_noise-3000_r2,"orion5.7 #81 dose2 round 2, CPU injection noise:3000, 10g heap",orion5.7,5,6400,7,46119,0.43,53.95,74.53,87.48,110.10,522.59,3570.69
+cp81_dose2_noise-2000_r2,"orion5.7 #81 dose2 round 2, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,45151,0.55,50.34,71.40,83.41,106.89,550.37,4095.23
+cp81_dose2_noise-1000_r2,"orion5.7 #81 dose2 round 2, CPU injection noise:1000, 10g heap",orion5.7,5,6400,7,46314,0.19,49.36,69.18,83.37,113.35,544.65,4822.59
+cp81_dose2_base_r2,"orion5.7 #81 dose2 round 2, traced baseline, 10g heap",orion5.7,5,6400,7,41812,0.78,46.46,65.28,76.33,99.83,540.07,3743.88
+cp81_dose2_base_r3,"orion5.7 #81 dose2 round 3, traced baseline, 10g heap",orion5.7,5,6400,7,45922,0.07,47.32,65.67,78.30,103.86,593.66,5673.71
+cp81_dose2_noise-1000_r3,"orion5.7 #81 dose2 round 3, CPU injection noise:1000, 10g heap",orion5.7,5,6400,7,45107,0.14,47.09,67.40,80.13,105.04,566.73,4102.05
+cp81_dose2_noise-2000_r3,"orion5.7 #81 dose2 round 3, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,42712,0.12,50.13,69.03,80.93,102.58,528.51,3322.27
+cp81_dose2_noise-3000_r3,"orion5.7 #81 dose2 round 3, CPU injection noise:3000, 10g heap",orion5.7,5,6400,7,43706,2.53,51.73,72.31,83.71,104.78,576.09,3376.32
+cp81_dose2_structure-starts-500_r3,"orion5.7 #81 dose2 round 3, CPU injection structure_starts:500, 10g heap",orion5.7,5,6400,7,44618,3.40,49.86,69.43,83.42,108.07,604.69,3858.81
+cp81_dose2_structure-starts-500_r4,"orion5.7 #81 dose2 round 4, CPU injection structure_starts:500, 10g heap",orion5.7,5,6400,7,42618,1.84,46.78,66.98,79.99,101.49,622.87,3571.00
+cp81_dose2_noise-3000_r4,"orion5.7 #81 dose2 round 4, CPU injection noise:3000, 10g heap",orion5.7,5,6400,7,44910,0.21,52.29,73.25,85.12,105.81,549.65,3443.51
+cp81_dose2_noise-2000_r4,"orion5.7 #81 dose2 round 4, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,43910,0.17,51.18,71.58,84.02,105.40,556.74,3739.92
+cp81_dose2_noise-1000_r4,"orion5.7 #81 dose2 round 4, CPU injection noise:1000, 10g heap",orion5.7,5,6400,7,43223,0.14,49.06,69.07,81.67,104.80,563.30,2940.28
+cp81_dose2_base_r4,"orion5.7 #81 dose2 round 4, traced baseline, 10g heap",orion5.7,5,6400,7,43321,0.20,46.87,65.48,77.95,102.92,505.18,4794.24
+cp81_dose2_base_r5,"orion5.7 #81 dose2 round 5, traced baseline, 10g heap",orion5.7,5,6400,7,42931,2.22,48.55,67.51,79.80,104.64,545.51,3815.69
+cp81_dose2_noise-1000_r5,"orion5.7 #81 dose2 round 5, CPU injection noise:1000, 10g heap",orion5.7,5,6400,7,43421,0.32,49.23,68.88,80.19,103.10,586.03,3572.54
+cp81_dose2_noise-2000_r5,"orion5.7 #81 dose2 round 5, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,44748,0.12,50.54,70.35,82.65,103.66,586.71,4591.45
+cp81_dose2_noise-3000_r5,"orion5.7 #81 dose2 round 5, CPU injection noise:3000, 10g heap",orion5.7,5,6400,7,46413,0.54,52.35,73.12,84.60,106.28,546.39,5827.85
+cp81_dose2_structure-starts-500_r5,"orion5.7 #81 dose2 round 5, CPU injection structure_starts:500, 10g heap",orion5.7,5,6400,7,46259,0.17,49.49,69.18,83.42,109.03,643.80,4529.03
+cp81_dose2_structure-starts-500_r6,"orion5.7 #81 dose2 round 6, CPU injection structure_starts:500, 10g heap",orion5.7,5,6400,7,44411,0.34,49.26,68.29,80.93,103.66,638.67,4282.08
+cp81_dose2_noise-3000_r6,"orion5.7 #81 dose2 round 6, CPU injection noise:3000, 10g heap",orion5.7,5,6400,7,44514,0.08,51.83,72.54,84.31,107.29,553.34,4044.60
+cp81_dose2_noise-2000_r6,"orion5.7 #81 dose2 round 6, CPU injection noise:2000, 10g heap",orion5.7,5,6400,7,43914,0.37,52.06,72.28,83.90,105.40,556.41,3247.52
+cp81_dose2_noise-1000_r6,"orion5.7 #81 dose2 round 6, CPU injection noise:1000, 10g heap",orion5.7,5,6400,7,44215,0.11,49.19,70.07,81.36,103.61,528.74,4415.95
+cp81_dose2_base_r6,"orion5.7 #81 dose2 round 6, traced baseline, 10g heap",orion5.7,5,6400,7,43223,0.21,48.02,66.71,78.65,102.76,543.00,4440.97
+cp81_ovh_t1_base_r1,"orion5.7 #81 trace overhead pair 1, traced, 10g heap",orion5.7,5,6400,7,44331,0.35,46.92,66.43,77.97,101.14,514.53,5388.58
+cp81_ovh_n1_base_r1,"orion5.7 #81 trace overhead pair 1, untraced, 10g heap",orion5.7,5,6400,7,42234,0.29,47.17,66.52,79.01,104.13,507.48,3111.08
+cp81_ovh_t2_base_r1,"orion5.7 #81 trace overhead pair 2, traced, 10g heap",orion5.7,5,6400,7,42220,0.21,45.79,65.69,78.01,104.47,522.69,3127.94
+cp81_ovh_n2_base_r1,"orion5.7 #81 trace overhead pair 2, untraced, 10g heap",orion5.7,5,6400,7,43452,0.14,46.62,65.53,77.28,104.41,640.07,3967.67
+cp81_ovh_t3_base_r1,"orion5.7 #81 trace overhead pair 3, traced, 10g heap",orion5.7,5,6400,7,41712,0.26,47.23,66.07,78.05,99.86,530.30,3240.25
+cp81_ovh_n3_base_r1,"orion5.7 #81 trace overhead pair 3, untraced, 10g heap",orion5.7,5,6400,7,42048,0.14,45.78,65.87,77.43,101.13,503.91,3830.09
+cp81_ovh_t4_base_r1,"orion5.7 #81 trace overhead pair 4, traced, 10g heap",orion5.7,5,6400,7,41218,2.09,46.24,65.95,77.68,99.36,535.53,3098.36
+cp81_ovh_n4_base_r1,"orion5.7 #81 trace overhead pair 4, untraced, 10g heap",orion5.7,5,6400,7,41627,0.16,47.55,65.73,76.67,99.63,577.30,4051.55

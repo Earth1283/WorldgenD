@@ -1,0 +1,17 @@
+segment,mean_ms
+area wait,28.75
+dispatch latency,23.86
+step work: noise,14.01
+step work: surface,7.43
+step work: biomes,6.64
+step work: features,5.62
+step work: light,5.1
+step work: initialize_light,4.26
+lock wait,1.85
+step work: carvers,1.38
+exec queue,1.22
+step work: full,0.57
+step work: structure_starts,0.41
+step work: structure_references,0.12
+step work: spawn,0.09
+target latency (mean),107.55

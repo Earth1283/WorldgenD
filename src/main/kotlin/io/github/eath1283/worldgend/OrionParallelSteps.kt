@@ -22,12 +22,23 @@ object OrionParallelSteps {
     // structure-touching step serializes here instead of patching each piece class.
     private val structures = ReentrantLock()
 
-    @JvmStatic fun lockStructures() = structures.lock()
-    @JvmStatic fun unlockStructures() = structures.unlock()
+    @JvmStatic fun lockStructures() {
+        if (!OrionTrace.enabled) return structures.lock()
+        val since = System.nanoTime()
+        structures.lock()
+        if (structures.holdCount == 1) OrionTrace.structureWaited(since)
+    }
 
-    private class Task(val x: Int, val z: Int, val radius: Int) {
+    @JvmStatic fun unlockStructures() {
+        if (OrionTrace.enabled && structures.holdCount == 1) OrionTrace.structureReleasing()
+        structures.unlock()
+    }
+
+    private class Task(val x: Int, val z: Int, val radius: Int, val status: Int) {
         var blockers = 0
         lateinit var body: Runnable
+        // OrionTrace record, see OrionTrace.step for the layout
+        val trace: LongArray? = if (OrionTrace.enabled) LongArray(9).also { it[0] = status.toLong(); it[1] = x.toLong(); it[2] = z.toLong() } else null
     }
 
     // Per-chunk FIFO of tasks whose square covers that chunk. A task runs once it heads every
@@ -35,7 +46,8 @@ object OrionParallelSteps {
     private val cells = HashMap<Long, ArrayDeque<Task>>()
 
     @Volatile private var applyHandle: MethodHandle? = null
-    @Volatile private var executor: Executor? = null
+    @Volatile var executor: Executor? = null
+        private set
 
     private val verify = System.getProperty("orion.parallelSteps.verify") == "true"
     private val runningSquares = ConcurrentHashMap.newKeySet<Task>()
@@ -50,20 +62,31 @@ object OrionParallelSteps {
     @JvmStatic
     fun apply(step: Any, context: Any, cache: Any, chunk: Any, x: Int, z: Int, status: String, writeRadius: Int): CompletableFuture<*> {
         val handle = applyHandle ?: resolve(step)
-        return when (status.substringAfter(':')) {
+        val name = status.substringAfter(':')
+        val index = OrionTrace.statusIndex(name)
+        return when (name) {
             // Light already has its own dispatcher lane; FULL hops to the main thread itself.
             "empty", "initialize_light", "light", "full" -> {
                 inline.incrementAndGet()
-                handle.invoke(step, context, cache, chunk) as CompletableFuture<*>
+                val trace = if (OrionTrace.enabled) LongArray(9).also {
+                    it[0] = index.toLong(); it[1] = x.toLong(); it[2] = z.toLong(); it[3] = System.nanoTime()
+                } else null
+                OrionTrace.spin(index)
+                val future = handle.invoke(step, context, cache, chunk) as CompletableFuture<*>
+                if (trace != null) {
+                    trace[7] = System.nanoTime()
+                    future.whenComplete { _, _ -> trace[8] = System.nanoTime(); OrionTrace.step(trace) }
+                }
+                future
             }
             "structure_starts", "structure_references", "spawn" ->
-                schedule(Task(x, z, 0), serial = true, handle, step, context, cache, chunk)
+                schedule(Task(x, z, 0, index), serial = true, handle, step, context, cache, chunk)
             "features" -> featureOrder?.let { order ->
                 scheduleFeaturesInOrder(order, x, z) {
-                    schedule(Task(x, z, maxOf(writeRadius, 0)), serial = false, handle, step, context, cache, chunk)
+                    schedule(Task(x, z, maxOf(writeRadius, 0), index), serial = false, handle, step, context, cache, chunk)
                 }
-            } ?: schedule(Task(x, z, maxOf(writeRadius, 0)), serial = false, handle, step, context, cache, chunk)
-            else -> schedule(Task(x, z, maxOf(writeRadius, 0)), serial = false, handle, step, context, cache, chunk)
+            } ?: schedule(Task(x, z, maxOf(writeRadius, 0), index), serial = false, handle, step, context, cache, chunk)
+            else -> schedule(Task(x, z, maxOf(writeRadius, 0), index), serial = false, handle, step, context, cache, chunk)
         }
     }
 
@@ -193,20 +216,29 @@ object OrionParallelSteps {
         step: Any, context: Any, cache: Any, chunk: Any,
     ): CompletableFuture<Any?> {
         val result = CompletableFuture<Any?>()
+        val trace = task.trace
         task.body = Runnable {
             maxRunning.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+            if (trace != null) { trace[5] = System.nanoTime(); OrionTrace.started.incrementAndGet() }
             if (verify) checkOverlap(task)
             val inner = try {
                 if (serial) {
-                    structures.lock()
-                    try { handle.invoke(step, context, cache, chunk) as CompletableFuture<*> } finally { structures.unlock() }
+                    lockStructures()
+                    try {
+                        if (trace != null) trace[6] = System.nanoTime()
+                        OrionTrace.spin(task.status)
+                        handle.invoke(step, context, cache, chunk) as CompletableFuture<*>
+                    } finally { unlockStructures() }
                 } else {
+                    OrionTrace.spin(task.status)
                     handle.invoke(step, context, cache, chunk) as CompletableFuture<*>
                 }
             } catch (t: Throwable) {
                 CompletableFuture.failedFuture<Any?>(t)
             }
+            if (trace != null) trace[7] = System.nanoTime()
             inner.whenComplete { value, error ->
+                if (trace != null) { trace[8] = System.nanoTime(); OrionTrace.ended.incrementAndGet(); OrionTrace.step(trace) }
                 running.decrementAndGet()
                 if (verify) runningSquares.remove(task)
                 release(task)
@@ -214,7 +246,11 @@ object OrionParallelSteps {
             }
         }
         scheduled.incrementAndGet()
-        if (enqueue(task)) executor!!.execute(task.body) else deferred.incrementAndGet()
+        if (trace != null) { trace[3] = System.nanoTime(); OrionTrace.submitted.incrementAndGet() }
+        if (enqueue(task)) {
+            if (trace != null) { trace[4] = System.nanoTime(); OrionTrace.ready.incrementAndGet() }
+            executor!!.execute(task.body)
+        } else deferred.incrementAndGet()
         return result
     }
 
@@ -241,7 +277,10 @@ object OrionParallelSteps {
                 }
             }
         }
-        for (next in ready) executor!!.execute(next.body)
+        for (next in ready) {
+            next.trace?.let { it[4] = System.nanoTime(); OrionTrace.ready.incrementAndGet() }
+            executor!!.execute(next.body)
+        }
     }
 
     private inline fun forEachCell(task: Task, action: (Long) -> Unit) {

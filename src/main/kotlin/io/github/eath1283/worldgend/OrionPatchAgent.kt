@@ -96,6 +96,10 @@ object OrionPatchAgent {
             System.err.println("[OrionPatchAgent] will patch ${LightSwapPatch.targets} on load (light swap, finding #76, mode=${LightSwapPatch.mode})")
             inst.addTransformer(LightSwapTransformer())
         }
+        if (OrionTrace.enabled) {
+            System.err.println("[OrionPatchAgent] will trace ${OrionTrace.LANE_TARGET}.run lanes (critical-path study)")
+            inst.addTransformer(OrionTraceTransformer())
+        }
         if (!patchReentrancy && !patchBiomeMemo && !patchStructureGenState && !detectStructureGenRaces && !patchDfc && !patchParallelSteps && !patchWorldgenLight && !patchDensitySimd && !patchImprovedNoise && !patchAllocations && !patchRegionChunkMemo && !patchNoiseCell) {
             System.err.println("[OrionPatchAgent] no patch flags set, not installing (vanilla control path)")
             return

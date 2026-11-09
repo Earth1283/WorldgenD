@@ -103,7 +103,7 @@ The engine defaults to `mosaic`; the current best is **v5.7**. The harness defau
 Orion v2.1 uses raster target order; v2.2 is the scatter-ordered variant.
 
 The full experiment log (GC comparisons, JFR profiles, Paper/Leaf head-to-heads, MC-55596) is in
-`scientific-findings-1-40.md` and `scientific-findings-41-80.md`.
+`scientific-findings-1-40.md`, `scientific-findings-41-80.md`, and `scientific-findings-81-120.md`.
 
 ## Leaderboard
 
@@ -133,6 +133,7 @@ vector and cell kernels). See [`ARCHITECTURE.md`](ARCHITECTURE.md) for how the p
 | `DensityCellPatch.kt`, `DensitySimdPatch.kt`, `ImprovedNoisePatch.kt`, `AllocationPatch.kt` | Compute patches: v5.7 cell fill, v5.1 SIMD batches, v5.2 Perlin kernel, v5.3 allocation fixes |
 | `RegionChunkMemo.kt`, `MemoizingPredicate.kt` | Lookup memos (`WorldGenRegion.getChunk`, biome-condition tests) |
 | `LightSwapPatch.kt` | Opt-in light-engine instrumentation (`-Dorion.lightSwap`); experiment closed by finding #77 |
+| `OrionTrace.kt` | Opt-in step/lane/lock tracing (`-Dorion.trace`) and CPU injection (`-Dorion.inject`); finding #81 |
 | `ChunkEvictor.kt`, `c1gc/` | Chunk reclamation: v5.4-era evictor and the C1GC lifecycle that replaced it (see `c1gc/README.md`) |
 | `PendingSpatialIndex.kt`, `HeldCenterIndex.kt`, `OrionTelemetry.kt` | Admission indexes and the `-Dorion.telemetry` event log |
 | `Dfc.kt`, `DfcRuntime.kt` | Density-function compiler prototype, parked at Stage 1 (finding #58) |
@@ -155,8 +156,9 @@ vector and cell kernels). See [`ARCHITECTURE.md`](ARCHITECTURE.md) for how the p
 - **[`TUTORIAL.md`](TUTORIAL.md)** — start here. How the reflection heist works, step by
   step, and the ground rules that keep it correct (`managedBlock()` is load-bearing, the
   seed is pinned to `69`, etc).
-- **[`scientific-findings-1-40.md`](scientific-findings-1-40.md)** and
-  **[`scientific-findings-41-80.md`](scientific-findings-41-80.md)** — the evidence. Thread-pool sizing,
+- **[`scientific-findings-1-40.md`](scientific-findings-1-40.md)**,
+  **[`scientific-findings-41-80.md`](scientific-findings-41-80.md)**, and
+  **[`scientific-findings-81-120.md`](scientific-findings-81-120.md)** — the evidence. Thread-pool sizing,
   the confirmed radius-8 chunk dependency ceiling (straight out of the jar's bytecode), the
   mosaic algorithm it justifies, the MSPC metric, and an open-questions list for anyone
   picking this up next.

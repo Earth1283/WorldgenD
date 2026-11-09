@@ -417,3 +417,50 @@ Orion v5.6,orion5.6 replication 2026-10-31 round 5 leg 1,46574,6400,#80
 Orion v5.7,orion5.7 replication 2026-10-31 round 5 leg 2,40335,6400,#80
 Orion v5.6,orion5.6 replication 2026-10-31 tile 16 round 1 leg 1,509171,65536,#80
 Orion v5.7,orion5.7 replication 2026-10-31 tile 16 round 1 leg 2,437484,65536,#80
+Orion v5.7,"orion5.7 #81 dose1 round 1, traced baseline, 10g heap",47508,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose1 round 1, CPU injection noise:2000, 10g heap",49223,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose1 round 1, CPU injection noise:6000, 10g heap",54213,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose1 round 2, CPU injection noise:6000, 10g heap",53737,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose1 round 2, CPU injection noise:2000, 10g heap",44515,6400,#81
+Orion v5.7,"orion5.7 #81 dose1 round 2, traced baseline, 10g heap",45302,6400,#81
+Orion v5.7,"orion5.7 #81 dose1 round 3, traced baseline, 10g heap",43714,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose1 round 3, CPU injection noise:2000, 10g heap",45312,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose1 round 3, CPU injection noise:6000, 10g heap",48402,6400,#81
+Orion v5.7,"orion5.7 #81 dose2 round 1, traced baseline, 10g heap",42724,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 1, CPU injection noise:1000, 10g heap",49032,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 1, CPU injection noise:2000, 10g heap",45726,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 1, CPU injection noise:3000, 10g heap",47522,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 1, CPU injection structure_starts:500, 10g heap",47714,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 2, CPU injection structure_starts:500, 10g heap",45617,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 2, CPU injection noise:3000, 10g heap",46119,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 2, CPU injection noise:2000, 10g heap",45151,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 2, CPU injection noise:1000, 10g heap",46314,6400,#81
+Orion v5.7,"orion5.7 #81 dose2 round 2, traced baseline, 10g heap",41812,6400,#81
+Orion v5.7,"orion5.7 #81 dose2 round 3, traced baseline, 10g heap",45922,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 3, CPU injection noise:1000, 10g heap",45107,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 3, CPU injection noise:2000, 10g heap",42712,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 3, CPU injection noise:3000, 10g heap",43706,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 3, CPU injection structure_starts:500, 10g heap",44618,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 4, CPU injection structure_starts:500, 10g heap",42618,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 4, CPU injection noise:3000, 10g heap",44910,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 4, CPU injection noise:2000, 10g heap",43910,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 4, CPU injection noise:1000, 10g heap",43223,6400,#81
+Orion v5.7,"orion5.7 #81 dose2 round 4, traced baseline, 10g heap",43321,6400,#81
+Orion v5.7,"orion5.7 #81 dose2 round 5, traced baseline, 10g heap",42931,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 5, CPU injection noise:1000, 10g heap",43421,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 5, CPU injection noise:2000, 10g heap",44748,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 5, CPU injection noise:3000, 10g heap",46413,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 5, CPU injection structure_starts:500, 10g heap",46259,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 6, CPU injection structure_starts:500, 10g heap",44411,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 6, CPU injection noise:3000, 10g heap",44514,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 6, CPU injection noise:2000, 10g heap",43914,6400,#81
+Experiment,"[CPU injection] orion5.7 #81 dose2 round 6, CPU injection noise:1000, 10g heap",44215,6400,#81
+Orion v5.7,"orion5.7 #81 dose2 round 6, traced baseline, 10g heap",43223,6400,#81
+Orion v5.7,"orion5.7 #81 trace overhead pair 1, traced, 10g heap",44331,6400,#81
+Orion v5.7,"orion5.7 #81 trace overhead pair 1, untraced, 10g heap",42234,6400,#81
+Orion v5.7,"orion5.7 #81 trace overhead pair 2, traced, 10g heap",42220,6400,#81
+Orion v5.7,"orion5.7 #81 trace overhead pair 2, untraced, 10g heap",43452,6400,#81
+Orion v5.7,"orion5.7 #81 trace overhead pair 3, traced, 10g heap",41712,6400,#81
+Orion v5.7,"orion5.7 #81 trace overhead pair 3, untraced, 10g heap",42048,6400,#81
+Orion v5.7,"orion5.7 #81 trace overhead pair 4, traced, 10g heap",41218,6400,#81
+Orion v5.7,"orion5.7 #81 trace overhead pair 4, untraced, 10g heap",41627,6400,#81
