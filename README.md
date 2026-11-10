@@ -39,7 +39,7 @@ instead of one misleading average. Smaller is better. Formal definition: `scient
 
 Options (all inert when omitted):
 
-- `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|...|orion5.7`
+- `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|...|orion5.8`
 - `-Dworldgen.seed=<signed 64-bit>` (default `69`)
 - `-Dworldgen.progress=true` for machine-readable progress lines, or `-Dworldgen.progressfile=<path>`
 - `-PmaxBgThreads=N` caps `Util.getMaxThreads()`. It is a ceiling: `clamp(cpus - 1, 1, N)`
@@ -65,7 +65,7 @@ from the original mosaic to Orion v5.5. Paper and Leaf's best real-server result
 
 ![Bar chart of effective MSPC across every WorldgenD scheduler generation through Orion v5.5, plus Paper and Leaf's best real-server results](findings/emspc_integration_progress.png)
 
-The engine defaults to `mosaic`; the current best is **v5.7**. The harness defaults to v5.1
+The engine defaults to `mosaic`; the current best is **v5.8**. The harness defaults to v5.1
 (`../harness/src/config.rs`).
 
 - **v4** is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
@@ -99,6 +99,13 @@ The engine defaults to `mosaic`; the current best is **v5.7**. The harness defau
   See #74, and #75 for the six hypotheses that did not make it.
 
 ![Orion v5.7 throughput across six blocks, and leave-one-out ablation](findings/orion57_74_throughput.png)
+
+- **v5.8** is v5.7 plus one fix: the poll thread now runs the server-thread task vanilla queues for
+  every chunk. Without a tick loop those tasks never ran and each kept its chunk in memory (about
+  180 KB per chunk, forever). Same speed at 6,400 chunks, 13-14% less time at 65,536, identical
+  blocks. `-Dorion.serverTasks=drain|hold` overrides it. See #82.
+
+![Orion v5.8 vs v5.7: heap in use after each GC at 65,536 chunks](findings/orion58_heap.png)
 
 Orion v2.1 uses raster target order; v2.2 is the scatter-ordered variant.
 

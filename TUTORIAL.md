@@ -203,6 +203,14 @@ Use `-Dmosaic.tile=16` for the 65,536-chunk run; that is where C1GC matters. Tim
 should be read against this box's ~9% run-to-run noise (findings #16/#17), so look for paired,
 rotated runs before believing a small win.
 
+## Orion v5.8: for anything long
+
+`-Dscheduler=orion5.8` is v5.7 with one fix. Vanilla queues a small server-thread task for every
+chunk and only runs it between ticks; WorldgenD has no ticks, so each task sat in the queue holding
+its chunk in memory. v5.8 lets the poll thread run them. Short runs are unchanged. At 65,536
+chunks it is 13-14% faster, because the heap no longer fills up
+([finding #82](scientific-findings-81-120.md)).
+
 ## Where to go next
 
 Worlds WorldgenD writes include `world_gen_settings.dat`, so a real Paper 26.1.2 server boots on

@@ -464,3 +464,31 @@ Orion v5.7,"orion5.7 #81 trace overhead pair 3, traced, 10g heap",41712,6400,#81
 Orion v5.7,"orion5.7 #81 trace overhead pair 3, untraced, 10g heap",42048,6400,#81
 Orion v5.7,"orion5.7 #81 trace overhead pair 4, traced, 10g heap",41218,6400,#81
 Orion v5.7,"orion5.7 #81 trace overhead pair 4, untraced, 10g heap",41627,6400,#81
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 1, 16g heap",41146,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 1, 16g heap",41649,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 2, 16g heap",41994,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 2, 16g heap",40842,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 3, 16g heap",42403,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 3, 16g heap",41967,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 4, 16g heap",41935,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 4, 16g heap",39419,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 5, 16g heap",39867,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 5, 16g heap",40951,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 6, 16g heap",40914,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 6, 16g heap",41430,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 7, 16g heap",39856,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 7, 16g heap",41086,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 8, 16g heap",40131,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 8, 16g heap",40891,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 9, 16g heap",40644,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 9, 16g heap",39732,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 10, 16g heap",40287,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 10, 16g heap",40088,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 11, 16g heap",40382,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 11, 16g heap",40558,6400,#82
+Orion v5.8,"orion5.8 #82 6,400 chunks pair 12, 16g heap",40184,6400,#82
+Orion v5.7,"orion5.7 #82 6,400 chunks pair 12, 16g heap",41036,6400,#82
+Orion v5.7,"orion5.7 #82 65,536 chunks pair 1, 16g heap",454785,65536,#82
+Orion v5.8,"orion5.8 #82 65,536 chunks pair 1, 16g heap",395619,65536,#82
+Orion v5.8,"orion5.8 #82 65,536 chunks pair 2, 16g heap",395464,65536,#82
+Orion v5.7,"orion5.7 #82 65,536 chunks pair 2, 16g heap",461953,65536,#82

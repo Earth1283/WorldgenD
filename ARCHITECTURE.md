@@ -22,7 +22,7 @@ How a WorldgenD run is put together, and what has bitten people before. For the 
 | `mosaic` | Fixed 16-modulus phases; independence by construction (#7-#8) |
 | `orion` .. `orion3` (`Orion*.kt`) | Dispatch a chunk when `isSafe()` says no in-flight chunk is within the dependency radius; v2.1+ narrow candidates with `PendingSpatialIndex`/`HeldCenterIndex`. Baselines only |
 | `orion4` | v3 plus the structure-generator thread-safety patch |
-| `orion5` .. `orion5.7` (`OrionV5.kt`, `OrionParallelSteps.kt`) | Admission window of `-Dorion.maxinflight` chunks; each generation step runs on the background pool instead of vanilla's single `worldgen` executor (#62) |
+| `orion5` .. `orion5.8` (`OrionV5.kt`, `OrionParallelSteps.kt`) | Admission window of `-Dorion.maxinflight` chunks; each generation step runs on the background pool instead of vanilla's single `worldgen` executor (#62) |
 
 Within v5.x each version is the previous one plus patches, so a result file's patch lines show
 what actually loaded.
@@ -85,6 +85,12 @@ the docs mean equal digests in this mode.
   of full GCs. Use current `usage.used` (#70).
 - **Validate memory triggers at tile 16.** Both traps above passed small smoke tests and showed
   up only at 65,536 chunks or with `pressure=0` repeated.
+- **Queued server tasks never run unless told to.** Vanilla runs `MinecraftServer` tasks only
+  while a tick has time left, and nothing ticks here. `onStructureStartsAvailable` and POI updates
+  queue one task per chunk, each holding its `ProtoChunk`, so before v5.8 every generated chunk
+  stayed reachable (~180 KB each) and C1GC freed nothing. v5.8 sets `nextTickTimeNanos` to
+  `Long.MAX_VALUE` so the poll thread runs them. Check the result file's `serverTasks pending=`
+  (#82).
 - **Noise floor is ~9%.** Run-to-run variance on the reference box (#16/#17). Pair and rotate
   runs, and report medians. Several shipped "wins" (v5.1, v5.2, v5.3) are inside it.
 - **The seed defaults to 69** (`-Dworldgen.seed` overrides). Changing it changes every digest.

@@ -84,14 +84,14 @@ object OrionPatchAgent {
         val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
         val patchWorldgenLight = System.getProperty("orion.patchWorldgenLight") == "true"
         val scheduler = System.getProperty("scheduler")
-        val patchNoiseCell = scheduler == "orion5.7"
+        val patchNoiseCell = (scheduler == "orion5.7" || scheduler == "orion5.8")
         val patchDensitySimd = scheduler == "orion5.1" || scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" ||
             System.getProperty("orion.patchDensitySimd") == "true"
-        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" || scheduler == "orion5.7" ||
+        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || scheduler == "orion5.8") ||
             System.getProperty("orion.patchImprovedNoise") == "true"
-        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" || scheduler == "orion5.6" || scheduler == "orion5.7" ||
+        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || scheduler == "orion5.8") ||
             System.getProperty("orion.patchAllocations") == "true"
-        val patchRegionChunkMemo = scheduler == "orion5.5" || scheduler == "orion5.6" || scheduler == "orion5.7" || System.getProperty("orion.patchRegionChunkMemo") == "true"
+        val patchRegionChunkMemo = scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || scheduler == "orion5.8") || System.getProperty("orion.patchRegionChunkMemo") == "true"
         if (LightSwapPatch.enabled) {
             System.err.println("[OrionPatchAgent] will patch ${LightSwapPatch.targets} on load (light swap, finding #76, mode=${LightSwapPatch.mode})")
             inst.addTransformer(LightSwapTransformer())
@@ -128,7 +128,7 @@ object OrionPatchAgent {
         if (patchImprovedNoise) System.err.println("[OrionPatchAgent] will patch ${ImprovedNoisePatch.target} on load")
         if (patchAllocations) System.err.println("[OrionPatchAgent] will patch $ALLOCATION_PATCH_TARGETS on load (allocation pressure, orion5.3, memory-issue.md)")
         if (patchRegionChunkMemo) System.err.println("[OrionPatchAgent] will memoize $WORLD_GEN_REGION.getChunk on load (orion5.5)")
-        if (patchNoiseCell) System.err.println("[OrionPatchAgent] will patch ${DensityCellPatch.targets} on load (orion5.7)")
+        if (patchNoiseCell) System.err.println("[OrionPatchAgent] will patch ${DensityCellPatch.targets} on load (orion5.7+)")
         inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise, patchAllocations, patchRegionChunkMemo, patchNoiseCell))
     }
 

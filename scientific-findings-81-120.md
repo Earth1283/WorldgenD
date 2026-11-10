@@ -147,6 +147,144 @@ Orion v5.7, tile 5 (6,400 chunks), 7 workers, seed 69, Corretto from `/root/mine
 
 ---
 
+## 82. Orion v5.8: every generated chunk was being kept in memory forever; fixing it makes long runs 13-14% faster
+
+**Short answer.** Vanilla hands the server thread a small follow-up task for every chunk. A real
+server runs those tasks between ticks. WorldgenD never ticks, so the tasks were never run, and each
+one kept its whole chunk in memory. Over a long run the heap filled up and the JVM spent about a
+minute stuck in back-to-back full garbage collections.
+
+Orion v5.8 is v5.7 plus one change: the poll thread now runs those tasks as they arrive. At 65,536
+chunks it finishes **13.0% and 14.4% sooner** in two interleaved pairs (165.7 vs 144.1 and 141.9
+chunks per second). At 6,400 chunks nothing changes, because the heap never gets full enough to matter.
+Generated blocks are identical.
+
+### How it was found
+
+The 65,536-chunk run in #80 had 31 full GCs, 27 of them in the last 100 seconds. After each one
+about 11 GB was still in use, even though C1GC reported every chunk as written to disk and released.
+
+A heap dump taken partway through a run showed why. Of the 3,904 chunk noise objects still alive,
+3,353 (86%) were reachable through the same chain:
+
+```text
+server task queue -> queued task -> ServerLevel.onStructureStartsAvailable -> ProtoChunk -> NoiseChunk
+```
+
+Each queued task holds the chunk's working copy (`ProtoChunk`). That copy holds the noise caches
+used to build it, and it shares its block storage with the finished chunk. So nothing C1GC released
+could actually be freed. The cost was about 180 KB per chunk, for every chunk ever generated.
+
+Vanilla only runs a queued server task when the current tick has time left. With no tick loop that
+is never true. The same queue also carries point-of-interest updates (village beds, job sites),
+so those were never applied either.
+
+### The fix
+
+Before the fill starts, v5.8 tells the server its next tick is infinitely far away. From then on
+vanilla's own check says "there is time", and the poll thread, which already calls the server's task
+poll in its loop, runs each task within moments of it being queued. No scheduling logic changed,
+which is why this is v5.8 and not v6.
+
+### Result 1: memory stays low
+
+![#82: heap in use after each GC, v5.7 vs v5.8, 65,536 chunks](findings/orion58_heap.png)
+
+| At 65,536 chunks (mean of 2) | v5.7 | v5.8 |
+|---|---:|---:|
+| Tasks left in the queue at the end | 79,042 | 0 or 1 |
+| Still in use after the last full GC | 11.6 GB | 1.9 GB |
+| Full GCs | 30 | 5 |
+| Time paused in full GCs | 66.0 s | 1.4 s |
+| JVM CPU time | 3,058 s | 2,599 s |
+
+Three of the full GCs in each column happen during startup, before generation begins.
+
+In a separate 16,384-chunk check (10 GiB heap, reclamation always on), memory in use went from
+1.2 GB to 2.7 GB between the 62 s and 103 s marks on v5.7. On v5.8 it went from 948 MB to 983 MB.
+
+v5.8's heap still climbs between full GCs. That is ordinary garbage waiting to be collected: chunks
+live long enough to be moved to the old part of the heap before they are released. One cheap full
+GC (about 0.7 s) clears it.
+
+### Result 2: long runs are faster, short runs are unchanged
+
+![#82: v5.8 vs v5.7 at 6,400 and 65,536 chunks](findings/orion58_throughput.png)
+
+| Size | Version | Runs | Median time | ms per chunk | Chunks per second |
+|---|---|---:|---:|---:|---:|
+| 6,400 | v5.7 | 12 | 40.74 s | 6.366 | 157.1 |
+| 6,400 | v5.8 | 12 | 40.93 s | 6.396 | 156.4 |
+| 65,536 | v5.7 | 2 | 458.4 s | 6.994 | 143.0 |
+| 65,536 | v5.8 | 2 | 395.5 s | 6.035 | 165.7 |
+
+- **6,400 chunks: a tie.** Across 12 pairs v5.8 is +0.5% (median), 5 of 12 faster, with a
+  standard error of 0.76%. Young-GC pause time does fall from 0.92 s to 0.62 s per run, but that
+  is under 1% of the run.
+- **65,536 chunks: 13.0% and 14.4% less time.** The time saved (59 s and 66 s) matches the full-GC
+  pause time removed (64 s and 65 s). Nothing else got faster.
+- **Slow chunks are less slow.** The 99th-percentile chunk time at 65,536 chunks drops from about
+  800 ms to about 375 ms, because chunks no longer wait behind 2-second pauses.
+- **The gap should widen with size.** v5.7 needs about 180 KB of heap per chunk generated, so a
+  16 GiB heap runs out somewhere past 65,536 chunks. v5.8 has no such limit in these runs, but
+  sizes beyond 65,536 were not tested.
+
+### Correctness
+
+With deterministic ordering on, v5.7 and v5.8 produce the same SHA-256 for every chunk: 0 of 2,304
+differ, checked with two runs of each. The target was shifted 100 chunks away from spawn. Chunks
+next to spawn differ between any two runs of the same version (33 of 2,304 on v5.7 against itself),
+because they are generated during startup before ordering is switched on (#65).
+
+### What this changes about earlier findings
+
+- **C1GC (#69-#73, #80) was tuned against a heap that could not shrink.** Its bookkeeping was
+  correct, but the memory it released stayed reachable through the task queue. The "full GCs remain
+  after reclamation" result in #73 and #80 was this leak.
+- **The young-GC pause climb in #76 and #77** tracked the amount of live memory. That memory was
+  mostly these retained chunks.
+- **Saved worlds from v5.7 and earlier may be missing point-of-interest data**, since those updates
+  were never applied. This was not checked.
+
+### Caveats
+
+- **Two large pairs.** Both agree closely (v5.8: 395.6 s and 395.5 s), but it is still n=2.
+- **Memory is not perfectly flat.** The 16,384-chunk check shows about 5 KB per chunk of slow growth
+  left, mostly entities and small per-chunk tables. That would be about 1.3 GB at 262,144 chunks.
+- **The reclamation threshold was left alone.** C1GC still switches on when the old part of the heap
+  is 30% full, which now mostly measures uncollected garbage. Whether it should switch on later, or
+  at all on a 16 GiB heap, was not tested.
+
+### Method
+
+Orion v5.7 and v5.8, 7 workers, seed 69, Corretto from `/root/minecraft-server/runtime/java`,
+2026-11-10, one session. Common flags:
+
+```text
+-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC -Dmax.bg.threads=7
+-javaagent:build/libs/orion-agent.jar -Dorion.patchReentrancy=true
+-Dorion.patchStructureGenState=true -Dorion.patchParallelSteps=true
+-Dorion.maxinflight=16 -Dsaveworld=false
+-Dscheduler=orion5.7 | orion5.8      -Dmosaic.tile=5 | 16
+```
+
+- The change: `HeadlessWorldgen.kt` sets `MinecraftServer.nextTickTimeNanos` to `Long.MAX_VALUE`
+  before `fill()`. `-Dorion.serverTasks=drain|hold` overrides it on any v5 scheduler (default
+  `drain` on v5.8, `hold` otherwise). The result file's `serverTasks` line reports the mode and how
+  many tasks were still queued when the fill ended.
+- Runner: `findings/run_orion58.py` (arm order reversed every other round; fresh JVM and world per
+  run). Blocks `short` (12 rounds, tile 5) and `large` (2 rounds, tile 16).
+- Collection: `findings/collect_orion58.py` writes `findings/orion58_runs.csv` and
+  `findings/orion58_heap.csv` (one row per GC of the large runs). Rows in `orion_results.csv` are
+  configs `o58_*`.
+- Heap dump: `jcmd <pid> GC.heap_dump` at about 3,000 of 6,400 chunks, 6 GiB heap, reclamation
+  always on. `findings/HprofPath.java` prints the chains that keep a given class alive.
+- Correctness runs: tile 3, `-Dorion.deterministicFeatures=region -Dorion.patchWorldgenLight=true
+  -Dorion.parallelSteps.verify=true -Dorion.targetShift=100 -Ddescribe.histogramfile=<path>`.
+- Raw GC logs and progress files stay local under `findings/orion58_runs/` and are gitignored.
+
+---
+
 ## Open questions / where you pick this up
 
 The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open-questions--where-you-pick-this-up) still applies. New since #81:
@@ -161,3 +299,9 @@ The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open
   hardware counters are exposed, but `perf` is not installed.
 - **The 16 GiB champion heap couldn't be pretouched on 2026-11-09** because a Minecraft server on
   the VM held ~16 GB. Stop it (or check free memory) before the next champion-spec run.
+- **#82's v5.8 removes the per-chunk memory leak, and long runs are 13-14% faster (n=2 pairs).**
+  Still open: a run well past 65,536 chunks to confirm memory stays bounded; whether C1GC's 30%
+  threshold should move now that the heap can shrink; whether saved worlds from earlier versions
+  lack point-of-interest data; and the remaining ~5 KB per chunk of slow growth.
+- **#81's 16 GiB note is resolved:** the host had its full 32 GB on 2026-11-10 and #82 ran at the
+  champion heap.

@@ -1416,6 +1416,73 @@ def plot_orion57_65k(out_path):
     plt.close(fig)
 
 
+def plot_orion58(heap_path, throughput_path):
+    with (HERE / "orion58_heap.csv").open(newline="") as source:
+        gcs = [r for r in csv.DictReader(source) if r["label"].endswith("_r1")]
+    with (HERE / "orion58_runs.csv").open(newline="") as source:
+        runs = list(csv.DictReader(source))
+    arms = [("v57", "v5.7", BASELINE, INK_SECONDARY), ("v58", "v5.8", SERIES[0], SERIES[0])]
+
+    fig, ax = plt.subplots(figsize=(9.5, 5.2))
+    for arm, name, color, ink in arms:
+        mine = [r for r in gcs if r["arm"] == arm]
+        ax.plot([float(r["uptime_s"]) for r in mine], [int(r["after_mb"]) / 1024 for r in mine], color=color, linewidth=2, zorder=2)
+        full = [r for r in mine if r["kind"] == "full" and float(r["uptime_s"]) > 30]
+        ax.scatter([float(r["uptime_s"]) for r in full], [int(r["after_mb"]) / 1024 for r in full], s=26, color=color,
+                   edgecolor=SURFACE, linewidth=1, zorder=3)
+        last = mine[-1]
+        pause = sum(float(r["pause_ms"]) for r in mine if r["kind"] == "full") / 1000
+        ax.annotate(f"{name}: {len(full)} full GCs, {pause:.0f} s paused" if pause >= 10 else f"{name}: {len(full)} full GCs, {pause:.1f} s paused",
+                    (float(last["uptime_s"]), int(last["after_mb"]) / 1024), xytext=(-6, 10 if arm == "v57" else -42),
+                    textcoords="offset points", ha="right", fontsize=9.5, color=ink)
+    ax.axhline(16, color=GRIDLINE, linewidth=1.5, linestyle="--", zorder=1)
+    ax.text(4, 16.25, "16 GiB heap limit", fontsize=9, color=INK_MUTED)
+    ax.set_ylim(0, 18)
+    ax.set_xlabel("Seconds since JVM start")
+    ax.set_ylabel("Heap in use after each GC (GiB)")
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.suptitle("#82: v5.7's heap fills and stalls in full GCs; v5.8's stays low", fontsize=13, x=0.08, ha="left")
+    fig.text(0.08, 0.01, "65,536 chunks, pair 1, 16 GiB heap, ParallelGC, 7 workers. Dots are full GCs. "
+             "Between full GCs the line includes garbage not yet collected.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.93))
+    fig.savefig(heap_path, dpi=150)
+    plt.close(fig)
+
+    fig, (short, large) = plt.subplots(1, 2, figsize=(11.5, 4.8), gridspec_kw={"width_ratios": [1.6, 1]})
+    for arm, name, color, ink in arms:
+        mine = sorted((r for r in runs if r["block"] == "short" and r["arm"] == arm), key=lambda r: int(r["round"]))
+        short.plot([int(r["round"]) for r in mine], [float(r["emspc"]) for r in mine], color=color, marker="o", linewidth=2, label=name, zorder=3)
+    short.set_xticks(range(1, 13))
+    short.set_ylim(0, 8)
+    short.set_xlabel("Pair")
+    short.set_ylabel("eMSPC (ms/chunk) - lower is better")
+    short.set_title("6,400 chunks: a tie (v5.8 +0.5% median, 5 of 12 faster)", fontsize=10.5, loc="left")
+    short.legend(frameon=False, fontsize=9, loc="lower right")
+    width = 0.36
+    for offset, (arm, name, color, ink) in zip((-width / 2, width / 2), arms):
+        mine = sorted((r for r in runs if r["block"] == "large" and r["arm"] == arm), key=lambda r: int(r["round"]))
+        xs = [int(r["round"]) + offset for r in mine]
+        cps = [1000 * int(r["chunks"]) / int(r["total_ms"]) for r in mine]
+        large.bar(xs, cps, width=width - 0.03, color=color, zorder=2)
+        for x, value in zip(xs, cps):
+            large.text(x, value + 3, f"{value:.1f}", ha="center", fontsize=9.5, color=ink)
+    large.set_xticks([1, 2], ["pair 1", "pair 2"])
+    large.set_ylim(0, 195)
+    large.set_ylabel("Chunks per second - higher is better")
+    large.set_title("65,536 chunks: v5.8 +15% and +17%", fontsize=10.5, loc="left")
+    for ax in (short, large):
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#82: Orion v5.8 vs v5.7, interleaved pairs", fontsize=13, x=0.06, ha="left")
+    fig.text(0.06, 0.01, "16 GiB heap, ParallelGC, 7 workers, seed 69, same session. Grey is v5.7, blue is v5.8.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.92))
+    fig.savefig(throughput_path, dpi=150)
+    plt.close(fig)
+
+
 def plot_replication80(out_path):
     with (HERE / "replication_20261031.csv").open(newline="") as source:
         rows = list(csv.DictReader(source))
@@ -1636,6 +1703,7 @@ def main():
     plot_orion57_pairs(HERE / "orion57_pairs.png")
     plot_orion57_65k(HERE / "orion57_65k.png")
     plot_replication80(HERE / "replication_20261031.png")
+    plot_orion58(HERE / "orion58_heap.png", HERE / "orion58_throughput.png")
 
     print(f"Wrote charts to {HERE}")
 

@@ -66,3 +66,8 @@ findings/critpath_runs/*/*.samples.csv
 findings/critpath_runs/*/*.lanes.csv
 findings/critpath_runs/*/*.gc.log
 findings/critpath_runs/*/*.log
+
+# finding #82 raw logs; summaries live in findings/orion58_*.csv
+findings/orion58_runs/*.gc.log
+findings/orion58_runs/*.progress
+findings/orion58_runs/*.out

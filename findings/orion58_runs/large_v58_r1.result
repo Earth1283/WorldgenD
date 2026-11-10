@@ -1,0 +1,10 @@
+scheduler=orion5.8 ok=65536 failed=0 totalMs=395619
+MSPC (ms/chunk, n=65536): min=0.22 p1=49.75 p25=66.96 p50=77.59 p75=99.08 p99=384.71 max=3127.11
+parallelSteps scheduled=549472 deferred=54259 inline=197636 maxRunning=154 leakedCells=0
+backgroundPool parallelism=7 poolSize=156
+densitySimd backend=vector lanes=4 mode=auto verify=false calls=0 elements=0
+ap2ScratchMaxDepth 0
+c1gc quarantined=62464 collectible=62464 detached=62464 persisted=62464 ringOccupancy=0 ioQueueOccupancy=0 ioPoolSize=0 ioPoolActive=0 pressure=0.3 armed=true armedAtCompletion=15104 unreclaimed=0 oldGen=PS Old Gen peakOldGenUsedMb=3318 lifecycleCounts={PERSISTED=62464}
+serverTasks mode=drain pending=0
+noiseCell batch=true lazy=true surfaceCache=true glue=true hits=0 misses=0
+regionFileVersion id=4
