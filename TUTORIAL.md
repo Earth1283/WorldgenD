@@ -211,6 +211,25 @@ its chunk in memory. v5.8 lets the poll thread run them. Short runs are unchange
 chunks it is 13-14% faster, because the heap no longer fills up
 ([finding #82](scientific-findings-81-120.md)).
 
+## Orion v5.9: the current best
+
+`-Dscheduler=orion5.9` adds four speedups to v5.8 and admits 32 chunks at a time instead of 16.
+The largest single gain is the area lock: a step that writes to its neighbors now starts as soon
+as those neighbors are free, instead of waiting behind unrelated steps. Blocks and biomes match
+v5.8 exactly. A 65,536-chunk run takes about 300 s instead of 398 s
+([finding #83](scientific-findings-81-120.md)).
+
+```bash
+python3 run_direct.py -Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC \
+  -javaagent:build/libs/orion-agent.jar -Dorion.patchReentrancy=true \
+  -Dorion.patchStructureGenState=true -Dorion.patchParallelSteps=true \
+  -Dmax.bg.threads=7 -Dmosaic.tile=16 -Dscheduler=orion5.9
+```
+
+Add `-Dorion.maxinflight=16` if you care about how long each chunk takes rather than the whole
+run. If a run seems stuck, look at `orion_stall.txt`: any chunk unfinished after 30 s is dumped
+there with its neighbors and the poll thread's stack.
+
 ## Where to go next
 
 Worlds WorldgenD writes include `world_gen_settings.dat`, so a real Paper 26.1.2 server boots on
@@ -218,4 +237,4 @@ them without a splice (#72).
 
 [`ARCHITECTURE.md`](ARCHITECTURE.md) maps the scheduler, the agent patches and C1GC onto the
 files, and lists the traps that only show up at scale. Findings #75 to #77 record what was
-tried on top of v5.7 and did not pay off.
+tried on top of v5.7 and did not pay off; #83 shows why some of it pays on v5.9.

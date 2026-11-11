@@ -22,6 +22,12 @@ object OrionParallelSteps {
     // structure-touching step serializes here instead of patching each piece class.
     private val structures = ReentrantLock()
 
+    // Moonrise's model: starts and references only write their own chunk. The shared state they
+    // touch is the stronghold statics (#56) and the template palette cache (agent). Placement
+    // (FEATURES) and spawn still take the lock.
+    @JvmField val parallelStructureStarts =
+        System.getProperty("orion.structureStarts", if (System.getProperty("scheduler") == "orion5.9") "parallel" else "serial") == "parallel"
+
     @JvmStatic fun lockStructures() {
         if (!OrionTrace.enabled) return structures.lock()
         val since = System.nanoTime()
@@ -36,6 +42,11 @@ object OrionParallelSteps {
 
     private class Task(val x: Int, val z: Int, val radius: Int, val status: Int) {
         var blockers = 0
+        var bypassed = 0
+        fun overlaps(other: Task): Boolean {
+            val reach = radius + other.radius
+            return Math.abs(other.x - x) <= reach && Math.abs(other.z - z) <= reach
+        }
         lateinit var body: Runnable
         // OrionTrace record, see OrionTrace.step for the layout
         val trace: LongArray? = if (OrionTrace.enabled) LongArray(9).also { it[0] = status.toLong(); it[1] = x.toLong(); it[2] = z.toLong() } else null
@@ -44,6 +55,15 @@ object OrionParallelSteps {
     // Per-chunk FIFO of tasks whose square covers that chunk. A task runs once it heads every
     // queue it joined; joins happen atomically in submission order, so no cycle can form.
     private val cells = HashMap<Long, ArrayDeque<Task>>()
+
+    // v5.9 (#83): the FIFO queues chain neighboring FEATURES squares into single file, because a
+    // task queues behind waiters it does not conflict with once they run. Greedy mode starts any
+    // task whose square is free; a waiter passed over BYPASS_LIMIT times reserves its square.
+    private val greedy = System.getProperty("orion.areaLock", if (System.getProperty("scheduler") == "orion5.9") "greedy" else "fifo") == "greedy"
+    private const val BYPASS_LIMIT = 16
+    private val held = HashSet<Long>()
+    private val waiting = ArrayList<Task>()
+    private val bypasses = AtomicLong()
 
     @Volatile private var applyHandle: MethodHandle? = null
     @Volatile var executor: Executor? = null
@@ -79,8 +99,9 @@ object OrionParallelSteps {
                 }
                 future
             }
-            "structure_starts", "structure_references", "spawn" ->
-                schedule(Task(x, z, 0, index), serial = true, handle, step, context, cache, chunk)
+            "structure_starts", "structure_references" ->
+                schedule(Task(x, z, 0, index), serial = !parallelStructureStarts, handle, step, context, cache, chunk)
+            "spawn" -> schedule(Task(x, z, 0, index), serial = true, handle, step, context, cache, chunk)
             "features" -> featureOrder?.let { order ->
                 scheduleFeaturesInOrder(order, x, z) {
                     schedule(Task(x, z, maxOf(writeRadius, 0), index), serial = false, handle, step, context, cache, chunk)
@@ -218,6 +239,8 @@ object OrionParallelSteps {
         val result = CompletableFuture<Any?>()
         val trace = task.trace
         task.body = Runnable {
+            queuedOnPool.remove(task)
+            active.add(task)
             maxRunning.accumulateAndGet(running.incrementAndGet(), ::maxOf)
             if (trace != null) { trace[5] = System.nanoTime(); OrionTrace.started.incrementAndGet() }
             if (verify) checkOverlap(task)
@@ -240,6 +263,7 @@ object OrionParallelSteps {
             inner.whenComplete { value, error ->
                 if (trace != null) { trace[8] = System.nanoTime(); OrionTrace.ended.incrementAndGet(); OrionTrace.step(trace) }
                 running.decrementAndGet()
+                active.remove(task)
                 if (verify) runningSquares.remove(task)
                 release(task)
                 if (error != null) result.completeExceptionally(error) else result.complete(value)
@@ -249,12 +273,48 @@ object OrionParallelSteps {
         if (trace != null) { trace[3] = System.nanoTime(); OrionTrace.submitted.incrementAndGet() }
         if (enqueue(task)) {
             if (trace != null) { trace[4] = System.nanoTime(); OrionTrace.ready.incrementAndGet() }
+            queuedOnPool.add(task)
             executor!!.execute(task.body)
         } else deferred.incrementAndGet()
         return result
     }
 
+    private fun squareFree(task: Task): Boolean {
+        forEachCell(task) { key -> if (key in held) return false }
+        return true
+    }
+
+    // Caller holds the cells monitor. index is the task's position in waiting, or waiting.size for a new arrival.
+    private fun tryAcquire(task: Task, index: Int): Boolean {
+        if (!squareFree(task)) return false
+        for (i in 0 until index) {
+            val ahead = waiting[i]
+            if (ahead.bypassed >= BYPASS_LIMIT && ahead.overlaps(task)) return false
+        }
+        for (i in 0 until index) {
+            val ahead = waiting[i]
+            if (ahead.overlaps(task)) { ahead.bypassed++; bypasses.incrementAndGet() }
+        }
+        forEachCell(task) { key -> held.add(key) }
+        return true
+    }
+
+    private fun releaseGreedy(task: Task): ArrayList<Task> = synchronized(cells) {
+        forEachCell(task) { key -> check(held.remove(key)) { "area cell not held at $key" } }
+        val ready = ArrayList<Task>(2)
+        var i = 0
+        while (i < waiting.size) {
+            if (tryAcquire(waiting[i], i)) ready.add(waiting.removeAt(i)) else i++
+        }
+        ready
+    }
+
     private fun enqueue(task: Task): Boolean = synchronized(cells) {
+        if (greedy) {
+            if (tryAcquire(task, waiting.size)) return true
+            waiting.add(task)
+            return false
+        }
         forEachCell(task) { key ->
             val queue = cells.getOrPut(key) { ArrayDeque() }
             if (queue.isNotEmpty()) task.blockers++
@@ -264,8 +324,8 @@ object OrionParallelSteps {
     }
 
     private fun release(task: Task) {
-        val ready = ArrayList<Task>(2)
-        synchronized(cells) {
+        val ready = if (greedy) releaseGreedy(task) else ArrayList<Task>(2)
+        if (!greedy) synchronized(cells) {
             forEachCell(task) { key ->
                 val queue = cells.getValue(key)
                 check(queue.removeFirst() === task) { "area queue head mismatch at $key" }
@@ -279,6 +339,7 @@ object OrionParallelSteps {
         }
         for (next in ready) {
             next.trace?.let { it[4] = System.nanoTime(); OrionTrace.ready.incrementAndGet() }
+            queuedOnPool.add(next)
             executor!!.execute(next.body)
         }
     }
@@ -299,10 +360,24 @@ object OrionParallelSteps {
         runningSquares.add(task)
     }
 
+    private val active = ConcurrentHashMap.newKeySet<Task>()
+    private val queuedOnPool = ConcurrentHashMap.newKeySet<Task>()
+
+    // Stall diagnostics: steps holding or waiting for area squares near a chunk.
+    @JvmStatic
+    fun describeNear(x: Int, z: Int, reach: Int): String {
+        fun near(t: Task) = Math.abs(t.x - x) <= reach && Math.abs(t.z - z) <= reach
+        fun show(t: Task) = "${OrionTrace.statuses.getOrNull(t.status)}@${t.x},${t.z} r=${t.radius} bypassed=${t.bypassed}"
+        val waitingNow = synchronized(cells) { waiting.filter(::near).map(::show) + cells.values.flatMap { q -> q.drop(1).filter(::near).map(::show) }.distinct() }
+        return "active=${active.filter(::near).map(::show)} queuedOnPool=${queuedOnPool.filter(::near).map(::show)} " +
+            "totalQueuedOnPool=${queuedOnPool.size} waiting=$waitingNow totalWaiting=${synchronized(cells) { waiting.size }} totalActive=${active.size}"
+    }
+
     @JvmStatic
     fun report(): String =
         "scheduled=${scheduled.get()} deferred=${deferred.get()} inline=${inline.get()} " +
-            "maxRunning=${maxRunning.get()} leakedCells=${synchronized(cells) { cells.size }}" +
+            "maxRunning=${maxRunning.get()} leakedCells=${synchronized(cells) { cells.size + held.size + waiting.size }}" +
+            " areaLock=${if (greedy) "greedy" else "fifo"} bypasses=${bypasses.get()} structureStarts=${if (parallelStructureStarts) "parallel" else "serial"}" +
             (if (verify) " overlapViolations=${overlapViolations.get()}" else "") +
             (if (featureOrder != null) " gated=${gated.get()} kicks=${kicks.get()} kickFailures=${kickFailures.get()} featuresDone=${synchronized(featuresLock) { featuresDone.size }} " +
                 "stuckGates=${synchronized(featuresLock) { gatesWaitingOn.size }}" + (if (verify) " orderViolations=${orderViolations.get()} ${synchronized(featuresLock) { violationSample.toString() }}" else "") else "")

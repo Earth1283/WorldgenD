@@ -1,0 +1,10 @@
+v58: failed=0 areaLock=fifo overlapViolations=0 orderViolations=0
+v59: failed=0 areaLock=greedy overlapViolations=0 orderViolations=0 surfaceShortcuts=0 surfaceMismatches=0
+v59w32: failed=0 areaLock=greedy overlapViolations=0 orderViolations=0 surfaceShortcuts=0 surfaceMismatches=0
+hist: v59 vs v58: 0/6400 chunks differ []
+hist: v59w32 vs v58: 0/6400 chunks differ []
+biomes: v59 vs v58: 0/6400 chunks differ []
+biomes: v59w32 vs v58: 0/6400 chunks differ []
+dispatcherResort allLevels patched=true rescued=3 staleSubmits=54
+oldChunkScan mode=skipEmpty patched=true skippedRegions=20 scannedRegions=0
+templatePalette patched=true

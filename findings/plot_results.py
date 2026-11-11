@@ -1483,6 +1483,95 @@ def plot_orion58(heap_path, throughput_path):
     plt.close(fig)
 
 
+def plot_orion59(ladder_path, profile_path, throughput_path):
+    with (HERE / "orion59_runs.csv").open(newline="") as source:
+        runs = [r for r in csv.DictReader(source) if r["chunks"] == "65536"]
+    ladder = ["v5.8", "v5.8 + area lock", "+ surface/biome", "+ lock-free starts", "v5.9, window 16", "v5.9"]
+    labels = ["v5.8", "+ area lock", "+ surface/biome\nshortcuts", "+ lock-free\nstructure starts",
+              "+ scan skip,\nqueue fix", "v5.9\n(32 in flight)"]
+    base = float(np.median([int(r["total_ms"]) / 1000 for r in runs if r["build"] == "v5.8"]))
+    fig, ax = plt.subplots(figsize=(10.5, 5.2))
+    for i, build in enumerate(ladder):
+        times = [int(r["total_ms"]) / 1000 for r in runs if r["build"] == build]
+        median = float(np.median(times))
+        color = BASELINE if i == 0 else SERIES[0]
+        ax.bar(i, median, width=0.6, color=color, zorder=2)
+        ax.scatter([i + 0.18] * len(times), times, s=14, color=INK_SECONDARY, zorder=3)
+        note = f"{median:.0f} s" if i == 0 else f"{median:.0f} s\n{100 * (median / base - 1):+.1f}%"
+        ax.text(i, median + 8, note, ha="center", va="bottom", fontsize=9.5, color=INK_PRIMARY)
+    ax.set_xticks(range(len(ladder)), labels, fontsize=9)
+    ax.set_ylim(0, base * 1.22)
+    ax.set_ylabel("Run time (s) - lower is better")
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.suptitle("#83: what each v5.9 piece takes off a 65,536-chunk run", fontsize=13, x=0.07, ha="left")
+    fig.text(0.07, 0.01, "Bars are medians, dots are single runs. 16 GiB heap, ParallelGC, 7 workers, seed 69, one session. "
+             "16 chunks in flight except the last bar.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
+    fig.savefig(ladder_path, dpi=150)
+    plt.close(fig)
+
+    with (HERE / "orion59_runs.csv").open(newline="") as source:
+        every = [dict(r, build="v5.8" if r["build"] == "v5.8 + poll-thread fix" else r["build"]) for r in csv.DictReader(source)]
+    arms = (("v5.8", BASELINE, INK_SECONDARY), ("v5.9", SERIES[0], SERIES[0]))
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.8), gridspec_kw={"width_ratios": [1.6, 1, 1]})
+    short = axes[0]
+    for build, color, _ in arms:
+        mine = sorted((r for r in every if r["block"] == "fin5" and r["build"] == build), key=lambda r: int(r["round"]))
+        short.plot([int(r["round"]) for r in mine], [float(r["emspc"]) for r in mine], color=color, marker="o", linewidth=2, label=build, zorder=3)
+    short.set_ylim(0, 8)
+    short.set_xlabel("Pair")
+    short.set_ylabel("eMSPC (ms/chunk) - lower is better")
+    short.set_title("6,400 chunks: v5.9 wins 6 of 6", fontsize=10.5, loc="left")
+    short.legend(frameon=False, fontsize=9, loc="lower right")
+    for ax, block, title in ((axes[1], "fin16", "65,536 chunks"), (axes[2], "big", "262,144 chunks (v5.8 with the hang fix)")):
+        x = 0
+        for build, color, ink in arms:
+            for r in sorted((r for r in every if r["block"] == block and r["build"] == build), key=lambda r: int(r["round"])):
+                ax.bar(x, float(r["emspc"]), width=0.7, color=color, zorder=2)
+                ax.text(x, float(r["emspc"]) + 0.1, f"{float(r['emspc']):.2f}", ha="center", fontsize=9, color=ink)
+                x += 1
+        ax.set_xticks([])
+        ax.set_ylim(0, 8)
+        ax.set_title(title, fontsize=10.5, loc="left")
+    for ax in axes:
+        ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("#83: Orion v5.9 vs v5.8, interleaved", fontsize=13, x=0.05, ha="left")
+    fig.text(0.05, 0.01, "16 GiB heap, ParallelGC, 7 workers, seed 69, same session. Grey is v5.8 (16 in flight), blue is v5.9 (32 in flight). "
+             "Bars are single runs.", fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.92))
+    fig.savefig(throughput_path, dpi=150)
+    plt.close(fig)
+
+    with (HERE / "orion59_profile.csv").open(newline="") as source:
+        rows = list(csv.DictReader(source))
+    fig, ax = plt.subplots(figsize=(10.5, 4.8))
+    for build, color in (("v5.8", BASELINE), ("v5.9", SERIES[0])):
+        labels_for = sorted({r["label"] for r in rows if r["build"] == build})
+        final = [l for l in labels_for if l.startswith("fin16")] or labels_for
+        for label in final:
+            mine = [r for r in rows if r["label"] == label]
+            ax.plot([int(r["percent_done"]) for r in mine], [float(r["cps"]) for r in mine], color=color, linewidth=2,
+                    label=build if label == final[0] else None, zorder=3)
+    ax.set_xlabel("Percent of the run done")
+    ax.set_ylabel("Chunks per second - higher is better")
+    ax.set_ylim(0, None)
+    ax.legend(frameon=False, loc="lower right")
+    ax.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.suptitle("#83: v5.9 is faster through the whole run, most of all early on", fontsize=13, x=0.07, ha="left")
+    fig.text(0.07, 0.01, "Throughput for each 5% of a 65,536-chunk run. The 5-35% dip is the terrain in this part of the square, not memory.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
+    fig.savefig(profile_path, dpi=150)
+    plt.close(fig)
+
+
 def plot_replication80(out_path):
     with (HERE / "replication_20261031.csv").open(newline="") as source:
         rows = list(csv.DictReader(source))
@@ -1704,6 +1793,7 @@ def main():
     plot_orion57_65k(HERE / "orion57_65k.png")
     plot_replication80(HERE / "replication_20261031.png")
     plot_orion58(HERE / "orion58_heap.png", HERE / "orion58_throughput.png")
+    plot_orion59(HERE / "orion59_ladder.png", HERE / "orion59_profile.png", HERE / "orion59_throughput.png")
 
     print(f"Wrote charts to {HERE}")
 

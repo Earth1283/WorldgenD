@@ -1,0 +1,13 @@
+scheduler=orion5.9 ok=65536 failed=0 totalMs=328734
+MSPC (ms/chunk, n=65536): min=0.82 p1=42.38 p25=57.55 p50=65.69 p75=79.79 p99=259.47 max=2852.02
+parallelSteps scheduled=549472 deferred=39138 inline=197636 maxRunning=55 leakedCells=0 areaLock=greedy bypasses=23138 structureStarts=parallel
+backgroundPool parallelism=7 poolSize=7
+densitySimd backend=vector lanes=4 mode=auto verify=false calls=0 elements=0
+ap2ScratchMaxDepth 0
+c1gc quarantined=62464 collectible=62464 detached=62464 persisted=62464 ringOccupancy=0 ioQueueOccupancy=0 ioPoolSize=0 ioPoolActive=0 pressure=0.3 armed=true armedAtCompletion=15616 unreclaimed=0 oldGen=PS Old Gen peakOldGenUsedMb=3280 lifecycleCounts={PERSISTED=62464}
+stagePatch transformed=[biomeFlat:NoiseChunk, biomeFlat:NoiseChunk$FlatCache, biomeUniform:BiomeManager, fluidEmpty:FluidState, surfaceColumn:SurfaceRules$Context, surfaceColumn:SurfaceSystem, surfaceColumn:SurfaceSystem$1] failed=[] biomeFlatWraps=137288 surfaceVerify=false surfaceShortcuts=0 surfaceMismatches=0
+oldChunkScan mode=skipEmpty patched=true skippedRegions=100 scannedRegions=0
+templatePalette patched=true
+serverTasks mode=drain pending=1
+noiseCell batch=true lazy=true surfaceCache=true glue=true hits=0 misses=0
+regionFileVersion id=4

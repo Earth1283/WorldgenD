@@ -285,6 +285,212 @@ Orion v5.7 and v5.8, 7 workers, seed 69, Corretto from `/root/minecraft-server/r
 
 ---
 
+## 83. Orion v5.9: long runs are 24% faster, and a vanilla queue race that could stall a chunk for minutes
+
+**Short answer.** Orion v5.9 generates 65,536 chunks in a median **300 s, against 398.5 s for
+v5.8 (24.7% less time)**. In the final interleaved block it was 304.8 s vs 398.6 s. Every block
+and biome is identical to v5.8. At 6,400 chunks it is **17.3% faster** (6 of 6 pairs, median
+34.2 s vs 41.2 s). At 262,144 chunks it takes **1,194 s
+instead of 1,571 s (24.0% less time)**: 4.56 ms per chunk against 5.99, 219.5 chunks per second
+against 166.9. The 262,144-chunk v5.8 run needed the hang fix described below to finish at all.
+
+![#83: v5.8 vs v5.9 at 6,400, 65,536 and 262,144 chunks](findings/orion59_throughput.png)
+
+v5.9 stacks seven changes. Four are speedups, two fix hangs that v5.8 also has, and one is a
+32-chunk admission window:
+
+| Piece | What it does | 65,536-chunk run time (median) |
+|---|---|---:|
+| v5.8 | starting point | 398.5 s |
+| + area lock | a step starts as soon as its own square is free, instead of queueing behind unrelated waiters | 375.5 s (−5.8%) |
+| + surface/biome shortcuts | the five exact shortcuts from #75, never shipped | 342.2 s (−14.1%) |
+| + lock-free structure starts | structure starts and references stop taking the global structures lock | 326.8 s (−18.0%) |
+| + region scan skip, queue fix | no measurable speed change; the queue fix removes the stall | 328.7 s (−17.5%) |
+| v5.9 (32 in flight) | the window is now worth widening | 300.2 s (−24.7%) |
+
+![#83: what each v5.9 piece takes off a 65,536-chunk run](findings/orion59_ladder.png)
+
+### Why earlier attempts missed these
+
+Three of these pieces were tried before, one at a time, and filed as nulls or left unshipped:
+
+- lock-free structure starts (#75: −0.9%);
+- a 32-chunk window (#75: +0.1%);
+- the surface/biome shortcuts (#75: −3.7%, not separable from noise).
+
+They don't pay alone. The FIFO area lock made neighboring FEATURES steps run single file, so
+freeing structure steps or admitting more chunks only added waiters. Once the area lock stops
+the convoy, the same pieces show: at 6,400 chunks the full set is 17.3% faster, at 65,536
+24.7%. The surface/biome shortcuts cut real worker CPU (#81's lever), and at 65,536 chunks they
+take 8.9% off, the same in every run.
+
+Each piece was first measured at 65,536 chunks, where runs last 5-7 minutes and the effects stand
+well clear of run-to-run spread. **Screen scheduler changes at tile 16.**
+
+### The pieces
+
+**Area lock.** v5.8 gives every chunk a first-in-first-out queue. A FEATURES step (which writes
+to its 3x3 neighbors) waits until it heads all nine queues. A step blocked by one neighbor also
+blocks everything queued behind it on the other eight, even when those later steps don't touch
+the busy neighbor. Neighboring FEATURES steps end up running single file. v5.9 starts any step
+whose square is free. A step that has been passed over 16 times reserves its square, so nothing
+waits forever. In a traced 6,400-chunk run, FEATURES steps spent 57 s waiting for their squares
+instead of 222 s (`orion.areaLock=greedy|fifo`).
+
+**Surface/biome shortcuts.** Ported unchanged from the stages worktree behind #75: cached climate
+noise for biomes, a uniform-corner biome check, direct section reads and writes in the surface
+column, and skipping surface rules that provably cannot match. With
+`-Dorion.stage.surfaceVerify=true` every shortcut is checked against the real rule:
+1.66 billion shortcuts in a 65,536-chunk run, 0 mismatches (`orion.stage.<name>`).
+
+**Lock-free structure starts.** Structure starts and references now run without the global
+structures lock, as Moonrise (Paper) does. Placement during FEATURES and mob spawning still take
+it. #75's version of this was a null at 6,400 chunks. The template palette cache is made
+thread-safe (`orion.structureStarts=parallel|serial`).
+
+**Region scan skip.** Blending asks whether any pre-1.18 chunk is nearby. The first ask per
+region scans 1,024 chunk slots one disk call at a time, and every biomes or noise step near that
+region waits for it. v5.9 first checks whether the region has any saved or pending chunk, and
+skips the scan for an empty one. A new world skips all 100 regions. Run time did not measurably
+change (−1.6% and −1.2% in two pairs, inside the spread of identical runs). It is kept because it
+removes blocking waits on worker threads (`orion.oldChunkScan=skipEmpty|vanilla`).
+
+**32 chunks in flight.** In #42, #73 and #75 the admission window was a latency dial and nothing
+more. On v5.9 a wider window keeps 7.2 of 8 cores busy instead of 6.8. The trade-off is latency:
+median chunk latency goes from 66 ms to 131 ms, p99 from 248 ms to 564 ms. Use
+`-Dorion.maxinflight=16` when latency matters.
+
+| v5.9 window | 65,536-chunk runs | Run time |
+|---:|---:|---|
+| 16 | 5 | 322.5-331.3 s |
+| 24 | 1 | 314.0 s |
+| 32 | 4 | 296.4-307.8 s |
+| 48 | 1 | 298.9 s |
+| 128 | 1 | 301.7 s |
+
+### The stall: a vanilla race, now fixed
+
+One window-64 run took 413.7 s. A single chunk sat unfinished for 281 s. It held back C1GC's
+frontier, so nothing behind it could be released; the heap filled and the JVM spent about 30 s in
+full GCs.
+
+A new watchdog (`-Dorion.stallSeconds`, default 30) dumps the state around any chunk unfinished
+after 30 s. In short window-64 starts it fired often: in 6 of 24 on v5.9, and also on v5.8 (2 of
+6), so it predates v5.9. Every dump showed the same thing:
+
+- the chunk had finished `initialize_light`, and all its neighbors were done;
+- its generation task was waiting in vanilla's worldgen dispatcher queue, at priority level 35-44;
+- the chunk's real level was 33, and level 33 never empties while a fill is running.
+
+The cause is in vanilla. Each chunk has one "queue level" field. The worldgen and light
+dispatchers both update it, each on its own thread, whenever the chunk's level changes. If the
+light dispatcher applies an older change late, it briefly writes back a stale level. A generation
+task submitted at that moment is filed under the stale level, and it starves until level 33
+runs dry at the very end of the fill.
+
+v5.9 patches the dispatcher's priority queue. Each queue remembers the levels it has applied
+itself and files new tasks under that level; a level change also gathers the chunk's tasks from
+every level (`-Dorion.dispatcherResort=allLevels|vanilla`). On the setting that stalled in 11 of
+18 starts before, 0 of 8 stalled after. In a normal 65,536-chunk v5.9 run the fix catches about
+700-790 stale submissions; the result file's `dispatcherResort` line counts them.
+
+A real server ticks and clears the backlog every tick, so this race rarely matters there. In a
+headless fill the backlog never clears.
+
+### A second hang: the poll thread waiting on itself
+
+The first 262,144-chunk v5.8 run stopped dead at 34,073 chunks and sat there until the
+two-hour timeout. Every thread was idle. The poll thread, which runs all server-side tasks in
+a headless fill, was waiting for a chunk:
+
+- C1GC unloaded a chunk holding an Allay;
+- removing the Allay's game-event listener asked for a chunk;
+- the poll thread did not count as the server thread at that moment, so it queued the request
+  as a server task and waited for it;
+- only the poll thread runs server tasks.
+
+Inside a server task the poll thread already counts as the server thread (#47). C1GC's unloading
+runs between tasks, where it did not. v5.9 makes the poll thread count as the server thread for
+the whole fill, as a real server's main thread does (`-Dorion.pollServerThread=true|false`,
+on by default for v5.9 only). The 262,144-chunk v5.8 run below has the same fix switched on and
+nothing else.
+
+It takes an Allay at the edge of the unloaded area, so it is rare. The evidence for the fix is
+indirect: one deadlock without it, and two complete 262,144-chunk runs with it. Nothing counts
+how often the fixed path ran. It did not happen in any of
+the 65,536-chunk runs. The fix costs nothing: two interleaved 65,536-chunk pairs of v5.8 with and
+without it took 404.0/405.8 s and 405.3/402.8 s.
+
+### Correctness
+
+- **Blocks and biomes.** With deterministic ordering on, v5.9 matches v5.8 chunk for chunk:
+  0 of 6,400 differ at tile 5 (at 16 and 32 in flight), and 0 of 2,304 at tile 3 for each piece
+  as it landed. Biomes were compared with a separate per-cell digest (`-Ddescribe.biomefile`).
+  The tile-5 check was rerun on the final jar, after the poll-thread fix: still 0 of 6,400.
+- **Thread safety of lock-free structure starts.** Digests can't catch a rare race, so C2ME's
+  worldgen threading fixes were checked one by one against vanilla 26.1.1:
+  - stronghold static state is already per-thread (#56);
+  - the template palette cache is now synchronized;
+  - piece flags (temple chests, spawners, mansion matrix) are only written during placement,
+    which still takes the lock;
+  - the structure check cache is only used by `/locate`;
+  - template loading goes through a `ConcurrentHashMap`;
+  - the Nether fortress fixes are Nether-only.
+
+### Caveats
+
+- **Window 16 is still the latency choice.** p99 chunk latency more than doubles at 32 in flight.
+- **The harness defaults to 32 in flight for v5.9.** A value already tuned away from the old
+  scheduler's default is kept when switching.
+- **8 workers did nothing**, on v5.8 or v5.9, at 6,400 or 65,536 chunks. The box has 8 vCPUs, and
+  the poll, GC and IO threads use the eighth.
+- **The 5-35% slowdown inside a 65,536-chunk run is terrain.** It sits at the same chunks on every
+  version, and with reclamation on from the start.
+- **Both hangs exist in v5.8.** The 262,144-chunk v5.8 run uses `-Dorion.pollServerThread=true`.
+- **The queue race exists in vanilla.** It was found with Orion's tools; whether it shows up on a
+  ticking server under heavy load was not tested.
+
+### Method
+
+Orion v5.8 and v5.9, 7 workers, seed 69, Corretto from `/root/minecraft-server/runtime/java`,
+2026-11-11, one session. Common flags:
+
+```text
+-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC -Dmax.bg.threads=7
+-javaagent:build/libs/orion-agent.jar -Dorion.patchReentrancy=true
+-Dorion.patchStructureGenState=true -Dorion.patchParallelSteps=true -Dsaveworld=false
+-Dscheduler=orion5.8 | orion5.9      -Dmosaic.tile=5 | 16 | 32
+```
+
+- Runner: `findings/run_orion59.py` (arm order reversed every other round; samples every JVM
+  thread's CPU once a second into `<label>.cpu.csv`). The runner pins 16 in flight; v5.9 arms at
+  the shipped default add `-Dorion.maxinflight=32`.
+- Blocks, in order: `lev`, `scale` (6,400 chunks); `long`, `l16`, `ab16`, `pss16`, `scan16`,
+  `win16`, `win16b`, `fin16` (65,536 chunks); `fin5` (6,400 chunks); `big` (262,144 chunks);
+  `fix16` (65,536 chunks, v5.8 with and without the poll-thread fix). v5.8 ran about 1.5%
+  slower in `fix16` than earlier in the session, so compare within a block; `fix16` is filed as
+  Experiment and stays out of the v5.8 medians.
+  `fin16` and `fin5` are the final blocks, on the shipped jar.
+- The poll-thread fix landed after the 65,536-chunk blocks, so those v5.9 runs do not have it.
+  It only changes what runs on the poll thread between server tasks. A 6,400-chunk smoke run with
+  it took 33.6 s (the `fin5` v5.9 median is 34.2 s), and the 262,144-chunk v5.9 run has it.
+- Runs abort after 600 s without progress. The deadlocked run's dump is
+  `findings/orion59_runs/bigdead_v58_r1.stall.txt`.
+- Stall hunts: `findings/hunt_stall59.py` (short tile-16 starts at 64 in flight, stopped at 70 s
+  of fill unless the watchdog fires). Dumps under `findings/orion59_runs/hunt*/`.
+- Digests: `findings/check_orion59.py` (`-Dorion.deterministicFeatures=region
+  -Dorion.patchWorldgenLight=true -Dorion.parallelSteps.verify=true -Dorion.targetShift=100`).
+- Collection: `findings/collect_orion59.py` writes `findings/orion59_runs.csv` and
+  `findings/orion59_profile.csv` (throughput and worker cores for each 5% of the large runs). Rows
+  in `orion_results.csv` are configs `o59_*`; on the leaderboard, runs of a partial or non-default
+  build are filed as Experiment.
+- New code: greedy area lock in `OrionParallelSteps.kt`; `StagePatch.kt` (from
+  `team/wt-stages13`); `OldChunkScan.kt`; queue, palette and scan patches in `OrionPatchAgent.kt`;
+  stall watchdog in `OrionV5.kt` and `HeadlessWorldgen.kt`; `OrionServerThread.kt`.
+- Raw logs stay local under `findings/orion59_runs/` and are gitignored.
+
+---
+
 ## Open questions / where you pick this up
 
 The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open-questions--where-you-pick-this-up) still applies. New since #81:
@@ -303,5 +509,11 @@ The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open
   Still open: a run well past 65,536 chunks to confirm memory stays bounded; whether C1GC's 30%
   threshold should move now that the heap can shrink; whether saved worlds from earlier versions
   lack point-of-interest data; and the remaining ~5 KB per chunk of slow growth.
+- **#83's v5.9 answers two of the above.** The surface/biome shortcuts pay (8.9% at 65,536 chunks)
+  once the greedy area lock is in, and a 262,144-chunk v5.8 run stayed bounded (11 full GCs, same
+  as v5.9). Still open: whether the shared `queueLevel` race (#83) shows up on a ticking server
+  under load and is worth reporting upstream; whether a window between 16 and 32 keeps most of
+  the speed at lower latency (24 gave 314 s in one run); and whether 32 should stay the
+  harness default for v5.9 if latency matters more than throughput.
 - **#81's 16 GiB note is resolved:** the host had its full 32 GB on 2026-11-10 and #82 ran at the
   champion heap.

@@ -1,0 +1,350 @@
+STALL target=-128,-15 ageMs=30567 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=6
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  1  1  1  1  3  3  3  3  3  3  3  3  3  3  3  3  3
+    6  6  6  3  3  3  3  3  3  6  6  6  6  6  6  6  6  6  6  6  6
+    8  8  6  6  6  6  6  6  6  6  8  8  8  8  8  8  8  8  8  8  8
+   11  8  8  8  8  8  8  8  8  8  8 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@762bdb37 generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=20 lightScheduled=true worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=false queue=light_queue 34... hasWork=true) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < NoiseChunk$CacheOnce.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$RangeChoice.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute
+  Worker-Main-186 RUNNABLE: VoxelShape.get < VoxelShape.max < Shapes.joinIsNotEmpty < Shapes.faceShapeOccludes < LightEngine.shapeOccludes < SkyLightEngine.propagateIncrease < LightEngine.propagateIncreases < LightEngine.runLightUpdates < LevelLightEngine.runLightUpdates < ThreadedLevelLightEngine.runUpdate < ThreadedLevelLightEngine.lambda$tryScheduleUpdate$0 < ThreadedLevelLightEngine$$Lambda/0x0000000008eef6e8.run < Util.runNamed < AbstractConsecutiveExecutor.pollTask
+  Worker-Main-133 RUNNABLE: LevelReader.getNoiseBiome < BiomeManager.getBiome < LevelReader.getBiome < BiomeFilter.shouldPlace < PlacementFilter.getPositions < PlacedFeature.lambda$placeWithContext$0 < PlacedFeature$$Lambda/0x0000000008ede5a8.apply < ReferencePipeline$7$1FlatMap.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach < ReferencePipeline$7$1FlatMap.accept < ForEachOps$ForEachOp$OfRef.accept < IntPipeline$1$1.accept < Streams$RangeIntSpliterator.forEachRemaining
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: PalettedContainer$Data.copyFrom < PalettedContainer.onResize < SingleValuePalette.idFor < PalettedContainer.getAndSet < PalettedContainer.getAndSetUnchecked < LevelChunkSection.setBlockState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker
+  Worker-Main-310 RUNNABLE: Invokers$Holder.invokeExact_MT < DirectMethodHandleAccessor.invokeImpl < DirectMethodHandleAccessor.invoke < Method.invoke < MutableDoubleScratch.reset < Aquifer$NoiseBasedAquifer.computeSubstance < NoiseChunk.lambda$new$0 < NoiseChunk$$Lambda/0x0000000008ea5ae0.calculate < MaterialRuleList.calculate < NoiseChunk.getInterpolatedState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run
+  Worker-Main-301 RUNNABLE: LevelReader.getNoiseBiome < BiomeManager.getBiome < SurfaceSystem$$Lambda/0x0000000008ecfd78.apply < ResettableBiomeSupplier.get < SurfaceRules$BiomeConditionSource$1BiomeCondition.compute < SurfaceRules$LazyCondition.test < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface
+  Worker-Main-305 RUNNABLE: ImprovedNoise.noise < BlendedNoise.compute < DensityFunctions$Ap2.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$RangeChoice.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute
+STALL target=-128,-16 ageMs=30567 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=7
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  1  1  1  1  3  3  3  3  3  3  3  3  3  3  3  3
+    6  6  6  6  3  3  3  3  3  3  6  6  6  6  6  6  6  6  6  6  6
+    8  8  8  6  6  6  6  6  6  6  6  8  8  8  8  8  8  8  8  8  8
+   11 11  8  8  8  8  8  8  8  8  8  8 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@75897b1 generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=2 lightScheduled=true worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=false queue=light_queue 33... hasWork=true) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: LevelReader.getNoiseBiome < BiomeManager.getBiome < SurfaceSystem$$Lambda/0x0000000008ecfd78.apply < ResettableBiomeSupplier.get < SurfaceRules$BiomeConditionSource$1BiomeCondition.compute < SurfaceRules$LazyCondition.test < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface
+  Worker-Main-186 RUNNABLE: DensityFunctions$TransformerWithContext.fillArray < NoiseChunk$NoiseInterpolator.fillArray < NoiseChunk.fillSlice < NoiseChunk.advanceCellX < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker < ForkJoinWorkerThread.run
+  Worker-Main-133 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getNoiseBiome < ChunkAccess.getNoiseBiome < ProtoChunk.getNoiseBiome < LevelReader.getNoiseBiome < BiomeManager.getBiome < LevelReader.getBiome < SnowAndFreezeFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: SurfaceRules$LazyCondition.test < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface < ChunkPyramid$$Lambda/0x00000000089a3ce8.doWork < ChunkStep.apply < DirectMethodHandle$Holder.invokeSpecial
+  Worker-Main-310 RUNNABLE: ImprovedNoise.noise < BlendedNoise.compute < DensityFunctions$Ap2.compute < DensityFunctions$RangeChoice.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.orionFillArrayVanilla < DensityFunctions$Ap2.fillArray < DensityFunctions$MulOrAdd.fillArray < DensityFunctions$TransformerWithContext.fillArray < NoiseChunk$NoiseInterpolator.fillArray < NoiseChunk.fillSlice
+  Worker-Main-301 RUNNABLE: Long2ObjectOpenHashMap.clone < SkyLightSectionStorage$SkyDataLayerStorageMap.copy < SkyLightSectionStorage$SkyDataLayerStorageMap.copy < LayerLightSectionStorage.swapSectionMap < LightEngine.runLightUpdates < LevelLightEngine.runLightUpdates < ThreadedLevelLightEngine.runUpdate < ThreadedLevelLightEngine.lambda$tryScheduleUpdate$0 < ThreadedLevelLightEngine$$Lambda/0x0000000008eef6e8.run < Util.runNamed < AbstractConsecutiveExecutor.pollTask < AbstractConsecutiveExecutor.run < ForkJoinTask$RunnableExecuteAction.compute < ForkJoinTask$RunnableExecuteAction.compute
+  Worker-Main-305 RUNNABLE: ImprovedNoise.noise < PerlinNoise.getValue < PerlinNoise.getValue < NormalNoise.getValue < DensityFunction$NoiseHolder.getValue < DensityFunctions$Noise.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$RangeChoice.compute
+STALL target=-128,-17 ageMs=30567 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=6
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  3  1  1  1  1  3  3  3  3  3  3  3  3  3  3  3
+    6  6  6  6  6  3  3  3  3  3  3  6  6  6  6  6  6  6  6  6  6
+    8  8  8  8  6  6  6  6  6  6  6  6  8  8  8  8  8  8  8  8  8
+   11 11 11  8  8  8  8  8  8  8  8  8  8 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@16eac095 generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=6 lightScheduled=true worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=false queue=light_queue 46... hasWork=true) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: NoiseChunk.lambda$new$0 < NoiseChunk$$Lambda/0x0000000008ea5ae0.calculate < MaterialRuleList.calculate < NoiseChunk.getInterpolatedState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker < ForkJoinWorkerThread.run
+  Worker-Main-186 WAITING: Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree.search < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValue < MultiNoiseBiomeSource.getNoiseBiome < MultiNoiseBiomeSource.getNoiseBiome < LevelChunkSection.fillBiomesFromNoise < ChunkAccess.fillBiomesFromNoise < NoiseBasedChunkGenerator.doCreateBiomes < NoiseBasedChunkGenerator.lambda$createBiomes$0
+  Worker-Main-133 WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquire < ReentrantLock$Sync.lock < ReentrantLock.lock < OrionParallelSteps.lockStructures < StructureStart.placeInChunk < ChunkGenerator.lambda$applyBiomeDecoration$3 < ChunkGenerator$$Lambda/0x0000000008ee4000.accept < ImmutableList.forEach < ChunkGenerator.applyBiomeDecoration < ChunkStatusTasks.generateFeatures < ChunkPyramid$$Lambda/0x00000000089a16e8.doWork
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface < ChunkPyramid$$Lambda/0x00000000089a3ce8.doWork < ChunkStep.apply < DirectMethodHandle$Holder.invokeSpecial < LambdaForm$MH/0x0000000008eacc00.invoke < LambdaForm$MH/0x0000000008052400.invoke_MT < OrionParallelSteps.schedule$lambda$0 < OrionParallelSteps$$Lambda/0x0000000008b6fd20.run < ForkJoinTask$RunnableExecuteAction.compute
+  Worker-Main-310 RUNNABLE: SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface < ChunkPyramid$$Lambda/0x00000000089a3ce8.doWork < ChunkStep.apply < DirectMethodHandle$Holder.invokeSpecial < LambdaForm$MH/0x0000000008eacc00.invoke < LambdaForm$MH/0x0000000008052400.invoke_MT < OrionParallelSteps.schedule$lambda$0 < OrionParallelSteps$$Lambda/0x0000000008b6fd20.run < ForkJoinTask$RunnableExecuteAction.compute
+  Worker-Main-301 RUNNABLE: HashMap.computeIfAbsent < NoiseChunk.wrap < NoiseChunk$$Lambda/0x0000000008e9fce0.apply < DensityFunctions$HolderHolder.mapAll < DensityFunctions$ShiftedNoise.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$MarkerOrMarked.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Mapped.mapAll < DensityFunctions$Mapped.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Ap2.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Mapped.mapAll
+  Worker-Main-305 WAITING: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getBlockState < ProtoChunk.getBlockState < SurfaceSystem$1.getBlock < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface < ChunkPyramid$$Lambda/0x00000000089a3ce8.doWork < ChunkStep.apply < DirectMethodHandle$Holder.invokeSpecial < LambdaForm$MH/0x0000000008eacc00.invoke < LambdaForm$MH/0x0000000008052400.invoke_MT
+STALL target=-128,-18 ageMs=30567 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=6
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  3  3  1  1  1  1  3  3  3  3  3  3  3  3  3  3
+    6  6  6  6  6  6  3  3  3  3  3  3  6  6  6  6  6  6  6  6  6
+    8  8  8  8  8  6  6  6  6  6  6  6  6  8  8  8  8  8  8  8  8
+   11 11 11 11  8  8  8  8  8  8  8  8  8  8 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@48831f53 generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=16 lightScheduled=true worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=true queue=light_queue 46... hasWork=false) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getBlockState < ProtoChunk.getBlockState < LightEngine.getState < SkyLightEngine.propagateIncrease < LightEngine.propagateIncreases < LightEngine.runLightUpdates < LevelLightEngine.runLightUpdates < ThreadedLevelLightEngine.runUpdate < ThreadedLevelLightEngine.lambda$tryScheduleUpdate$0 < ThreadedLevelLightEngine$$Lambda/0x0000000008eef6e8.run < Util.runNamed < AbstractConsecutiveExecutor.pollTask
+  Worker-Main-186 RUNNABLE: PalettedContainer$Data.copyFrom < PalettedContainer.onResize < SingleValuePalette.idFor < PalettedContainer.getAndSet < PalettedContainer.getAndSetUnchecked < LevelChunkSection.setBlockState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker
+  Worker-Main-133 RUNNABLE: HeightRangePlacement.getPositions < PlacedFeature.lambda$placeWithContext$0 < PlacedFeature$$Lambda/0x0000000008ede5a8.apply < ReferencePipeline$7$1FlatMap.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach < ReferencePipeline$7$1FlatMap.accept < ForEachOps$ForEachOp$OfRef.accept < IntPipeline$1$1.accept < Streams$RangeIntSpliterator.forEachRemaining < Spliterator$OfInt.forEachRemaining < AbstractPipeline.copyInto < AbstractPipeline.wrapAndCopyInto < ForEachOps$ForEachOp.evaluateSequential
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getBlockState < ProtoChunk.getBlockState < Heightmap.primeHeightmaps < ProtoChunk.setBlockState < WorldGenRegion.setBlock < LevelWriter.setBlock < MultifaceSpreader$SpreadConfig.placeBlock < MultifaceSpreader.spreadToFace < MultifaceSpreader.lambda$spreadFromFaceTowardDirection$0 < MultifaceSpreader$$Lambda/0x0000000008ee76b0.apply < Optional.flatMap < MultifaceSpreader.spreadFromFaceTowardDirection
+  Worker-Main-310 RUNNABLE: LevelChunkSection.setBlockState < LevelChunkSection.setBlockState < ProtoChunk.setBlockState < ChunkAccess.setBlockState < SurfaceSystem$1.setBlock < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface < ChunkPyramid$$Lambda/0x00000000089a3ce8.doWork < ChunkStep.apply < DirectMethodHandle$Holder.invokeSpecial < LambdaForm$MH/0x0000000008eacc00.invoke < LambdaForm$MH/0x0000000008052400.invoke_MT
+  Worker-Main-301 RUNNABLE: OrionParallelSteps.apply < ChunkMap.applyStep < GenerationChunkHolder.applyStep < ChunkGenerationTask.scheduleChunkInLayer < ChunkGenerationTask.scheduleLayer < ChunkGenerationTask.scheduleNextLayer < ChunkGenerationTask.runUntilWait < ChunkMap.lambda$runGenerationTask$0 < ChunkMap$$Lambda/0x0000000008e85cb0.run < ChunkTaskDispatcher.lambda$scheduleForExecution$1 < ChunkTaskDispatcher$$Lambda/0x0000000008e87558.accept < TaskScheduler.lambda$scheduleWithResult$0 < TaskScheduler$$Lambda/0x0000000008e87798.run < Util.runNamed
+  Worker-Main-305 RUNNABLE: Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree.search < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValue < MultiNoiseBiomeSource.getNoiseBiome < MultiNoiseBiomeSource.getNoiseBiome < LevelChunkSection.fillBiomesFromNoise < ChunkAccess.fillBiomesFromNoise < NoiseBasedChunkGenerator.doCreateBiomes < NoiseBasedChunkGenerator.lambda$createBiomes$0
+STALL target=-128,-19 ageMs=30568 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=7
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  3  3  3  1  1  1  1  3  3  3  3  3  3  3  3  3
+    6  6  6  6  6  6  6  3  3  3  3  3  3  6  6  6  6  6  6  6  6
+    8  8  8  8  8  8  6  6  6  6  6  6  6  6  8  8  8  8  8  8  8
+   11 11 11 11 11  8  8  8  8  8  8  8  8  8  8 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@3e4d50bc generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=14 lightScheduled=false worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=false queue=light_queue 46... hasWork=false) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: ChunkGenerationTask.scheduleLayer < ChunkGenerationTask.scheduleNextLayer < ChunkGenerationTask.runUntilWait < ChunkMap.lambda$runGenerationTask$0 < ChunkMap$$Lambda/0x0000000008e85cb0.run < ChunkTaskDispatcher.lambda$scheduleForExecution$1 < ChunkTaskDispatcher$$Lambda/0x0000000008e87558.accept < TaskScheduler.lambda$scheduleWithResult$0 < TaskScheduler$$Lambda/0x0000000008e87798.run < Util.runNamed < AbstractConsecutiveExecutor.pollTask < AbstractConsecutiveExecutor.run < ForkJoinTask$RunnableExecuteAction.compute < ForkJoinTask$RunnableExecuteAction.compute
+  Worker-Main-186 RUNNABLE: NoiseChunk$NoiseChunkDensityFunction.minValue < DensityFunctions$Spline$Coordinate.minValue < CubicSpline$Multipoint.create < CubicSpline$Multipoint.mapAll < CubicSpline$Multipoint.lambda$mapAll$0 < CubicSpline$Multipoint$$Lambda/0x0000000008db7a38.apply < ReferencePipeline$3$1.accept < AbstractList$RandomAccessSpliterator.forEachRemaining < AbstractPipeline.copyInto < AbstractPipeline.wrapAndCopyInto < AbstractPipeline.evaluate < AbstractPipeline.evaluateToArrayNode < ReferencePipeline.toArray < ReferencePipeline.toArray
+  Worker-Main-133 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getBlockState < ProtoChunk.getBlockState < WorldGenRegion.getBlockState < SculkSpreader$ChargeCursor.getValidMovementPos < SculkSpreader$ChargeCursor.update < SculkSpreader.updateCursors < SculkPatchFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getBlockState < OreFeature.doPlace < OreFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach < ReferencePipeline$7$1FlatMap.accept < Streams$StreamBuilderImpl.forEachRemaining
+  Worker-Main-310 RUNNABLE: Long2ObjectOpenHashMap.clone < BlockLightSectionStorage$BlockDataLayerStorageMap.copy < BlockLightSectionStorage$BlockDataLayerStorageMap.copy < LayerLightSectionStorage.swapSectionMap < LightEngine.runLightUpdates < LevelLightEngine.runLightUpdates < ThreadedLevelLightEngine.runUpdate < ThreadedLevelLightEngine.lambda$tryScheduleUpdate$0 < ThreadedLevelLightEngine$$Lambda/0x0000000008eef6e8.run < Util.runNamed < AbstractConsecutiveExecutor.pollTask < AbstractConsecutiveExecutor.run < ForkJoinTask$RunnableExecuteAction.compute < ForkJoinTask$RunnableExecuteAction.compute
+  Worker-Main-301 RUNNABLE: Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree.search < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValue < MultiNoiseBiomeSource.getNoiseBiome < MultiNoiseBiomeSource.getNoiseBiome < LevelChunkSection.fillBiomesFromNoise < ChunkAccess.fillBiomesFromNoise < NoiseBasedChunkGenerator.doCreateBiomes < NoiseBasedChunkGenerator.lambda$createBiomes$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008eb7bb8.get < CompletableFuture$AsyncSupply.run
+  Worker-Main-305 RUNNABLE: ImprovedNoise.noise < BlendedNoise.compute < DensityFunctions$Ap2.compute < DensityFunctions$RangeChoice.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.orionFillArrayVanilla < DensityFunctions$Ap2.fillArray < DensityFunctions$MulOrAdd.fillArray < DensityFunctions$TransformerWithContext.fillArray < NoiseChunk$NoiseInterpolator.fillArray < NoiseChunk.fillSlice
+STALL target=-128,-20 ageMs=30568 pendingServerTasks=13
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=5
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  3  3  3  3  1  1  1  1  3  3  3  3  3  3  3  3
+    6  6  6  6  6  6  6  6  3  3  3  3  3  3  6  6  6  6  6  6  6
+    8  8  8  8  8  8  8  6  6  6  6  6  6  6  6  8  8  8  8  8  8
+   11 11 11 11 11 11  8  8  8  8  8  8  8  8  8  8 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@7debbddb generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=5 lightScheduled=false worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=true queue=light_queue 46... hasWork=false) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: ProtoChunk.setBlockState < ChunkAccess.setBlockState < SurfaceSystem$1.setBlock < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface < ChunkPyramid$$Lambda/0x00000000089a3ce8.doWork < ChunkStep.apply < DirectMethodHandle$Holder.invokeSpecial < LambdaForm$MH/0x0000000008eacc00.invoke < LambdaForm$MH/0x0000000008052400.invoke_MT < OrionParallelSteps.schedule$lambda$0 < OrionParallelSteps$$Lambda/0x0000000008b6fd20.run
+  Worker-Main-186 RUNNABLE: LambdaForm$MH/0x0000000008195400.invokeExact_MT < DirectMethodHandleAccessor.invokeImpl < DirectMethodHandleAccessor.invoke < Method.invoke < ResettableBiomeSupplier.get < SurfaceRules$BiomeConditionSource$1BiomeCondition.compute < SurfaceRules$LazyCondition.test < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceRules$TestRule.tryApply < SurfaceRules$SequenceRule.tryApply < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface
+  Worker-Main-133 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getNoiseBiome < ChunkAccess.getNoiseBiome < ProtoChunk.getNoiseBiome < LevelReader.getNoiseBiome < BiomeManager.getBiome < LevelReader.getBiome < SnowAndFreezeFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept
+  orion5-poll TIMED_WAITING: DistanceManager.runAllUpdates < ServerChunkCache.runDistanceManagerUpdates < ServerChunkCache$MainThreadExecutor.pollTask < LambdaForm$DMH/0x0000000008260800.invokeVirtual < LambdaForm$MH/0x0000000008f23c00.invoke < Invokers$Holder.invokeExact_MT < DirectMethodHandleAccessor.invokeImpl < DirectMethodHandleAccessor.invoke < Method.invoke < ReflectKt.call < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: TypedInstance.is < TagMatchTest.test < OreFeature.canPlaceOre < OreFeature.doPlace < OreFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach < ReferencePipeline$7$1FlatMap.accept < Streams$StreamBuilderImpl.forEachRemaining
+  Worker-Main-310 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getBlockState < ProtoChunk.getBlockState < SurfaceSystem$1.getBlock < SurfaceSystem.buildSurface < NoiseBasedChunkGenerator.buildSurface < NoiseBasedChunkGenerator.buildSurface < ChunkStatusTasks.generateSurface < ChunkPyramid$$Lambda/0x00000000089a3ce8.doWork < ChunkStep.apply < DirectMethodHandle$Holder.invokeSpecial < LambdaForm$MH/0x0000000008eacc00.invoke < LambdaForm$MH/0x0000000008052400.invoke_MT
+  Worker-Main-301 RUNNABLE: NoiseChunk.lambda$new$0 < NoiseChunk$$Lambda/0x0000000008ea5ae0.calculate < MaterialRuleList.calculate < NoiseChunk.getInterpolatedState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker < ForkJoinWorkerThread.run
+  Worker-Main-305 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getBlockState < ProtoChunk.getBlockState < LightEngine.getState < SkyLightEngine.propagateIncrease < LightEngine.propagateIncreases < LightEngine.runLightUpdates < LevelLightEngine.runLightUpdates < ThreadedLevelLightEngine.runUpdate < ThreadedLevelLightEngine.lambda$tryScheduleUpdate$0 < ThreadedLevelLightEngine$$Lambda/0x0000000008eef6e8.run < Util.runNamed < AbstractConsecutiveExecutor.pollTask
+STALL target=-128,-21 ageMs=30568 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=7
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  3  3  3  3  3  1  1  1  1  3  3  3  3  3  3  3
+    6  6  6  6  6  6  6  6  6  3  3  3  3  3  3  6  6  6  6  6  6
+    8  8  8  8  8  8  8  8  6  6  6  6  6  6  6  6  8  8  8  8  8
+   11 11 11 11 11 11 11  8  8  8  8  8  8  8  8  8  8 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@3d45249b generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=22 lightScheduled=true worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=true queue=light_queue 46... hasWork=false) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree$SubTree.search < Climate$RTree.search < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValue < MultiNoiseBiomeSource.getNoiseBiome < MultiNoiseBiomeSource.getNoiseBiome < LevelChunkSection.fillBiomesFromNoise < ChunkAccess.fillBiomesFromNoise < NoiseBasedChunkGenerator.doCreateBiomes < NoiseBasedChunkGenerator.lambda$createBiomes$0
+  Worker-Main-186 RUNNABLE: NoiseChunk.lambda$new$0 < NoiseChunk$$Lambda/0x0000000008ea5ae0.calculate < MaterialRuleList.calculate < NoiseChunk.getInterpolatedState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker < ForkJoinWorkerThread.run
+  Worker-Main-133 RUNNABLE: LevelReader.getNoiseBiome < BiomeManager.getBiome < LevelReader.getBiome < SnowAndFreezeFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach < ReferencePipeline$7$1FlatMap.accept < Streams$StreamBuilderImpl.forEachRemaining < AbstractPipeline.copyInto
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: PalettedContainer.get < PalettedContainer.get < LevelChunkSection.getBlockState < OreFeature.doPlace < OreFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach < ReferencePipeline$7$1FlatMap.accept < Streams$StreamBuilderImpl.forEachRemaining
+  Worker-Main-310 RUNNABLE: HashMap.computeIfAbsent < NoiseChunk.wrap < NoiseChunk$$Lambda/0x0000000008e9fce0.apply < DensityFunctions$ShiftA.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$MarkerOrMarked.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$MarkerOrMarked.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$ShiftedNoise.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$MarkerOrMarked.mapAll < DensityFunctions$Spline$Coordinate.mapAll < DensityFunctions$Spline.lambda$mapAll$0
+  Worker-Main-301 RUNNABLE: ImprovedNoise.noise < PerlinNoise.getValue < PerlinNoise.getValue < NormalNoise.getValue < DensityFunction$NoiseHolder.getValue < DensityFunctions$ShiftedNoise.compute < Climate$Sampler.sample < MultiNoiseBiomeSource.getNoiseBiome < LevelChunkSection.fillBiomesFromNoise < ChunkAccess.fillBiomesFromNoise < NoiseBasedChunkGenerator.doCreateBiomes < NoiseBasedChunkGenerator.lambda$createBiomes$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008eb7bb8.get < CompletableFuture$AsyncSupply.run
+  Worker-Main-305 RUNNABLE: DensityFunctions$HolderHolder.mapAll < DensityFunctions$ShiftedNoise.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$MarkerOrMarked.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Mapped.mapAll < DensityFunctions$Mapped.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Ap2.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Mapped.mapAll < DensityFunctions$Mapped.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Ap2.mapAll
+STALL target=-128,-22 ageMs=30568 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=8
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  3  3  3  3  3  3  1  1  1  1  3  3  3  3  3  3
+    6  6  6  6  6  6  6  6  6  6  3  3  3  3  3  3  6  6  6  6  6
+    8  8  8  8  8  8  8  8  8  6  6  6  6  6  6  6  6  8  8  8  8
+   11 11 11 11 11 11 11 11  8  8  8  8  8  8  8  8  8  8 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@6d6ccde7 generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=18 lightScheduled=true worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=true queue=light_queue 46... hasWork=false) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: HashMap.hash < HashMap.computeIfAbsent < NoiseChunk.wrap < NoiseChunk$$Lambda/0x0000000008e9fce0.apply < DensityFunction$SimpleFunction.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Ap2.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Ap2.mapAll < DensityFunctions$Spline$Coordinate.mapAll < DensityFunctions$Spline.lambda$mapAll$0 < DensityFunctions$Spline$$Lambda/0x0000000008db7808.visit < CubicSpline$Multipoint.mapAll < CubicSpline$Multipoint.lambda$mapAll$0
+  Worker-Main-186 RUNNABLE: PerlinNoise.getValue < PerlinNoise.getValue < NormalNoise.getValue < DensityFunction$NoiseHolder.getValue < DensityFunctions$Noise.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < NoiseChunk$CacheOnce.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < NoiseChunk$CacheOnce.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute
+  Worker-Main-133 RUNNABLE: Heightmap.primeHeightmaps < ChunkStatusTasks.generateFeatures < ChunkPyramid$$Lambda/0x00000000089a16e8.doWork < ChunkStep.apply < DirectMethodHandle$Holder.invokeSpecial < LambdaForm$MH/0x0000000008eacc00.invoke < LambdaForm$MH/0x0000000008052400.invoke_MT < OrionParallelSteps.schedule$lambda$0 < OrionParallelSteps$$Lambda/0x0000000008b6fd20.run < ForkJoinTask$RunnableExecuteAction.compute < ForkJoinTask$RunnableExecuteAction.compute < ForkJoinTask$InterruptibleTask.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: ProtoChunk.setBlockState < WorldGenRegion.setBlock < LevelWriter.setBlock < SculkVeinBlock.onDischarged < SculkSpreader$ChargeCursor.update < SculkSpreader.updateCursors < SculkPatchFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach
+  Worker-Main-310 RUNNABLE: NoiseChunk.wrap < NoiseChunk$$Lambda/0x0000000008e9fce0.apply < DensityFunctions$ShiftB.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$MarkerOrMarked.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$MarkerOrMarked.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$ShiftedNoise.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$MarkerOrMarked.mapAll < DensityFunctions$HolderHolder.mapAll < DensityFunctions$Mapped.mapAll < DensityFunctions$Mapped.mapAll
+  Worker-Main-301 RUNNABLE: Climate$RTree.search < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValueIndex < Climate$ParameterList.findValue < MultiNoiseBiomeSource.getNoiseBiome < MultiNoiseBiomeSource.getNoiseBiome < LevelChunkSection.fillBiomesFromNoise < ChunkAccess.fillBiomesFromNoise < NoiseBasedChunkGenerator.doCreateBiomes < NoiseBasedChunkGenerator.lambda$createBiomes$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008eb7bb8.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec
+  Worker-Main-305 RUNNABLE: Object.hashCode < Objects.hashCode < DirectMethodHandle$Holder.invokeStatic < LambdaForm$MH/0x0000000008131c00.invoke < LambdaForm$MH/0x000000000821cc00.invoke < LambdaForm$MH/0x000000000821cc00.invoke < Invokers$Holder.linkToTargetMethod < Holder$Direct.hashCode < Objects.hashCode < DirectMethodHandle$Holder.invokeStatic < LambdaForm$MH/0x0000000008131c00.invoke < LambdaForm$MH/0x000000000821cc00.invoke < Invokers$Holder.linkToTargetMethod < DensityFunctions$HolderHolder.hashCode
+STALL target=-128,-23 ageMs=30568 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=7
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  3  3  3  3  3  3  3  1  1  1  1  3  3  3  3  3
+    6  6  6  6  6  6  6  6  6  6  6  3  3  3  3  3  3  6  6  6  6
+    8  8  8  8  8  8  8  8  8  8  6  6  6  6  6  6  6  6  8  8  8
+   11 11 11 11 11 11 11 11 11  8  8  8  8  8  8  8  8  8  8 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@3970a846 generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=5 lightScheduled=true worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=true queue=light_queue 46... hasWork=false) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: PalettedContainer$Data.copyFrom < PalettedContainer.onResize < SingleValuePalette.idFor < PalettedContainer.getAndSet < PalettedContainer.getAndSetUnchecked < LevelChunkSection.setBlockState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker
+  Worker-Main-186 RUNNABLE: NoiseChunk.lambda$new$0 < NoiseChunk$$Lambda/0x0000000008ea5ae0.calculate < MaterialRuleList.calculate < NoiseChunk.getInterpolatedState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker < ForkJoinWorkerThread.run
+  Worker-Main-133 RUNNABLE: LevelReader.getNoiseBiome < BiomeManager.getBiome < LevelReader.getBiome < BiomeFilter.shouldPlace < PlacementFilter.getPositions < PlacedFeature.lambda$placeWithContext$0 < PlacedFeature$$Lambda/0x0000000008ede5a8.apply < ReferencePipeline$7$1FlatMap.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach < ReferencePipeline$7$1FlatMap.accept < Streams$StreamBuilderImpl.forEachRemaining < ReferencePipeline$Head.forEach < ReferencePipeline$7$1FlatMap.accept
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: AxisCycle$1.cycle < DiscreteVoxelShape.isFull < DiscreteVoxelShape.forAllAxisFaces < DiscreteVoxelShape.forAllFaces < StructureTemplate.updateShapeAtEdge < TreeFeature.lambda$place$4 < TreeFeature$$Lambda/0x0000000008eeda60.apply < Optional.map < TreeFeature.place < Feature.place < ConfiguredFeature.place < PlacedFeature.lambda$placeWithContext$1 < PlacedFeature$$Lambda/0x0000000008ede7f8.accept < ForEachOps$ForEachOp$OfRef.accept
+  Worker-Main-310 RUNNABLE: NoiseChunk$NoiseInterpolator.fillArray < DensityFunctions$Mapped.fillArray < DensityFunctions$Ap2.fillArray < DensityFunctions$MulOrAdd.fillArray < DensityFunctions$Ap2.fillArray < DensityFunctions$RangeChoice.fillArray < DensityFunctions$Ap2.fillArray < DensityFunctions$Ap2.fillArray < NoiseChunk.selectCellYZ < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec
+  Worker-Main-301 RUNNABLE: NoiseChunk.lambda$new$0 < NoiseChunk$$Lambda/0x0000000008ea5ae0.calculate < MaterialRuleList.calculate < NoiseChunk.getInterpolatedState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker < ForkJoinWorkerThread.run
+  Worker-Main-305 RUNNABLE: PalettedContainer$Data.copyFrom < PalettedContainer.onResize < SingleValuePalette.idFor < PalettedContainer.getAndSet < PalettedContainer.getAndSetUnchecked < LevelChunkSection.setBlockState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker
+STALL target=-128,-24 ageMs=30569 pendingServerTasks=0
+  steps active=[] queuedOnPool=[] totalQueuedOnPool=0 waiting=[] totalWaiting=0 totalActive=7
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+    3  3  3  3  3  3  3  3  3  3  3  3  3  1  1  1  1  3  3  3  3
+    6  6  6  6  6  6  6  6  6  6  6  6  3  3  3  3  3  3  6  6  6
+    8  8  8  8  8  8  8  8  8  8  8  6  6  6  6  6  6  6  6  8  8
+   11 11 11 11 11 11 11 11 11 11  8  8  8  8  8  8  8  8  8  8 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+  center ticketLevel=33 queueLevel=33
+  center futures=[empty=done, structure_starts=done, structure_references=done, biomes=done, noise=done, surface=done, carvers=done, features=done, initialize_light=done, full=pending(deps=2)] task=net.minecraft.server.level.ChunkGenerationTask@19d5cfd6 generationRefCount=41 highestAllowedStatus=minecraft:full startedWork=minecraft:initialize_light
+  lightTasks=5 lightScheduled=true worldgenTaskDispatcher(sleeping=false queue=worldgen_queue 33... hasWork=true) lightTaskDispatcher(sleeping=false queue=light_queue 33... hasWork=true) pendingGenerationTasks=0
+  Worker-Main-298 RUNNABLE: ImprovedNoise.noise < BlendedNoise.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$RangeChoice.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.orionFillArrayVanilla < DensityFunctions$Ap2.fillArray < DensityFunctions$MulOrAdd.fillArray < DensityFunctions$TransformerWithContext.fillArray < NoiseChunk$NoiseInterpolator.fillArray
+  Worker-Main-186 RUNNABLE: NoiseChunk.lambda$new$0 < NoiseChunk$$Lambda/0x0000000008ea5ae0.calculate < MaterialRuleList.calculate < NoiseChunk.getInterpolatedState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker < ForkJoinWorkerThread.run
+  Worker-Main-133 RUNNABLE: ImprovedNoise.noise < PerlinNoise.getValue < PerlinNoise.getValue < NormalNoise.getValue < DensityFunction$NoiseHolder.getValue < DensityFunctions$Noise.compute < DensityFunctions$RangeChoice.fillArray < NoiseChunk$NoiseInterpolator.fillArray < NoiseChunk.fillSlice < NoiseChunk.advanceCellX < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run
+  orion5-poll TIMED_WAITING: Unsafe.park < LockSupport.parkNanos < OrionV5.fill$lambda$6 < OrionV5$$Lambda/0x0000000008f13b70.run < Thread.runWith < Thread.run
+  orion5-submit WAITING: Unsafe.park < LockSupport.park < AbstractQueuedSynchronizer.acquire < AbstractQueuedSynchronizer.acquireSharedInterruptibly < Semaphore.acquire < OrionV5.fill$lambda$8 < OrionV5$$Lambda/0x0000000008f1c000.run < Thread.runWith < Thread.run
+  Worker-Main-125 RUNNABLE: ImmutableCollections$Set12.contains < Holder$Reference.is < TypedInstance.is < SculkVeinBlock$SculkVeinSpreaderConfig.stateCanBeReplaced < MultifaceSpreader$DefaultSpreaderConfig.canSpreadInto < MultifaceSpreader$$Lambda/0x0000000008ee7480.test < MultifaceSpreader.getSpreadFromFaceTowardDirection < MultifaceSpreader.spreadFromFaceTowardDirection < MultifaceSpreader.lambda$spreadFromFaceTowardAllDirections$0 < MultifaceSpreader$$Lambda/0x0000000008f9abb0.apply < ReferencePipeline$3$1.accept < Spliterators$ArraySpliterator.forEachRemaining < AbstractPipeline.copyInto < AbstractPipeline.wrapAndCopyInto
+  Worker-Main-310 RUNNABLE: NoiseChunk$NoiseInterpolator.fillArray < DensityFunctions$Ap2.fillArray < DensityFunctions$RangeChoice.fillArray < DensityFunctions$Ap2.fillArray < DensityFunctions$Ap2.fillArray < NoiseChunk.selectCellYZ < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker
+  Worker-Main-301 RUNNABLE: NoiseChunk.lambda$new$0 < NoiseChunk$$Lambda/0x0000000008ea5ae0.calculate < MaterialRuleList.calculate < NoiseChunk.getInterpolatedState < NoiseBasedChunkGenerator.doFill < NoiseBasedChunkGenerator.lambda$fillFromNoise$0 < NoiseBasedChunkGenerator$$Lambda/0x0000000008ec5b28.get < CompletableFuture$AsyncSupply.run < CompletableFuture$AsyncSupply.exec < ForkJoinTask.doExec < ForkJoinPool$WorkQueue.topLevelExec < ForkJoinPool.runWorker < ForkJoinWorkerThread.run
+  Worker-Main-305 RUNNABLE: ImprovedNoise.noise < PerlinNoise.getValue < PerlinNoise.getValue < NormalNoise.getValue < DensityFunction$NoiseHolder.getValue < DensityFunctions$Noise.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$PureTransformer.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$Ap2.compute < DensityFunctions$RangeChoice.compute

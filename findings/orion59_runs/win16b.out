@@ -1,0 +1,5 @@
+win16b_if32_r1: 296409 ms 221.1 cps cores=7.23 worker=1872.6 poll=53.8 gc=69.2 io=80.4 other=12.8 young=201x/8287ms full=5x/1361ms
+win16b_if48_r1: 298863 ms 219.28 cps cores=7.27 worker=1902.2 poll=53.8 gc=70.7 io=79.4 other=12.7 young=192x/8341ms full=5x/1441ms
+win16b_if64_r1: 413708 ms 158.41 cps cores=5.82 worker=1895.2 poll=51.0 gc=308.5 io=76.9 other=20.7 young=229x/9287ms full=16x/31423ms
+win16b_if64w8_r1: 289783 ms 226.16 cps cores=7.28 worker=1843.6 poll=51.9 gc=68.4 io=79.4 other=12.5 young=183x/8117ms full=5x/1344ms
+win16b_if128_r1: 301653 ms 217.26 cps cores=7.18 worker=1890.9 poll=50.4 gc=73.0 io=78.7 other=13.5 young=186x/8319ms full=5x/1699ms

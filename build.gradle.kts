@@ -70,6 +70,7 @@ tasks.register<Jar>("agentJar") {
         include("io/github/eath1283/worldgend/OrionPatchAgent*.class")
         include("io/github/eath1283/worldgend/MemoizingPredicate*.class")
         include("io/github/eath1283/worldgend/OrionParallelSteps*.class")
+        include("io/github/eath1283/worldgend/OrionServerThread*.class")
         include("io/github/eath1283/worldgend/Density*.class")
         include("io/github/eath1283/worldgend/ImprovedNoise*.class")
     }

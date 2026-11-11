@@ -17,14 +17,22 @@ public final class BlockStateSnapshot {
     private final MessageDigest digest;
     private final MessageDigest stateDigest;
     private final IdentityHashMap<Object, State> states = new IdentityHashMap<>();
+    private final boolean biomes;
 
     private static final class State {
         final String name;
         final byte[] fingerprint;
         int count;
 
-        State(Object state, MessageDigest digest) {
+        State(Object state, MessageDigest digest, boolean biome) {
             String canonical = state.toString();
+            if (biome) {
+                // Holder.Reference prints its value's identity hash; keep only the registry key.
+                int slash = canonical.indexOf(" / ");
+                int end = canonical.indexOf(']', slash);
+                if (slash < 0 || end < 0) throw new IllegalStateException("Unexpected biome holder: " + canonical);
+                canonical = canonical.substring(slash + 3, end);
+            }
             int open = canonical.indexOf('{');
             int close = canonical.indexOf('}', open + 1);
             name = open >= 0 && close > open ? canonical.substring(open + 1, close) : canonical;
@@ -33,6 +41,11 @@ public final class BlockStateSnapshot {
     }
 
     public BlockStateSnapshot(Method getter) throws IllegalAccessException, NoSuchAlgorithmException {
+        this(getter, false);
+    }
+
+    public BlockStateSnapshot(Method getter, boolean biomes) throws IllegalAccessException, NoSuchAlgorithmException {
+        this.biomes = biomes;
         getBlockState = MethodHandles.lookup().unreflect(getter).asType(
             MethodType.methodType(Object.class, Object.class, int.class, int.class, int.class));
         digest = MessageDigest.getInstance("SHA-256");
@@ -44,13 +57,14 @@ public final class BlockStateSnapshot {
         ArrayList<State> counted = new ArrayList<>();
         try {
             for (Object section : sections) {
-                for (int y = 0; y < 16; y++) {
-                    for (int z = 0; z < 16; z++) {
-                        for (int x = 0; x < 16; x++) {
+                int side = biomes ? 4 : 16;
+                for (int y = 0; y < side; y++) {
+                    for (int z = 0; z < side; z++) {
+                        for (int x = 0; x < side; x++) {
                             Object block = (Object) getBlockState.invokeExact(section, x, y, z);
                             State state = states.get(block);
                             if (state == null) {
-                                state = new State(block, stateDigest);
+                                state = new State(block, stateDigest, biomes);
                                 states.put(block, state);
                             }
                             if (state.count++ == 0) counted.add(state);

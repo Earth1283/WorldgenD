@@ -22,7 +22,7 @@ How a WorldgenD run is put together, and what has bitten people before. For the 
 | `mosaic` | Fixed 16-modulus phases; independence by construction (#7-#8) |
 | `orion` .. `orion3` (`Orion*.kt`) | Dispatch a chunk when `isSafe()` says no in-flight chunk is within the dependency radius; v2.1+ narrow candidates with `PendingSpatialIndex`/`HeldCenterIndex`. Baselines only |
 | `orion4` | v3 plus the structure-generator thread-safety patch |
-| `orion5` .. `orion5.8` (`OrionV5.kt`, `OrionParallelSteps.kt`) | Admission window of `-Dorion.maxinflight` chunks; each generation step runs on the background pool instead of vanilla's single `worldgen` executor (#62) |
+| `orion5` .. `orion5.9` (`OrionV5.kt`, `OrionParallelSteps.kt`) | Admission window of `-Dorion.maxinflight` chunks; each generation step runs on the background pool instead of vanilla's single `worldgen` executor (#62) |
 
 Within v5.x each version is the previous one plus patches, so a result file's patch lines show
 what actually loaded.
@@ -91,6 +91,20 @@ the docs mean equal digests in this mode.
   stayed reachable (~180 KB each) and C1GC freed nothing. v5.8 sets `nextTickTimeNanos` to
   `Long.MAX_VALUE` so the poll thread runs them. Check the result file's `serverTasks pending=`
   (#82).
+- **Two dispatchers share one queue level.** Each chunk holder has a single `queueLevel` field,
+  and the worldgen and light dispatchers both write it from their own threads. A late write puts
+  back a stale level, and a generation task submitted then is filed under it (35-44 instead of
+  33). Level 33 never empties during a fill, so that task waits until the end. v5.9 patches
+  `ChunkTaskPriorityQueue` to keep its own levels (`-Dorion.dispatcherResort`, #83).
+- **The poll thread must count as the server thread everywhere.** The reentrancy patch only
+  covers code running inside `pollTask()`. C1GC unloads chunks between tasks; an Allay removed
+  there calls `getChunk`, which queued a task for the poll thread and waited on it forever. v5.9
+  sets `OrionServerThread` for the whole fill (`-Dorion.pollServerThread`, #83).
+- **Stuck chunks.** `-Dorion.stallSeconds` (default 30) appends a dump to `orion_stall.txt` for any
+  chunk unfinished that long: neighbor statuses, futures, dispatcher queues and the poll thread's
+  stack. The result file's `stalls count=` should be 0.
+- **Screen scheduler changes at tile 16.** At 6,400 chunks warm-up dominates; #75's nulls became
+  wins at 65,536 chunks (#83).
 - **Noise floor is ~9%.** Run-to-run variance on the reference box (#16/#17). Pair and rotate
   runs, and report medians. Several shipped "wins" (v5.1, v5.2, v5.3) are inside it.
 - **The seed defaults to 69** (`-Dworldgen.seed` overrides). Changing it changes every digest.

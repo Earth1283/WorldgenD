@@ -39,7 +39,7 @@ instead of one misleading average. Smaller is better. Formal definition: `scient
 
 Options (all inert when omitted):
 
-- `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|...|orion5.8`
+- `-Dscheduler=mosaic|orion|orion2|orion2.1|orion2.2|orion3|orion4|orion5|orion5.1|...|orion5.8|orion5.9`
 - `-Dworldgen.seed=<signed 64-bit>` (default `69`)
 - `-Dworldgen.progress=true` for machine-readable progress lines, or `-Dworldgen.progressfile=<path>`
 - `-PmaxBgThreads=N` caps `Util.getMaxThreads()`. It is a ceiling: `clamp(cpus - 1, 1, N)`
@@ -65,7 +65,7 @@ from the original mosaic to Orion v5.5. Paper and Leaf's best real-server result
 
 ![Bar chart of effective MSPC across every WorldgenD scheduler generation through Orion v5.5, plus Paper and Leaf's best real-server results](findings/emspc_integration_progress.png)
 
-The engine defaults to `mosaic`; the current best is **v5.8**. The harness defaults to v5.1
+The engine defaults to `mosaic`; the current best is **v5.9**. The harness defaults to v5.1
 (`../harness/src/config.rs`).
 
 - **v4** is v3 plus a ported structure-generator thread-safety fix (`-Dorion.patchStructureGenState=true`,
@@ -106,6 +106,23 @@ The engine defaults to `mosaic`; the current best is **v5.8**. The harness defau
   blocks. `-Dorion.serverTasks=drain|hold` overrides it. See #82.
 
 ![Orion v5.8 vs v5.7: heap in use after each GC at 65,536 chunks](findings/orion58_heap.png)
+
+- **v5.9** is v5.8 plus four speedups and two hang fixes, at 32 chunks in flight. Identical blocks
+  and biomes. 17% less time at 6,400 chunks, 24.7% less at 65,536 (300 s vs 398.5 s), 24.0% less at
+  262,144 (1,194 s vs 1,571 s). See #83.
+  - a greedy area lock: a step starts as soon as its own square is free (`-Dorion.areaLock=greedy|fifo`);
+  - the exact surface/biome shortcuts from #75 (`-Dorion.stage.<name>`);
+  - structure starts and references without the global structures lock (`-Dorion.structureStarts=parallel|serial`);
+  - skipping the pre-1.18 chunk scan for empty regions (`-Dorion.oldChunkScan=skipEmpty|vanilla`);
+  - a fix for a vanilla dispatcher race that could leave a chunk queued at a stale priority for minutes
+    (`-Dorion.dispatcherResort=allLevels|vanilla`);
+  - a fix for a deadlock when C1GC unloads an Allay (`-Dorion.pollServerThread=true|false`).
+
+  `-Dorion.maxinflight=16` halves chunk latency (p99 248 ms vs 564 ms) and gives back about 9%
+  of the speed; the harness defaults to 32 for orion5.9. `-Dorion.stallSeconds` (default 30) dumps any chunk stuck that long to
+  `orion_stall.txt`.
+
+![Orion v5.9 vs v5.8 at 6,400, 65,536 and 262,144 chunks](findings/orion59_throughput.png)
 
 Orion v2.1 uses raster target order; v2.2 is the scatter-ordered variant.
 

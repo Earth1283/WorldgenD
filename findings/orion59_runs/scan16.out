@@ -1,0 +1,6 @@
+scan16_noscan_r1: 327732 ms 199.97 cps cores=6.69 worker=1918.5 poll=57.4 gc=66.8 io=81.0 other=14.7 young=210x/7902ms full=5x/1301ms
+scan16_v59_r1: 322461 ms 203.24 cps cores=6.78 worker=1906.0 poll=57.0 gc=68.5 io=84.0 other=14.8 young=212x/8156ms full=5x/1314ms
+scan16_v59w8_r1: 321971 ms 203.55 cps cores=6.78 worker=1905.2 poll=56.1 gc=68.9 io=82.4 other=14.6 young=211x/8237ms full=5x/1290ms
+scan16_v59w8_r2: 320985 ms 204.17 cps cores=6.8 worker=1903.1 poll=55.6 gc=67.3 io=82.0 other=14.8 young=212x/8058ms full=5x/1247ms
+scan16_v59_r2: 328734 ms 199.36 cps cores=6.77 worker=1944.8 poll=57.1 gc=67.3 io=83.3 other=14.9 young=212x/8156ms full=5x/1288ms
+scan16_noscan_r2: 332711 ms 196.98 cps cores=6.71 worker=1951.6 poll=56.9 gc=67.6 io=84.7 other=15.1 young=212x/8048ms full=5x/1360ms

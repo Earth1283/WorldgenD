@@ -1,0 +1,4 @@
+win16_v59_r1: 327080 ms 200.37 cps cores=6.78 worker=1936.5 poll=56.3 gc=67.9 io=82.1 other=15.0 young=211x/8175ms full=5x/1283ms
+win16_if32_r1: 298630 ms 219.46 cps cores=7.21 worker=1884.6 poll=52.5 gc=67.5 io=80.8 other=13.2 young=195x/8030ms full=5x/1297ms
+win16_if32w8_r1: 300210 ms 218.3 cps cores=7.21 worker=1890.7 poll=52.3 gc=67.0 io=81.9 other=13.5 young=195x/8005ms full=5x/1334ms
+win16_if24_r1: 313978 ms 208.73 cps cores=7.01 worker=1924.0 poll=54.1 gc=68.1 io=80.4 other=13.6 young=200x/8153ms full=5x/1268ms

@@ -1,0 +1,6 @@
+pss16_v59_r1: 342741 ms 191.21 cps cores=6.56 worker=1967.2 poll=58.7 gc=67.6 io=84.6 other=15.6 young=214x/8133ms full=5x/1314ms
+pss16_pss_r1: 323862 ms 202.36 cps cores=6.72 worker=1902.6 poll=54.9 gc=66.2 io=84.4 other=14.3 young=212x/7884ms full=5x/1300ms
+pss16_pssw8_r1: 327724 ms 199.97 cps cores=6.72 worker=1926.0 poll=55.8 gc=66.9 io=82.3 other=14.5 young=213x/8027ms full=5x/1288ms
+pss16_pssw8_r2: 329333 ms 199.0 cps cores=6.71 worker=1932.8 poll=55.9 gc=67.4 io=84.1 other=14.7 young=210x/8076ms full=5x/1317ms
+pss16_pss_r2: 325813 ms 201.15 cps cores=6.73 worker=1913.5 poll=56.6 gc=67.3 io=84.0 other=14.6 young=210x/8078ms full=5x/1306ms
+pss16_v59_r2: 337150 ms 194.38 cps cores=6.58 worker=1940.1 poll=56.7 gc=67.2 io=83.1 other=15.0 young=213x/8086ms full=5x/1286ms

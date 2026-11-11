@@ -1,8 +1,8 @@
 config,label,scheduler,mosaic_tile,chunks,max_bg_threads_flag,total_ms,mspc_min,mspc_p1,mspc_p25,mspc_p50,mspc_p75,mspc_p99,mspc_max
-mosaic_champion_fresh,"Mosaic (control)",mosaic,5,6400,4,232213,0.04,1.61,7.89,35.48,42.53,140.69,1888.75
-orion_champion,"Orion v1 (single-threaded)",orion,5,6400,4,288270,0.01,31.32,37.09,40.50,46.05,125.98,1280.69
-orion2_champion,"Orion v2 (8 dispatch threads)",orion2,5,6400,4,176145,1.26,4.25,79.73,296.58,680.50,3576.57,18894.50
-mosaic_7w,"Mosaic (7 workers)",mosaic,5,6400,7,225093,0.04,1.54,7.94,35.22,42.17,135.57,1587.34
+mosaic_champion_fresh,Mosaic (control),mosaic,5,6400,4,232213,0.04,1.61,7.89,35.48,42.53,140.69,1888.75
+orion_champion,Orion v1 (single-threaded),orion,5,6400,4,288270,0.01,31.32,37.09,40.50,46.05,125.98,1280.69
+orion2_champion,Orion v2 (8 dispatch threads),orion2,5,6400,4,176145,1.26,4.25,79.73,296.58,680.50,3576.57,18894.50
+mosaic_7w,Mosaic (7 workers),mosaic,5,6400,7,225093,0.04,1.54,7.94,35.22,42.17,135.57,1587.34
 orion2_7w,"Orion v2 (7 workers, 8 dispatch threads)",orion2,5,6400,7,164990,0.89,3.08,71.81,283.88,624.42,3459.70,18946.45
 orion2_champion_fresh,"Orion v2 (fresh baseline, pre-backoff, JFR run)",orion2,5,6400,4,171512,0.75,3.90,76.56,305.39,680.68,3716.53,20499.07
 orion2_backoff,"Orion v2 (poll backoff, #28)",orion2,5,6400,4,172061,0.65,3.88,87.05,324.11,702.83,3992.83,18311.26
@@ -20,16 +20,16 @@ orion2_1_4w_tile5_35rerun,"Orion v2.1 4w (tile 5, #35 rerun)",orion2.1,5,6400,4,
 orion2_2_4w_tile5_35rerun,"Orion v2.2 4w (tile 5, #35 rerun)",orion2.2,5,6400,4,153339,1.07,4.06,21.96,146.73,496.65,3922.84,12861.80
 orion2_1_7w_tile5_polldecouple,"Orion v2.1 7w (tile 5, #41 poll-decouple)",orion2.1,5,6400,7,135215,0.63,2.63,62.70,239.29,630.71,2222.94,16051.55
 orion2_2_7w_tile5_polldecouple,"Orion v2.2 7w (tile 5, #41 poll-decouple)",orion2.2,5,6400,7,133864,0.97,3.99,25.29,120.09,464.24,3129.69,9472.25
-orion2_1_7w_tile5_mif8,"Orion v2.1 7w tile5 maxInFlight=8 (#42)",orion2.1,5,6400,7,143876,0.48,4.91,19.25,59.91,173.21,2146.77,8879.95
-orion2_1_7w_tile5_mif16,"Orion v2.1 7w tile5 maxInFlight=16 (#42)",orion2.1,5,6400,7,132773,0.53,3.33,43.87,123.04,297.42,3827.26,12144.01
-orion2_1_7w_tile5_mif32,"Orion v2.1 7w tile5 maxInFlight=32 (#42)",orion2.1,5,6400,7,136088,1.04,2.90,74.60,249.11,580.67,2092.52,15896.20
-orion2_1_7w_tile5_mif64,"Orion v2.1 7w tile5 maxInFlight=64 (#42)",orion2.1,5,6400,7,135708,0.22,2.35,60.74,238.05,639.44,2164.12,16460.97
-orion2_2_7w_tile5_mif8,"Orion v2.2 7w tile5 maxInFlight=8 (#42)",orion2.2,5,6400,7,136191,1.03,3.85,9.92,15.93,64.55,2241.06,7806.25
-orion2_2_7w_tile5_mif16,"Orion v2.2 7w tile5 maxInFlight=16 (#42)",orion2.2,5,6400,7,134101,1.21,3.99,19.39,60.94,272.19,3453.57,10331.73
-orion2_2_7w_tile5_mif32,"Orion v2.2 7w tile5 maxInFlight=32 (#42)",orion2.2,5,6400,7,139577,1.01,3.87,23.09,129.08,469.50,3137.50,11725.50
-orion2_2_7w_tile5_mif64,"Orion v2.2 7w tile5 maxInFlight=64 (#42)",orion2.2,5,6400,7,132609,1.17,4.68,20.70,111.31,466.06,3228.79,9650.95
-orion2_1_7w_tile5_bucketedisSafe,"Orion v2.1 7w tile5 bucketed isSafe (#43)",orion2.1,5,6400,7,132868,0.74,2.97,63.43,243.01,583.31,2105.37,15902.33
-orion2_2_7w_tile5_bucketedisSafe,"Orion v2.2 7w tile5 bucketed isSafe (#43)",orion2.2,5,6400,7,137036,1.12,4.28,23.51,139.51,490.27,3739.17,10768.74
+orion2_1_7w_tile5_mif8,Orion v2.1 7w tile5 maxInFlight=8 (#42),orion2.1,5,6400,7,143876,0.48,4.91,19.25,59.91,173.21,2146.77,8879.95
+orion2_1_7w_tile5_mif16,Orion v2.1 7w tile5 maxInFlight=16 (#42),orion2.1,5,6400,7,132773,0.53,3.33,43.87,123.04,297.42,3827.26,12144.01
+orion2_1_7w_tile5_mif32,Orion v2.1 7w tile5 maxInFlight=32 (#42),orion2.1,5,6400,7,136088,1.04,2.90,74.60,249.11,580.67,2092.52,15896.20
+orion2_1_7w_tile5_mif64,Orion v2.1 7w tile5 maxInFlight=64 (#42),orion2.1,5,6400,7,135708,0.22,2.35,60.74,238.05,639.44,2164.12,16460.97
+orion2_2_7w_tile5_mif8,Orion v2.2 7w tile5 maxInFlight=8 (#42),orion2.2,5,6400,7,136191,1.03,3.85,9.92,15.93,64.55,2241.06,7806.25
+orion2_2_7w_tile5_mif16,Orion v2.2 7w tile5 maxInFlight=16 (#42),orion2.2,5,6400,7,134101,1.21,3.99,19.39,60.94,272.19,3453.57,10331.73
+orion2_2_7w_tile5_mif32,Orion v2.2 7w tile5 maxInFlight=32 (#42),orion2.2,5,6400,7,139577,1.01,3.87,23.09,129.08,469.50,3137.50,11725.50
+orion2_2_7w_tile5_mif64,Orion v2.2 7w tile5 maxInFlight=64 (#42),orion2.2,5,6400,7,132609,1.17,4.68,20.70,111.31,466.06,3228.79,9650.95
+orion2_1_7w_tile5_bucketedisSafe,Orion v2.1 7w tile5 bucketed isSafe (#43),orion2.1,5,6400,7,132868,0.74,2.97,63.43,243.01,583.31,2105.37,15902.33
+orion2_2_7w_tile5_bucketedisSafe,Orion v2.2 7w tile5 bucketed isSafe (#43),orion2.2,5,6400,7,137036,1.12,4.28,23.51,139.51,490.27,3739.17,10768.74
 orion3_7w_tile5_champion_patched,"Orion v3 patched (7w, tile5, champion, #49)",orion3,5,6400,7,133585,1.02,3.11,67.35,238.25,567.39,2567.53,16799.64
 orion3_7w_tile6_champion_jfr,"Orion v3 patched (7w, tile6, champion, JFR profiled, #50)",orion3,6,9216,7,184660,0.28,6.47,78.49,293.28,778.03,3110.63,21071.62
 orion2_1_cpu_trace_51,"Orion v2.1 (7w, tile5, CPU-traced, #51)",orion2.1,5,6400,7,139230,1.05,2.33,63.53,246.74,642.43,2399.28,17182.05
@@ -427,3 +427,74 @@ o58_large_v57_r1,"orion5.7 #82 65,536 chunks pair 1, 16g heap",orion5.7,16,65536
 o58_large_v58_r1,"orion5.8 #82 65,536 chunks pair 1, 16g heap",orion5.8,16,65536,7,395619,0.22,49.75,66.96,77.59,99.08,384.71,3127.11
 o58_large_v58_r2,"orion5.8 #82 65,536 chunks pair 2, 16g heap",orion5.8,16,65536,7,395464,0.15,50.04,66.69,76.91,98.00,368.35,4859.26
 o58_large_v57_r2,"orion5.7 #82 65,536 chunks pair 2, 16g heap",orion5.7,16,65536,7,461953,0.24,48.18,66.22,76.95,99.16,783.54,3883.86
+o59_lev_v58_r1,"v5.8 #83 6,400 chunks lev round 1, 16g heap",orion5.8,5,6400,7,40566,0.27,45.68,66.04,77.71,99.86,571.53,2879.23
+o59_lev_if64_r1,"v5.8, window 64 #83 6,400 chunks lev round 1, 16g heap",orion5.8,5,6400,7,42087,0.29,191.84,283.06,320.43,395.37,1289.26,7050.74
+o59_lev_if256_r1,"v5.8, window 256 #83 6,400 chunks lev round 1, 16g heap",orion5.8,5,6400,7,40856,0.44,847.11,1168.26,1293.68,1538.18,8149.97,8202.65
+o59_lev_w8_r1,"v5.8, 8 workers #83 6,400 chunks lev round 1, 16g heap",orion5.8,5,6400,8,41801,0.20,45.92,65.58,77.12,98.28,524.35,4091.45
+o59_lev_w8_r2,"v5.8, 8 workers #83 6,400 chunks lev round 2, 16g heap",orion5.8,5,6400,8,40965,0.24,46.91,65.80,77.19,100.26,584.02,2930.38
+o59_lev_if256_r2,"v5.8, window 256 #83 6,400 chunks lev round 2, 16g heap",orion5.8,5,6400,7,40660,1.35,835.05,1134.08,1261.76,1505.74,8760.16,9609.12
+o59_lev_if64_r2,"v5.8, window 64 #83 6,400 chunks lev round 2, 16g heap",orion5.8,5,6400,7,42567,0.11,181.57,274.93,313.92,383.95,1583.16,9076.12
+o59_lev_v58_r2,"v5.8 #83 6,400 chunks lev round 2, 16g heap",orion5.8,5,6400,7,40040,0.31,46.49,64.15,75.12,97.97,498.33,3032.23
+o59_lev_v58_r3,"v5.8 #83 6,400 chunks lev round 3, 16g heap",orion5.8,5,6400,7,40872,0.20,45.45,65.15,77.01,98.67,560.07,3331.61
+o59_lev_if64_r3,"v5.8, window 64 #83 6,400 chunks lev round 3, 16g heap",orion5.8,5,6400,7,40870,0.16,197.06,276.44,314.54,387.33,1222.06,7024.86
+o59_lev_if256_r3,"v5.8, window 256 #83 6,400 chunks lev round 3, 16g heap",orion5.8,5,6400,7,39278,0.58,798.19,1158.17,1290.96,1551.59,6433.09,7002.54
+o59_lev_w8_r3,"v5.8, 8 workers #83 6,400 chunks lev round 3, 16g heap",orion5.8,5,6400,8,40761,0.15,46.26,65.71,77.97,99.50,535.95,2965.52
+o59_long_v58_r1,"v5.8 #83 65,536 chunks long round 1, 16g heap",orion5.8,16,65536,7,398237,0.13,49.82,67.38,78.47,100.23,381.42,2997.75
+o59_long_v58p0_r1,"v5.8, reclamation always on #83 65,536 chunks long round 1, 16g heap",orion5.8,16,65536,7,389556,0.15,48.72,66.04,76.80,97.68,381.79,3074.31
+o59_scale_w2_r1,"v5.8, 2 workers #83 6,400 chunks scale round 1, 16g heap",orion5.8,5,6400,2,105038,0.27,131.86,214.09,238.06,272.78,790.36,2931.31
+o59_scale_w4_r1,"v5.8, 4 workers #83 6,400 chunks scale round 1, 16g heap",orion5.8,5,6400,4,58109,0.29,77.87,110.55,122.78,144.41,625.89,2878.45
+o59_scale_w6_r1,"v5.8, 6 workers #83 6,400 chunks scale round 1, 16g heap",orion5.8,5,6400,6,43200,0.36,54.79,74.78,86.20,104.91,537.72,2831.53
+o59_l16_v58_r1,"v5.8 #83 65,536 chunks l16 round 1, 16g heap",orion5.8,16,65536,7,403115,0.13,50.45,67.79,78.71,100.32,378.14,4523.03
+o59_l16_w8_r1,"v5.8, 8 workers #83 65,536 chunks l16 round 1, 16g heap",orion5.8,16,65536,8,396280,0.14,49.62,66.83,77.87,99.19,348.21,4661.35
+o59_l16_v59_r1,"v5.8 + area lock #83 65,536 chunks l16 round 1, 16g heap",orion5.8,16,65536,7,376019,0.58,50.82,66.08,75.11,91.13,381.93,3802.31
+o59_ab16_v58_r1,"v5.8 #83 65,536 chunks ab16 round 1, 16g heap",orion5.8,16,65536,7,397996,0.22,50.08,67.58,78.18,98.88,405.97,3298.19
+o59_ab16_greedy_r1,"v5.8 + area lock #83 65,536 chunks ab16 round 1, 16g heap",orion5.8,16,65536,7,371434,0.21,50.08,65.76,74.66,90.91,372.28,3524.04
+o59_ab16_v59_r1,"+ surface/biome #83 65,536 chunks ab16 round 1, 16g heap",orion5.9,16,65536,7,342413,0.15,44.22,58.63,67.13,82.91,368.96,3683.42
+o59_ab16_v59_r2,"+ surface/biome #83 65,536 chunks ab16 round 2, 16g heap",orion5.9,16,65536,7,341922,0.40,43.47,58.10,66.68,82.53,407.32,3897.95
+o59_ab16_greedy_r2,"v5.8 + area lock #83 65,536 chunks ab16 round 2, 16g heap",orion5.8,16,65536,7,375470,0.24,50.68,66.32,75.50,91.52,394.29,3314.78
+o59_ab16_v58_r2,"v5.8 #83 65,536 chunks ab16 round 2, 16g heap",orion5.8,16,65536,7,398659,0.36,49.70,67.15,78.04,99.57,391.69,3579.42
+o59_pss16_v59_r1,"+ surface/biome #83 65,536 chunks pss16 round 1, 16g heap",orion5.9,16,65536,7,342741,0.15,44.10,58.39,66.75,82.34,394.47,3476.63
+o59_pss16_pss_r1,"+ lock-free starts #83 65,536 chunks pss16 round 1, 16g heap",orion5.9,16,65536,7,323862,0.30,40.90,55.80,63.83,78.24,332.17,3059.73
+o59_pss16_pssw8_r1,"+ lock-free starts, 8 workers #83 65,536 chunks pss16 round 1, 16g heap",orion5.9,16,65536,8,327724,0.32,41.32,56.23,64.27,79.15,336.79,3065.26
+o59_pss16_pssw8_r2,"+ lock-free starts, 8 workers #83 65,536 chunks pss16 round 2, 16g heap",orion5.9,16,65536,8,329333,0.19,41.45,56.47,64.70,79.41,337.92,3381.18
+o59_pss16_pss_r2,"+ lock-free starts #83 65,536 chunks pss16 round 2, 16g heap",orion5.9,16,65536,7,325813,1.01,41.16,55.73,63.63,77.91,353.70,2917.68
+o59_pss16_v59_r2,"+ surface/biome #83 65,536 chunks pss16 round 2, 16g heap",orion5.9,16,65536,7,337150,0.11,43.41,57.73,66.05,81.80,348.96,3461.50
+o59_scan16_noscan_r1,"+ lock-free starts #83 65,536 chunks scan16 round 1, 16g heap",orion5.9,16,65536,7,327732,0.33,41.62,56.70,64.50,78.43,351.00,2931.79
+o59_scan16_v59_r1,"v5.9, window 16 #83 65,536 chunks scan16 round 1, 16g heap",orion5.9,16,65536,7,322461,0.10,41.65,56.52,64.43,77.96,238.00,3477.42
+o59_scan16_v59w8_r1,"v5.9, window 16, 8 workers #83 65,536 chunks scan16 round 1, 16g heap",orion5.9,16,65536,8,321971,0.27,41.24,56.24,64.30,78.58,242.33,3099.19
+o59_scan16_v59w8_r2,"v5.9, window 16, 8 workers #83 65,536 chunks scan16 round 2, 16g heap",orion5.9,16,65536,8,320985,1.18,41.09,56.46,64.32,78.09,225.60,2719.57
+o59_scan16_v59_r2,"v5.9, window 16 #83 65,536 chunks scan16 round 2, 16g heap",orion5.9,16,65536,7,328734,0.82,42.38,57.55,65.69,79.79,259.47,2852.02
+o59_scan16_noscan_r2,"+ lock-free starts #83 65,536 chunks scan16 round 2, 16g heap",orion5.9,16,65536,7,332711,0.15,41.41,57.03,65.10,79.73,376.60,3581.10
+o59_win16_v59_r1,"v5.9, window 16 #83 65,536 chunks win16 round 1, 16g heap",orion5.9,16,65536,7,327080,0.28,42.18,57.15,65.29,79.52,237.67,2914.62
+o59_win16_if32_r1,"v5.9 #83 65,536 chunks win16 round 1, 16g heap",orion5.9,16,65536,7,298630,1.11,37.78,113.33,128.42,152.14,554.53,3250.87
+o59_win16_if32w8_r1,"v5.9, 8 workers #83 65,536 chunks win16 round 1, 16g heap",orion5.9,16,65536,8,300210,0.55,38.48,113.95,129.16,152.99,578.73,3112.55
+o59_win16_if24_r1,"v5.9, window 24 #83 65,536 chunks win16 round 1, 16g heap",orion5.9,16,65536,7,313978,0.72,52.61,85.75,97.42,117.25,492.74,3069.82
+o59_win16b_if32_r1,"v5.9 #83 65,536 chunks win16b round 1, 16g heap",orion5.9,16,65536,7,296409,0.19,38.21,112.46,127.29,151.06,564.84,3610.36
+o59_win16b_if48_r1,"v5.9, window 48 #83 65,536 chunks win16b round 1, 16g heap",orion5.9,16,65536,7,298863,0.87,99.18,175.31,198.67,227.81,722.66,3525.03
+o59_win16b_if64_r1,"v5.9, window 64 #83 65,536 chunks win16b round 1, 16g heap",orion5.9,16,65536,7,413708,2.09,159.36,229.71,254.58,283.43,718.88,280882.71
+o59_win16b_if64w8_r1,"v5.9, window 64, 8 workers #83 65,536 chunks win16b round 1, 16g heap",orion5.9,16,65536,8,289783,1.41,152.43,230.88,259.17,293.88,793.35,3793.74
+o59_win16b_if128_r1,"v5.9, window 128 #83 65,536 chunks win16b round 1, 16g heap",orion5.9,16,65536,7,301653,0.11,376.82,494.37,543.56,599.50,1456.85,6170.53
+o59_fin16_v58_r1,"v5.8 #83 65,536 chunks fin16 round 1, 16g heap",orion5.8,16,65536,7,397631,0.13,50.40,68.07,78.93,99.67,367.33,2752.59
+o59_fin16_v59_r1,"v5.9, window 16 #83 65,536 chunks fin16 round 1, 16g heap",orion5.9,16,65536,7,331288,0.36,42.72,58.15,66.33,80.60,237.78,2996.58
+o59_fin16_v59w32_r1,"v5.9 #83 65,536 chunks fin16 round 1, 16g heap",orion5.9,16,65536,7,301818,0.72,39.11,115.47,130.28,154.28,576.18,3236.82
+o59_fin16_v59w32_r2,"v5.9 #83 65,536 chunks fin16 round 2, 16g heap",orion5.9,16,65536,7,307784,0.33,39.59,117.32,132.89,156.73,550.97,3186.21
+o59_fin16_v59_r2,"v5.9, window 16 #83 65,536 chunks fin16 round 2, 16g heap",orion5.9,16,65536,7,329362,0.24,42.35,57.71,65.71,79.71,259.22,3187.46
+o59_fin16_v58_r2,"v5.8 #83 65,536 chunks fin16 round 2, 16g heap",orion5.8,16,65536,7,399507,0.16,50.55,68.05,78.81,100.15,395.78,2890.87
+o59_fin5_v58_r1,"v5.8 #83 6,400 chunks fin5 round 1, 16g heap",orion5.8,5,6400,7,41559,0.24,46.05,65.34,76.81,99.50,510.29,3656.02
+o59_fin5_v59_r1,"v5.9 #83 6,400 chunks fin5 round 1, 16g heap",orion5.9,5,6400,7,33850,1.17,63.63,115.51,133.41,162.04,880.28,3633.31
+o59_fin5_v59_r2,"v5.9 #83 6,400 chunks fin5 round 2, 16g heap",orion5.9,5,6400,7,34925,3.31,69.97,118.14,136.39,167.43,925.90,3673.55
+o59_fin5_v58_r2,"v5.8 #83 6,400 chunks fin5 round 2, 16g heap",orion5.8,5,6400,7,40888,0.32,45.21,65.01,75.87,97.75,558.56,3351.06
+o59_fin5_v58_r3,"v5.8 #83 6,400 chunks fin5 round 3, 16g heap",orion5.8,5,6400,7,41185,0.17,47.02,66.52,78.50,100.92,518.02,3224.40
+o59_fin5_v59_r3,"v5.9 #83 6,400 chunks fin5 round 3, 16g heap",orion5.9,5,6400,7,33663,0.48,61.28,114.63,132.15,163.63,776.28,3567.22
+o59_fin5_v59_r4,"v5.9 #83 6,400 chunks fin5 round 4, 16g heap",orion5.9,5,6400,7,33417,0.31,61.71,115.00,131.63,161.71,793.75,3631.92
+o59_fin5_v58_r4,"v5.8 #83 6,400 chunks fin5 round 4, 16g heap",orion5.8,5,6400,7,40480,0.20,45.71,63.70,75.01,96.69,509.79,3426.24
+o59_fin5_v58_r5,"v5.8 #83 6,400 chunks fin5 round 5, 16g heap",orion5.8,5,6400,7,41249,0.27,45.89,65.21,76.86,99.56,561.69,3628.71
+o59_fin5_v59_r5,"v5.9 #83 6,400 chunks fin5 round 5, 16g heap",orion5.9,5,6400,7,34587,1.23,62.01,120.82,136.85,166.86,930.41,3438.75
+o59_fin5_v59_r6,"v5.9 #83 6,400 chunks fin5 round 6, 16g heap",orion5.9,5,6400,7,34780,0.27,65.25,117.62,135.55,169.04,852.81,3419.51
+o59_fin5_v58_r6,"v5.8 #83 6,400 chunks fin5 round 6, 16g heap",orion5.8,5,6400,7,41999,0.21,45.81,66.82,79.09,99.84,520.94,3914.27
+o59_big_v58fix_r1,"v5.8 + poll-thread fix #83 262,144 chunks big round 1, 16g heap",orion5.8,32,262144,7,1571108,0.34,51.57,67.72,78.54,100.49,284.02,6626.15
+o59_big_v59_r1,"v5.9 #83 262,144 chunks big round 1, 16g heap",orion5.9,32,262144,7,1194266,2.23,41.80,115.25,130.50,155.47,326.18,3507.87
+o59_fix16_v58_r1,"v5.8, fix check #83 65,536 chunks fix16 round 1, 16g heap",orion5.8,16,65536,7,405305,0.17,50.96,68.64,79.69,101.68,402.31,3198.81
+o59_fix16_v58fix_r1,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 1, 16g heap",orion5.8,16,65536,7,403998,0.18,51.05,68.19,78.84,100.74,371.04,5173.90
+o59_fix16_v58fix_r2,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 2, 16g heap",orion5.8,16,65536,7,405824,0.19,50.94,68.71,79.63,101.03,385.90,4463.27
+o59_fix16_v58_r2,"v5.8, fix check #83 65,536 chunks fix16 round 2, 16g heap",orion5.8,16,65536,7,402795,0.20,50.23,68.26,79.45,100.71,393.93,3120.39

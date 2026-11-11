@@ -1,0 +1,6 @@
+ab16_v58_r1: 397996 ms 164.66 cps cores=6.42 worker=2252.3 poll=65.4 gc=68.9 io=89.5 other=18.1 young=243x/8242ms full=5x/1390ms
+ab16_greedy_r1: 371434 ms 176.44 cps cores=6.69 worker=2192.4 poll=61.5 gc=68.0 io=87.9 other=16.2 young=218x/8176ms full=5x/1322ms
+ab16_v59_r1: 342413 ms 191.39 cps cores=6.6 worker=1974.6 poll=58.8 gc=67.2 io=87.1 other=15.7 young=214x/8052ms full=5x/1300ms
+ab16_v59_r2: 341922 ms 191.67 cps cores=6.58 worker=1957.8 poll=60.0 gc=69.5 io=90.1 other=15.6 young=218x/8281ms full=5x/1312ms
+ab16_greedy_r2: 375470 ms 174.54 cps cores=6.68 worker=2207.0 poll=61.6 gc=67.8 io=90.9 other=16.9 young=221x/8233ms full=5x/1248ms
+ab16_v58_r2: 398659 ms 164.39 cps cores=6.41 worker=2260.9 poll=64.7 gc=67.8 io=87.8 other=17.7 young=246x/8172ms full=5x/1274ms

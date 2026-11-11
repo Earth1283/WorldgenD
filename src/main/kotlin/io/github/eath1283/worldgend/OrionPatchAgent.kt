@@ -59,6 +59,16 @@ object OrionPatchAgent {
     private const val DENSITY_FUNCTIONS_AP2 = "net.minecraft.world.level.levelgen.DensityFunctions\$Ap2"
     private const val CHUNK_MAP = "net.minecraft.server.level.ChunkMap"
     private const val STRUCTURE_START = "net.minecraft.world.level.levelgen.structure.StructureStart"
+    private const val STRUCTURE_TEMPLATE_PALETTE = "net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate\$Palette"
+    private const val IO_WORKER = "net.minecraft.world.level.chunk.storage.IOWorker"
+    private const val CHUNK_TASK_PRIORITY_QUEUE = "net.minecraft.server.level.ChunkTaskPriorityQueue"
+    @JvmField val resortAllLevels =
+        System.getProperty("orion.dispatcherResort", if (System.getProperty("scheduler") == "orion5.9") "allLevels" else "vanilla") == "allLevels"
+    @Volatile @JvmField var resortPatched = false
+    @JvmField val strandedRescued = java.util.concurrent.atomic.LongAdder()
+    @JvmField val staleSubmits = java.util.concurrent.atomic.LongAdder()
+    private const val REGION_FILE_STORAGE = "net.minecraft.world.level.chunk.storage.RegionFileStorage"
+    @Volatile @JvmField var templatePalettePatched = false
     private const val WORLD_GEN_REGION = "net.minecraft.server.level.WorldGenRegion"
     private const val SURFACE_RULES_CONTEXT = "net.minecraft.world.level.levelgen.SurfaceRules\$Context"
     private const val SURFACE_RULES_SEQUENCE_RULE = "net.minecraft.world.level.levelgen.SurfaceRules\$SequenceRule"
@@ -84,14 +94,14 @@ object OrionPatchAgent {
         val patchParallelSteps = System.getProperty("orion.patchParallelSteps") == "true"
         val patchWorldgenLight = System.getProperty("orion.patchWorldgenLight") == "true"
         val scheduler = System.getProperty("scheduler")
-        val patchNoiseCell = (scheduler == "orion5.7" || scheduler == "orion5.8")
+        val patchNoiseCell = (scheduler == "orion5.7" || (scheduler == "orion5.8" || scheduler == "orion5.9"))
         val patchDensitySimd = scheduler == "orion5.1" || scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" ||
             System.getProperty("orion.patchDensitySimd") == "true"
-        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || scheduler == "orion5.8") ||
+        val patchImprovedNoise = scheduler == "orion5.2" || scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || (scheduler == "orion5.8" || scheduler == "orion5.9")) ||
             System.getProperty("orion.patchImprovedNoise") == "true"
-        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || scheduler == "orion5.8") ||
+        val patchAllocations = scheduler == "orion5.3" || scheduler == "orion5.4" || scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || (scheduler == "orion5.8" || scheduler == "orion5.9")) ||
             System.getProperty("orion.patchAllocations") == "true"
-        val patchRegionChunkMemo = scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || scheduler == "orion5.8") || System.getProperty("orion.patchRegionChunkMemo") == "true"
+        val patchRegionChunkMemo = scheduler == "orion5.5" || scheduler == "orion5.6" || (scheduler == "orion5.7" || (scheduler == "orion5.8" || scheduler == "orion5.9")) || System.getProperty("orion.patchRegionChunkMemo") == "true"
         if (LightSwapPatch.enabled) {
             System.err.println("[OrionPatchAgent] will patch ${LightSwapPatch.targets} on load (light swap, finding #76, mode=${LightSwapPatch.mode})")
             inst.addTransformer(LightSwapTransformer())
@@ -129,7 +139,104 @@ object OrionPatchAgent {
         if (patchAllocations) System.err.println("[OrionPatchAgent] will patch $ALLOCATION_PATCH_TARGETS on load (allocation pressure, orion5.3, memory-issue.md)")
         if (patchRegionChunkMemo) System.err.println("[OrionPatchAgent] will memoize $WORLD_GEN_REGION.getChunk on load (orion5.5)")
         if (patchNoiseCell) System.err.println("[OrionPatchAgent] will patch ${DensityCellPatch.targets} on load (orion5.7+)")
+        StagePatch.install(inst)
+        // Structure starts run unserialized, so the per-palette block cache (a plain HashMap filled
+        // lazily by jigsaw lookups) needs the same fix Paper and C2ME carry.
+        if (OrionParallelSteps.parallelStructureStarts) inst.addTransformer(SingleClassTransformer(STRUCTURE_TEMPLATE_PALETTE) { cc ->
+            for (ctor in cc.declaredConstructors) ctor.insertAfter("{ this.cache = java.util.Collections.synchronizedMap(this.cache); }")
+            templatePalettePatched = true
+        })
+        // #83: ChunkMap gives the worldgen and light dispatchers one shared queueLevel field per holder,
+        // and each dispatcher applies level changes to it from its own thread. A late write from one
+        // dispatcher can briefly restore a stale level; a generation task submitted then is queued at
+        // that level (35-44 seen) and starves behind level 33 until the fill ends. Each queue now keeps
+        // the levels it has applied itself, submits at that level, and resorts from every level.
+        if (resortAllLevels) inst.addTransformer(SingleClassTransformer(CHUNK_TASK_PRIORITY_QUEUE) { cc ->
+            cc.addField(javassist.CtField.make(
+                "public final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap orionLevels = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();", cc))
+            cc.getDeclaredMethod("submit").insertBefore("""{
+                if (this.orionLevels.containsKey($2)) {
+                    int applied = this.orionLevels.get($2);
+                    if (applied != $3) io.github.eath1283.worldgend.OrionPatchAgent.staleSubmits.increment();
+                    $3 = applied;
+                }
+            }""")
+            val resort = cc.getDeclaredMethod("resortChunkTasks")
+            cc.addMethod(CtNewMethod.copy(resort, "orionResortVanilla", cc, null))
+            resort.setBody("""{
+                long key = $2.pack();
+                if ($3 >= PRIORITY_LEVEL_COUNT - 1) this.orionLevels.remove(key); else this.orionLevels.put(key, $3);
+                if ($3 < 0 || $3 >= PRIORITY_LEVEL_COUNT) { orionResortVanilla($1, $2, $3); return; }
+                java.util.List moved = null;
+                for (int level = 0; level < PRIORITY_LEVEL_COUNT; level++) {
+                    if (level == $3) continue;
+                    java.util.List tasks = (java.util.List) ((it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap) this.queuesPerPriority.get(level)).remove(key);
+                    if (tasks != null && !tasks.isEmpty()) {
+                        if (moved == null) moved = new java.util.ArrayList();
+                        moved.addAll(tasks);
+                        if (level != $1) io.github.eath1283.worldgend.OrionPatchAgent.strandedRescued.increment();
+                    }
+                }
+                while (this.hasWork() && ((it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap) this.queuesPerPriority.get(this.topPriorityQueueIndex)).isEmpty()) {
+                    this.topPriorityQueueIndex++;
+                }
+                if (moved != null) {
+                    it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap target = (it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap) this.queuesPerPriority.get($3);
+                    java.util.List existing = (java.util.List) target.get(key);
+                    if (existing == null) { existing = new java.util.ArrayList(); target.put(key, existing); }
+                    existing.addAll(moved);
+                    this.topPriorityQueueIndex = Math.min(this.topPriorityQueueIndex, $3);
+                }
+            }""")
+            resortPatched = true
+        })
+        if (OldChunkScan.enabled) {
+            inst.addTransformer(SingleClassTransformer(REGION_FILE_STORAGE) { cc ->
+                cc.addMethod(CtNewMethod.make(
+                    "public boolean orionRegionEmpty(int regionX, int regionZ) throws java.io.IOException {" +
+                        " net.minecraft.world.level.chunk.storage.RegionFile region = this.getRegionFile(new net.minecraft.world.level.ChunkPos(regionX << 5, regionZ << 5));" +
+                        " for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++)" +
+                        "  if (region.hasChunk(new net.minecraft.world.level.ChunkPos((regionX << 5) + x, (regionZ << 5) + z))) return false;" +
+                        " return true; }", cc))
+            })
+            inst.addTransformer(SingleClassTransformer(IO_WORKER) { cc ->
+                val original = cc.getDeclaredMethod("createOldDataForRegion")
+                cc.addMethod(CtNewMethod.copy(original, "orionScanRegion", cc, null).apply { modifiers = javassist.Modifier.PUBLIC })
+                cc.addMethod(CtNewMethod.make(
+                    "public boolean orionRegionEmpty(int regionX, int regionZ) {" +
+                        " java.util.Iterator it = this.pendingWrites.keySet().iterator();" +
+                        " while (it.hasNext()) { net.minecraft.world.level.ChunkPos pos = (net.minecraft.world.level.ChunkPos) it.next();" +
+                        "  if (pos.getRegionX() == regionX && pos.getRegionZ() == regionZ) return false; }" +
+                        " try { return io.github.eath1283.worldgend.OldChunkScan.storageEmpty(this.storage, regionX, regionZ); }" +
+                        " catch (Throwable t) { return false; } }", cc))
+                original.setBody("{ return io.github.eath1283.worldgend.OldChunkScan.scan(this, $1, $2); }")
+                OldChunkScan.patched = true
+            })
+        }
         inst.addTransformer(Transformer(patchReentrancy, patchBiomeMemo, patchStructureGenState, patchDfc, patchParallelSteps, patchWorldgenLight, patchDensitySimd, patchImprovedNoise, patchAllocations, patchRegionChunkMemo, patchNoiseCell))
+    }
+
+    private class SingleClassTransformer(private val target: String, private val patch: (CtClass) -> Unit) : ClassFileTransformer {
+        override fun transform(
+            loader: ClassLoader?, className: String, classBeingRedefined: Class<*>?,
+            protectionDomain: java.security.ProtectionDomain?, classfileBuffer: ByteArray,
+        ): ByteArray? {
+            if (className.replace('/', '.') != target) return null
+            return try {
+                val pool = ClassPool(false).apply {
+                    appendSystemPath()
+                    if (loader != null) appendClassPath(LoaderClassPath(loader))
+                }
+                val cc: CtClass = pool.makeClass(java.io.ByteArrayInputStream(classfileBuffer))
+                patch(cc)
+                val bytes = cc.toBytecode()
+                cc.detach()
+                bytes
+            } catch (t: Throwable) {
+                System.err.println("[OrionPatchAgent] $target patch FAILED: $t")
+                null
+            }
+        }
     }
 
     private class RaceDetectorTransformer : ClassFileTransformer {
@@ -329,6 +436,7 @@ object OrionPatchAgent {
             isSameThread.setBody(
                 """{
                     if (Thread.currentThread() == getRunningThread()) return true;
+                    if (io.github.eath1283.worldgend.OrionServerThread.isCurrent()) return true;
                     Object v = orionReentrant.get();
                     return v != null && ((Integer) v).intValue() > 0;
                 }"""

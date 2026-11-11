@@ -1,0 +1,841 @@
+label,build,percent_done,cps,worker_cores
+long_v58_r1,v5.8,5,189.3,5.8
+long_v58_r1,v5.8,10,153.0,5.02
+long_v58_r1,v5.8,15,140.6,5.27
+long_v58_r1,v5.8,20,179.0,5.91
+long_v58_r1,v5.8,25,124.1,4.61
+long_v58_r1,v5.8,30,146.2,5.28
+long_v58_r1,v5.8,35,140.6,5.17
+long_v58_r1,v5.8,40,169.7,5.76
+long_v58_r1,v5.8,45,189.3,6.2
+long_v58_r1,v5.8,50,179.9,5.95
+long_v58_r1,v5.8,55,189.3,5.97
+long_v58_r1,v5.8,60,189.3,5.87
+long_v58_r1,v5.8,65,190.4,6.16
+long_v58_r1,v5.8,70,190.4,6.18
+long_v58_r1,v5.8,75,189.3,6.12
+long_v58_r1,v5.8,80,161.3,5.58
+long_v58_r1,v5.8,85,190.4,6.01
+long_v58_r1,v5.8,90,200.9,6.32
+long_v58_r1,v5.8,95,190.4,6.02
+long_v58_r1,v5.8,100,187.0,5.89
+long_v58p0_r1,"v5.8, reclamation always on",5,188.2,5.89
+long_v58p0_r1,"v5.8, reclamation always on",10,133.7,4.49
+long_v58p0_r1,"v5.8, reclamation always on",15,140.0,5.14
+long_v58p0_r1,"v5.8, reclamation always on",20,179.0,5.84
+long_v58p0_r1,"v5.8, reclamation always on",25,145.6,5.17
+long_v58p0_r1,"v5.8, reclamation always on",30,153.8,5.53
+long_v58p0_r1,"v5.8, reclamation always on",35,153.0,5.15
+long_v58p0_r1,"v5.8, reclamation always on",40,168.8,5.82
+long_v58p0_r1,"v5.8, reclamation always on",45,199.7,6.34
+long_v58p0_r1,"v5.8, reclamation always on",50,188.2,5.97
+long_v58p0_r1,"v5.8, reclamation always on",55,189.3,5.98
+long_v58p0_r1,"v5.8, reclamation always on",60,200.9,6.1
+long_v58p0_r1,"v5.8, reclamation always on",65,178.0,6.01
+long_v58p0_r1,"v5.8, reclamation always on",70,200.9,6.23
+long_v58p0_r1,"v5.8, reclamation always on",75,189.3,6.01
+long_v58p0_r1,"v5.8, reclamation always on",80,160.5,5.31
+long_v58p0_r1,"v5.8, reclamation always on",85,188.2,5.94
+long_v58p0_r1,"v5.8, reclamation always on",90,200.9,6.32
+long_v58p0_r1,"v5.8, reclamation always on",95,199.7,5.99
+long_v58p0_r1,"v5.8, reclamation always on",100,201.2,6.05
+l16_v58_r1,v5.8,5,188.2,6.07
+l16_v58_r1,v5.8,10,153.0,5.1
+l16_v58_r1,v5.8,15,139.4,5.28
+l16_v58_r1,v5.8,20,189.3,6.08
+l16_v58_r1,v5.8,25,118.7,4.72
+l16_v58_r1,v5.8,30,140.0,5.35
+l16_v58_r1,v5.8,35,139.4,5.15
+l16_v58_r1,v5.8,40,168.8,5.79
+l16_v58_r1,v5.8,45,189.3,6.33
+l16_v58_r1,v5.8,50,178.0,6.0
+l16_v58_r1,v5.8,55,178.0,6.01
+l16_v58_r1,v5.8,60,189.3,5.92
+l16_v58_r1,v5.8,65,188.2,6.13
+l16_v58_r1,v5.8,70,189.3,6.34
+l16_v58_r1,v5.8,75,178.0,6.1
+l16_v58_r1,v5.8,80,168.8,5.6
+l16_v58_r1,v5.8,85,178.0,6.03
+l16_v58_r1,v5.8,90,200.9,6.32
+l16_v58_r1,v5.8,95,188.2,6.06
+l16_v58_r1,v5.8,100,187.0,5.86
+l16_w8_r1,"v5.8, 8 workers",5,199.7,6.16
+l16_w8_r1,"v5.8, 8 workers",10,153.0,5.05
+l16_w8_r1,"v5.8, 8 workers",15,153.0,5.47
+l16_w8_r1,"v5.8, 8 workers",20,189.3,5.99
+l16_w8_r1,"v5.8, 8 workers",25,114.5,4.73
+l16_w8_r1,"v5.8, 8 workers",30,153.0,5.4
+l16_w8_r1,"v5.8, 8 workers",35,139.4,5.27
+l16_w8_r1,"v5.8, 8 workers",40,169.7,5.77
+l16_w8_r1,"v5.8, 8 workers",45,199.7,6.3
+l16_w8_r1,"v5.8, 8 workers",50,189.3,5.98
+l16_w8_r1,"v5.8, 8 workers",55,178.0,5.97
+l16_w8_r1,"v5.8, 8 workers",60,189.3,5.88
+l16_w8_r1,"v5.8, 8 workers",65,188.2,6.09
+l16_w8_r1,"v5.8, 8 workers",70,189.3,6.18
+l16_w8_r1,"v5.8, 8 workers",75,178.0,6.1
+l16_w8_r1,"v5.8, 8 workers",80,168.8,5.56
+l16_w8_r1,"v5.8, 8 workers",85,189.3,6.03
+l16_w8_r1,"v5.8, 8 workers",90,199.7,6.23
+l16_w8_r1,"v5.8, 8 workers",95,189.3,6.05
+l16_w8_r1,"v5.8, 8 workers",100,185.7,5.76
+l16_v59_r1,v5.8 + area lock,5,202.2,6.22
+l16_v59_r1,v5.8 + area lock,10,169.7,5.48
+l16_v59_r1,v5.8 + area lock,15,168.8,5.99
+l16_v59_r1,v5.8 + area lock,20,202.2,6.44
+l16_v59_r1,v5.8 + area lock,25,140.0,5.19
+l16_v59_r1,v5.8 + area lock,30,168.8,6.09
+l16_v59_r1,v5.8 + area lock,35,179.0,6.17
+l16_v59_r1,v5.8 + area lock,40,179.0,5.9
+l16_v59_r1,v5.8 + area lock,45,189.3,6.31
+l16_v59_r1,v5.8 + area lock,50,190.4,5.96
+l16_v59_r1,v5.8 + area lock,55,179.0,6.01
+l16_v59_r1,v5.8 + area lock,60,189.3,5.89
+l16_v59_r1,v5.8 + area lock,65,190.4,6.09
+l16_v59_r1,v5.8 + area lock,70,189.3,6.15
+l16_v59_r1,v5.8 + area lock,75,202.2,6.32
+l16_v59_r1,v5.8 + area lock,80,169.7,5.65
+l16_v59_r1,v5.8 + area lock,85,179.0,5.99
+l16_v59_r1,v5.8 + area lock,90,200.9,6.29
+l16_v59_r1,v5.8 + area lock,95,189.3,5.93
+l16_v59_r1,v5.8 + area lock,100,201.2,6.18
+ab16_v58_r1,v5.8,5,188.2,5.92
+ab16_v58_r1,v5.8,10,154.5,5.17
+ab16_v58_r1,v5.8,15,146.2,5.43
+ab16_v58_r1,v5.8,20,179.9,6.02
+ab16_v58_r1,v5.8,25,124.1,4.69
+ab16_v58_r1,v5.8,30,146.9,5.29
+ab16_v58_r1,v5.8,35,134.2,5.14
+ab16_v58_r1,v5.8,40,170.6,5.8
+ab16_v58_r1,v5.8,45,190.4,6.31
+ab16_v58_r1,v5.8,50,179.0,5.94
+ab16_v58_r1,v5.8,55,190.4,6.02
+ab16_v58_r1,v5.8,60,179.0,5.88
+ab16_v58_r1,v5.8,65,190.4,6.08
+ab16_v58_r1,v5.8,70,190.4,6.24
+ab16_v58_r1,v5.8,75,189.3,6.19
+ab16_v58_r1,v5.8,80,162.1,5.55
+ab16_v58_r1,v5.8,85,179.0,5.94
+ab16_v58_r1,v5.8,90,215.5,6.35
+ab16_v58_r1,v5.8,95,190.4,6.04
+ab16_v58_r1,v5.8,100,187.0,5.97
+ab16_greedy_r1,v5.8 + area lock,5,199.7,6.21
+ab16_greedy_r1,v5.8 + area lock,10,179.0,5.61
+ab16_greedy_r1,v5.8 + area lock,15,160.5,5.9
+ab16_greedy_r1,v5.8 + area lock,20,214.1,6.42
+ab16_greedy_r1,v5.8 + area lock,25,138.8,5.16
+ab16_greedy_r1,v5.8 + area lock,30,168.8,6.13
+ab16_greedy_r1,v5.8 + area lock,35,178.0,6.13
+ab16_greedy_r1,v5.8 + area lock,40,179.0,5.92
+ab16_greedy_r1,v5.8 + area lock,45,189.3,6.26
+ab16_greedy_r1,v5.8 + area lock,50,188.2,6.09
+ab16_greedy_r1,v5.8 + area lock,55,188.2,6.02
+ab16_greedy_r1,v5.8 + area lock,60,177.0,5.91
+ab16_greedy_r1,v5.8 + area lock,65,188.2,6.08
+ab16_greedy_r1,v5.8 + area lock,70,200.9,6.24
+ab16_greedy_r1,v5.8 + area lock,75,188.2,6.23
+ab16_greedy_r1,v5.8 + area lock,80,169.7,5.65
+ab16_greedy_r1,v5.8 + area lock,85,189.3,6.03
+ab16_greedy_r1,v5.8 + area lock,90,212.7,6.27
+ab16_greedy_r1,v5.8 + area lock,95,189.3,6.09
+ab16_greedy_r1,v5.8 + area lock,100,185.7,5.66
+ab16_v59_r1,+ surface/biome,5,214.1,6.09
+ab16_v59_r1,+ surface/biome,10,188.2,5.29
+ab16_v59_r1,+ surface/biome,15,189.3,5.96
+ab16_v59_r1,+ surface/biome,20,214.1,6.29
+ab16_v59_r1,+ surface/biome,25,152.3,5.05
+ab16_v59_r1,+ surface/biome,30,199.7,6.11
+ab16_v59_r1,+ surface/biome,35,188.2,5.95
+ab16_v59_r1,+ surface/biome,40,189.3,5.8
+ab16_v59_r1,+ surface/biome,45,212.7,6.08
+ab16_v59_r1,+ surface/biome,50,214.1,6.04
+ab16_v59_r1,+ surface/biome,55,200.9,5.89
+ab16_v59_r1,+ surface/biome,60,199.7,5.82
+ab16_v59_r1,+ surface/biome,65,214.1,5.88
+ab16_v59_r1,+ surface/biome,70,214.1,6.11
+ab16_v59_r1,+ surface/biome,75,214.1,6.12
+ab16_v59_r1,+ surface/biome,80,188.2,5.45
+ab16_v59_r1,+ surface/biome,85,200.9,5.87
+ab16_v59_r1,+ surface/biome,90,214.1,6.23
+ab16_v59_r1,+ surface/biome,95,212.7,5.83
+ab16_v59_r1,+ surface/biome,100,201.2,5.67
+ab16_v59_r2,+ surface/biome,5,230.6,6.14
+ab16_v59_r2,+ surface/biome,10,199.7,5.45
+ab16_v59_r2,+ surface/biome,15,179.0,5.77
+ab16_v59_r2,+ surface/biome,20,229.0,6.28
+ab16_v59_r2,+ surface/biome,25,160.5,5.13
+ab16_v59_r2,+ surface/biome,30,188.2,5.95
+ab16_v59_r2,+ surface/biome,35,168.8,5.17
+ab16_v59_r2,+ surface/biome,40,188.2,5.77
+ab16_v59_r2,+ surface/biome,45,214.1,6.13
+ab16_v59_r2,+ surface/biome,50,214.1,5.99
+ab16_v59_r2,+ surface/biome,55,199.7,5.85
+ab16_v59_r2,+ surface/biome,60,214.1,5.83
+ab16_v59_r2,+ surface/biome,65,200.9,5.93
+ab16_v59_r2,+ surface/biome,70,229.0,6.15
+ab16_v59_r2,+ surface/biome,75,214.1,6.06
+ab16_v59_r2,+ surface/biome,80,178.0,5.54
+ab16_v59_r2,+ surface/biome,85,214.1,5.86
+ab16_v59_r2,+ surface/biome,90,229.0,6.2
+ab16_v59_r2,+ surface/biome,95,200.9,5.88
+ab16_v59_r2,+ surface/biome,100,199.7,5.65
+ab16_greedy_r2,v5.8 + area lock,5,214.1,6.41
+ab16_greedy_r2,v5.8 + area lock,10,168.8,5.28
+ab16_greedy_r2,v5.8 + area lock,15,179.0,6.17
+ab16_greedy_r2,v5.8 + area lock,20,200.9,6.38
+ab16_greedy_r2,v5.8 + area lock,25,139.4,5.21
+ab16_greedy_r2,v5.8 + area lock,30,178.0,6.17
+ab16_greedy_r2,v5.8 + area lock,35,167.9,6.02
+ab16_greedy_r2,v5.8 + area lock,40,179.0,5.83
+ab16_greedy_r2,v5.8 + area lock,45,188.2,6.31
+ab16_greedy_r2,v5.8 + area lock,50,187.1,6.02
+ab16_greedy_r2,v5.8 + area lock,55,178.0,5.97
+ab16_greedy_r2,v5.8 + area lock,60,189.3,5.91
+ab16_greedy_r2,v5.8 + area lock,65,188.2,6.06
+ab16_greedy_r2,v5.8 + area lock,70,189.3,6.14
+ab16_greedy_r2,v5.8 + area lock,75,188.2,6.28
+ab16_greedy_r2,v5.8 + area lock,80,168.8,5.67
+ab16_greedy_r2,v5.8 + area lock,85,178.0,5.92
+ab16_greedy_r2,v5.8 + area lock,90,199.7,6.28
+ab16_greedy_r2,v5.8 + area lock,95,189.3,5.96
+ab16_greedy_r2,v5.8 + area lock,100,199.7,6.04
+ab16_v58_r2,v5.8,5,200.9,6.19
+ab16_v58_r2,v5.8,10,153.0,5.09
+ab16_v58_r2,v5.8,15,146.2,5.4
+ab16_v58_r2,v5.8,20,179.0,5.99
+ab16_v58_r2,v5.8,25,123.6,4.71
+ab16_v58_r2,v5.8,30,145.6,5.32
+ab16_v58_r2,v5.8,35,140.0,5.21
+ab16_v58_r2,v5.8,40,159.8,5.8
+ab16_v58_r2,v5.8,45,178.0,6.17
+ab16_v58_r2,v5.8,50,189.3,6.06
+ab16_v58_r2,v5.8,55,178.0,6.02
+ab16_v58_r2,v5.8,60,200.9,5.93
+ab16_v58_r2,v5.8,65,188.2,6.11
+ab16_v58_r2,v5.8,70,189.3,6.33
+ab16_v58_r2,v5.8,75,178.0,6.05
+ab16_v58_r2,v5.8,80,169.7,5.58
+ab16_v58_r2,v5.8,85,178.0,5.95
+ab16_v58_r2,v5.8,90,200.9,6.29
+ab16_v58_r2,v5.8,95,189.3,6.04
+ab16_v58_r2,v5.8,100,184.4,5.66
+pss16_v59_r1,+ surface/biome,5,227.4,6.26
+pss16_v59_r1,+ surface/biome,10,189.3,5.32
+pss16_v59_r1,+ surface/biome,15,178.0,5.84
+pss16_v59_r1,+ surface/biome,20,230.6,6.32
+pss16_v59_r1,+ surface/biome,25,152.3,5.14
+pss16_v59_r1,+ surface/biome,30,188.2,6.09
+pss16_v59_r1,+ surface/biome,35,168.8,5.25
+pss16_v59_r1,+ surface/biome,40,188.2,5.79
+pss16_v59_r1,+ surface/biome,45,214.1,6.11
+pss16_v59_r1,+ surface/biome,50,214.1,6.01
+pss16_v59_r1,+ surface/biome,55,200.9,5.89
+pss16_v59_r1,+ surface/biome,60,199.7,5.86
+pss16_v59_r1,+ surface/biome,65,214.1,5.93
+pss16_v59_r1,+ surface/biome,70,214.1,6.12
+pss16_v59_r1,+ surface/biome,75,212.7,6.08
+pss16_v59_r1,+ surface/biome,80,189.3,5.46
+pss16_v59_r1,+ surface/biome,85,199.7,5.86
+pss16_v59_r1,+ surface/biome,90,229.0,6.22
+pss16_v59_r1,+ surface/biome,95,214.1,5.94
+pss16_v59_r1,+ surface/biome,100,217.7,5.91
+pss16_pss_r1,+ lock-free starts,5,250.0,6.45
+pss16_pss_r1,+ lock-free starts,10,190.4,5.14
+pss16_pss_r1,+ lock-free starts,15,202.2,6.18
+pss16_pss_r1,+ lock-free starts,20,230.6,6.35
+pss16_pss_r1,+ lock-free starts,25,162.1,5.17
+pss16_pss_r1,+ lock-free starts,30,202.2,6.13
+pss16_pss_r1,+ lock-free starts,35,189.3,5.86
+pss16_pss_r1,+ lock-free starts,40,203.4,6.0
+pss16_pss_r1,+ lock-free starts,45,230.6,6.31
+pss16_pss_r1,+ lock-free starts,50,215.5,5.93
+pss16_pss_r1,+ lock-free starts,55,215.5,5.96
+pss16_pss_r1,+ lock-free starts,60,215.5,5.86
+pss16_pss_r1,+ lock-free starts,65,215.5,6.09
+pss16_pss_r1,+ lock-free starts,70,232.3,6.23
+pss16_pss_r1,+ lock-free starts,75,215.5,6.14
+pss16_pss_r1,+ lock-free starts,80,190.4,5.63
+pss16_pss_r1,+ lock-free starts,85,215.5,5.94
+pss16_pss_r1,+ lock-free starts,90,248.1,6.28
+pss16_pss_r1,+ lock-free starts,95,203.4,5.87
+pss16_pss_r1,+ lock-free starts,100,217.7,5.72
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",5,248.1,6.47
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",10,189.3,5.22
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",15,190.4,6.13
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",20,230.6,6.4
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",25,161.3,5.16
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",30,202.2,6.19
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",35,179.0,5.53
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",40,202.2,5.94
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",45,214.1,6.21
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",50,230.6,6.12
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",55,202.2,6.01
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",60,215.5,5.86
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",65,215.5,6.07
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",70,230.6,6.15
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",75,230.6,6.24
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",80,189.3,5.64
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",85,215.5,5.96
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",90,230.6,6.39
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",95,215.5,6.0
+pss16_pssw8_r1,"+ lock-free starts, 8 workers",100,201.2,5.69
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",5,230.6,6.27
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",10,179.9,5.09
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",15,200.9,6.22
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",20,230.6,6.4
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",25,161.3,5.16
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",30,202.2,6.14
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",35,189.3,5.84
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",40,202.2,5.95
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",45,215.5,6.32
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",50,215.5,5.97
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",55,215.5,6.01
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",60,215.5,5.84
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",65,214.1,6.04
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",70,230.6,6.24
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",75,215.5,6.16
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",80,179.0,5.62
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",85,215.5,5.9
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",90,230.6,6.29
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",95,215.5,5.99
+pss16_pssw8_r2,"+ lock-free starts, 8 workers",100,217.7,5.83
+pss16_pss_r2,+ lock-free starts,5,230.6,6.23
+pss16_pss_r2,+ lock-free starts,10,202.2,5.42
+pss16_pss_r2,+ lock-free starts,15,190.4,5.95
+pss16_pss_r2,+ lock-free starts,20,230.6,6.35
+pss16_pss_r2,+ lock-free starts,25,161.3,5.14
+pss16_pss_r2,+ lock-free starts,30,202.2,6.2
+pss16_pss_r2,+ lock-free starts,35,189.3,5.75
+pss16_pss_r2,+ lock-free starts,40,215.5,5.94
+pss16_pss_r2,+ lock-free starts,45,216.9,6.23
+pss16_pss_r2,+ lock-free starts,50,229.0,6.06
+pss16_pss_r2,+ lock-free starts,55,203.4,5.97
+pss16_pss_r2,+ lock-free starts,60,229.0,5.73
+pss16_pss_r2,+ lock-free starts,65,216.9,6.14
+pss16_pss_r2,+ lock-free starts,70,214.1,6.22
+pss16_pss_r2,+ lock-free starts,75,215.5,6.09
+pss16_pss_r2,+ lock-free starts,80,190.4,5.64
+pss16_pss_r2,+ lock-free starts,85,215.5,5.94
+pss16_pss_r2,+ lock-free starts,90,230.6,6.32
+pss16_pss_r2,+ lock-free starts,95,215.5,5.92
+pss16_pss_r2,+ lock-free starts,100,239.3,6.16
+pss16_v59_r2,+ surface/biome,5,215.5,6.07
+pss16_v59_r2,+ surface/biome,10,190.4,5.27
+pss16_v59_r2,+ surface/biome,15,190.4,6.01
+pss16_v59_r2,+ surface/biome,20,215.5,6.24
+pss16_v59_r2,+ surface/biome,25,153.8,5.02
+pss16_v59_r2,+ surface/biome,30,202.2,6.07
+pss16_v59_r2,+ surface/biome,35,190.4,5.93
+pss16_v59_r2,+ surface/biome,40,190.4,5.81
+pss16_v59_r2,+ surface/biome,45,215.5,6.12
+pss16_v59_r2,+ surface/biome,50,215.5,5.97
+pss16_v59_r2,+ surface/biome,55,202.2,5.88
+pss16_v59_r2,+ surface/biome,60,215.5,5.79
+pss16_v59_r2,+ surface/biome,65,216.9,5.98
+pss16_v59_r2,+ surface/biome,70,215.5,6.1
+pss16_v59_r2,+ surface/biome,75,215.5,6.07
+pss16_v59_r2,+ surface/biome,80,179.9,5.56
+pss16_v59_r2,+ surface/biome,85,215.5,5.82
+pss16_v59_r2,+ surface/biome,90,232.3,6.23
+pss16_v59_r2,+ surface/biome,95,202.2,5.85
+pss16_v59_r2,+ surface/biome,100,217.7,5.84
+scan16_noscan_r1,+ lock-free starts,5,230.6,6.29
+scan16_noscan_r1,+ lock-free starts,10,202.2,5.53
+scan16_noscan_r1,+ lock-free starts,15,190.4,5.82
+scan16_noscan_r1,+ lock-free starts,20,230.6,6.39
+scan16_noscan_r1,+ lock-free starts,25,161.3,5.18
+scan16_noscan_r1,+ lock-free starts,30,202.2,6.12
+scan16_noscan_r1,+ lock-free starts,35,179.9,5.41
+scan16_noscan_r1,+ lock-free starts,40,202.2,5.96
+scan16_noscan_r1,+ lock-free starts,45,215.5,6.33
+scan16_noscan_r1,+ lock-free starts,50,215.5,5.96
+scan16_noscan_r1,+ lock-free starts,55,215.5,5.9
+scan16_noscan_r1,+ lock-free starts,60,215.5,5.84
+scan16_noscan_r1,+ lock-free starts,65,202.2,6.1
+scan16_noscan_r1,+ lock-free starts,70,230.6,6.12
+scan16_noscan_r1,+ lock-free starts,75,230.6,6.18
+scan16_noscan_r1,+ lock-free starts,80,190.4,5.62
+scan16_noscan_r1,+ lock-free starts,85,215.5,5.94
+scan16_noscan_r1,+ lock-free starts,90,230.6,6.34
+scan16_noscan_r1,+ lock-free starts,95,215.5,6.03
+scan16_noscan_r1,+ lock-free starts,100,219.5,6.03
+scan16_v59_r1,"v5.9, window 16",5,230.6,6.31
+scan16_v59_r1,"v5.9, window 16",10,202.2,5.51
+scan16_v59_r1,"v5.9, window 16",15,191.5,5.95
+scan16_v59_r1,"v5.9, window 16",20,232.3,6.41
+scan16_v59_r1,"v5.9, window 16",25,170.6,5.1
+scan16_v59_r1,"v5.9, window 16",30,179.9,6.09
+scan16_v59_r1,"v5.9, window 16",35,202.2,6.05
+scan16_v59_r1,"v5.9, window 16",40,203.4,5.96
+scan16_v59_r1,"v5.9, window 16",45,215.5,6.23
+scan16_v59_r1,"v5.9, window 16",50,232.3,6.16
+scan16_v59_r1,"v5.9, window 16",55,215.5,5.92
+scan16_v59_r1,"v5.9, window 16",60,216.9,6.01
+scan16_v59_r1,"v5.9, window 16",65,215.5,6.09
+scan16_v59_r1,"v5.9, window 16",70,215.5,6.16
+scan16_v59_r1,"v5.9, window 16",75,232.3,6.3
+scan16_v59_r1,"v5.9, window 16",80,190.4,5.58
+scan16_v59_r1,"v5.9, window 16",85,203.4,6.11
+scan16_v59_r1,"v5.9, window 16",90,248.1,6.28
+scan16_v59_r1,"v5.9, window 16",95,216.9,5.99
+scan16_v59_r1,"v5.9, window 16",100,219.5,5.96
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",5,230.6,6.24
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",10,203.4,5.51
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",15,190.4,5.86
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",20,232.3,6.44
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",25,162.1,5.2
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",30,190.4,6.08
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",35,203.4,6.15
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",40,202.2,5.86
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",45,216.9,6.35
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",50,230.6,6.05
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",55,203.4,5.96
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",60,215.5,6.02
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",65,215.5,6.04
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",70,232.3,6.25
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",75,232.3,6.32
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",80,190.4,5.55
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",85,216.9,6.21
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",90,250.0,6.34
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",95,202.2,5.91
+scan16_v59w8_r1,"v5.9, window 16, 8 workers",100,239.3,6.22
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",5,232.3,6.35
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",10,190.4,5.16
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",15,203.4,6.22
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",20,232.3,6.41
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",25,170.6,5.23
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",30,202.2,6.12
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",35,203.4,6.11
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",40,190.4,5.9
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",45,216.9,6.34
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",50,232.3,6.15
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",55,202.2,5.85
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",60,232.3,6.0
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",65,215.5,6.07
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",70,216.9,6.25
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",75,232.3,6.37
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",80,190.4,5.56
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",85,216.9,6.2
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",90,230.6,6.33
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",95,216.9,6.02
+scan16_v59w8_r2,"v5.9, window 16, 8 workers",100,239.3,5.87
+scan16_v59_r2,"v5.9, window 16",5,232.3,6.4
+scan16_v59_r2,"v5.9, window 16",10,190.4,5.34
+scan16_v59_r2,"v5.9, window 16",15,179.9,6.02
+scan16_v59_r2,"v5.9, window 16",20,232.3,6.41
+scan16_v59_r2,"v5.9, window 16",25,162.1,5.16
+scan16_v59_r2,"v5.9, window 16",30,180.9,6.09
+scan16_v59_r2,"v5.9, window 16",35,202.2,6.09
+scan16_v59_r2,"v5.9, window 16",40,202.2,5.9
+scan16_v59_r2,"v5.9, window 16",45,216.9,6.32
+scan16_v59_r2,"v5.9, window 16",50,216.9,6.15
+scan16_v59_r2,"v5.9, window 16",55,202.2,5.99
+scan16_v59_r2,"v5.9, window 16",60,216.9,6.08
+scan16_v59_r2,"v5.9, window 16",65,215.5,6.05
+scan16_v59_r2,"v5.9, window 16",70,232.3,6.27
+scan16_v59_r2,"v5.9, window 16",75,215.5,6.31
+scan16_v59_r2,"v5.9, window 16",80,191.5,5.61
+scan16_v59_r2,"v5.9, window 16",85,215.5,6.11
+scan16_v59_r2,"v5.9, window 16",90,216.9,6.31
+scan16_v59_r2,"v5.9, window 16",95,215.5,5.86
+scan16_v59_r2,"v5.9, window 16",100,219.5,5.95
+scan16_noscan_r2,+ lock-free starts,5,246.2,6.46
+scan16_noscan_r2,+ lock-free starts,10,188.2,5.22
+scan16_noscan_r2,+ lock-free starts,15,189.3,6.05
+scan16_noscan_r2,+ lock-free starts,20,229.0,6.38
+scan16_noscan_r2,+ lock-free starts,25,160.5,5.2
+scan16_noscan_r2,+ lock-free starts,30,189.3,6.12
+scan16_noscan_r2,+ lock-free starts,35,187.1,5.5
+scan16_noscan_r2,+ lock-free starts,40,189.3,5.99
+scan16_noscan_r2,+ lock-free starts,45,229.0,6.4
+scan16_noscan_r2,+ lock-free starts,50,212.7,5.94
+scan16_noscan_r2,+ lock-free starts,55,199.7,5.97
+scan16_noscan_r2,+ lock-free starts,60,214.1,5.85
+scan16_noscan_r2,+ lock-free starts,65,214.1,6.12
+scan16_noscan_r2,+ lock-free starts,70,229.0,6.24
+scan16_noscan_r2,+ lock-free starts,75,199.7,6.13
+scan16_noscan_r2,+ lock-free starts,80,189.3,5.66
+scan16_noscan_r2,+ lock-free starts,85,214.1,5.93
+scan16_noscan_r2,+ lock-free starts,90,227.4,6.28
+scan16_noscan_r2,+ lock-free starts,95,214.1,6.01
+scan16_noscan_r2,+ lock-free starts,100,217.7,6.1
+win16_v59_r1,"v5.9, window 16",5,232.3,6.29
+win16_v59_r1,"v5.9, window 16",10,190.4,5.29
+win16_v59_r1,"v5.9, window 16",15,203.4,6.18
+win16_v59_r1,"v5.9, window 16",20,232.3,6.4
+win16_v59_r1,"v5.9, window 16",25,153.8,5.21
+win16_v59_r1,"v5.9, window 16",30,191.5,6.08
+win16_v59_r1,"v5.9, window 16",35,202.2,6.07
+win16_v59_r1,"v5.9, window 16",40,203.4,5.96
+win16_v59_r1,"v5.9, window 16",45,202.2,6.36
+win16_v59_r1,"v5.9, window 16",50,232.3,6.12
+win16_v59_r1,"v5.9, window 16",55,202.2,5.94
+win16_v59_r1,"v5.9, window 16",60,216.9,6.05
+win16_v59_r1,"v5.9, window 16",65,215.5,6.08
+win16_v59_r1,"v5.9, window 16",70,215.5,6.21
+win16_v59_r1,"v5.9, window 16",75,232.3,6.29
+win16_v59_r1,"v5.9, window 16",80,191.5,5.63
+win16_v59_r1,"v5.9, window 16",85,215.5,6.06
+win16_v59_r1,"v5.9, window 16",90,232.3,6.36
+win16_v59_r1,"v5.9, window 16",95,202.2,5.9
+win16_v59_r1,"v5.9, window 16",100,239.3,6.3
+win16_if32_r1,v5.9,5,248.1,6.44
+win16_if32_r1,v5.9,10,232.3,6.34
+win16_if32_r1,v5.9,15,215.5,6.72
+win16_if32_r1,v5.9,20,250.0,6.8
+win16_if32_r1,v5.9,25,170.6,5.51
+win16_if32_r1,v5.9,30,215.5,6.21
+win16_if32_r1,v5.9,35,203.4,6.25
+win16_if32_r1,v5.9,40,230.6,6.5
+win16_if32_r1,v5.9,45,216.9,6.53
+win16_if32_r1,v5.9,50,250.0,6.44
+win16_if32_r1,v5.9,55,230.6,6.4
+win16_if32_r1,v5.9,60,216.9,6.21
+win16_if32_r1,v5.9,65,248.1,6.48
+win16_if32_r1,v5.9,70,232.3,6.49
+win16_if32_r1,v5.9,75,232.3,6.52
+win16_if32_r1,v5.9,80,230.6,6.33
+win16_if32_r1,v5.9,85,232.3,6.47
+win16_if32_r1,v5.9,90,232.3,6.52
+win16_if32_r1,v5.9,95,248.1,6.44
+win16_if32_r1,v5.9,100,239.3,6.36
+win16_if32w8_r1,"v5.9, 8 workers",5,230.6,6.41
+win16_if32w8_r1,"v5.9, 8 workers",10,230.6,6.41
+win16_if32w8_r1,"v5.9, 8 workers",15,216.9,6.57
+win16_if32w8_r1,"v5.9, 8 workers",20,250.0,6.82
+win16_if32w8_r1,"v5.9, 8 workers",25,170.6,5.52
+win16_if32w8_r1,"v5.9, 8 workers",30,202.2,6.24
+win16_if32w8_r1,"v5.9, 8 workers",35,202.2,6.18
+win16_if32w8_r1,"v5.9, 8 workers",40,232.3,6.49
+win16_if32w8_r1,"v5.9, 8 workers",45,232.3,6.49
+win16_if32w8_r1,"v5.9, 8 workers",50,248.1,6.46
+win16_if32w8_r1,"v5.9, 8 workers",55,216.9,6.42
+win16_if32w8_r1,"v5.9, 8 workers",60,232.3,6.13
+win16_if32w8_r1,"v5.9, 8 workers",65,230.6,6.45
+win16_if32w8_r1,"v5.9, 8 workers",70,232.3,6.48
+win16_if32w8_r1,"v5.9, 8 workers",75,248.1,6.52
+win16_if32w8_r1,"v5.9, 8 workers",80,216.9,6.38
+win16_if32w8_r1,"v5.9, 8 workers",85,232.3,6.49
+win16_if32w8_r1,"v5.9, 8 workers",90,250.0,6.53
+win16_if32w8_r1,"v5.9, 8 workers",95,230.6,6.44
+win16_if32w8_r1,"v5.9, 8 workers",100,239.3,6.13
+win16_if24_r1,"v5.9, window 24",5,248.1,6.46
+win16_if24_r1,"v5.9, window 24",10,202.2,5.67
+win16_if24_r1,"v5.9, window 24",15,191.5,6.14
+win16_if24_r1,"v5.9, window 24",20,250.0,6.52
+win16_if24_r1,"v5.9, window 24",25,162.1,5.32
+win16_if24_r1,"v5.9, window 24",30,202.2,6.23
+win16_if24_r1,"v5.9, window 24",35,202.2,6.21
+win16_if24_r1,"v5.9, window 24",40,203.4,6.16
+win16_if24_r1,"v5.9, window 24",45,230.6,6.44
+win16_if24_r1,"v5.9, window 24",50,232.3,6.36
+win16_if24_r1,"v5.9, window 24",55,216.9,6.22
+win16_if24_r1,"v5.9, window 24",60,230.6,6.12
+win16_if24_r1,"v5.9, window 24",65,216.9,6.39
+win16_if24_r1,"v5.9, window 24",70,230.6,6.3
+win16_if24_r1,"v5.9, window 24",75,232.3,6.5
+win16_if24_r1,"v5.9, window 24",80,202.2,5.97
+win16_if24_r1,"v5.9, window 24",85,216.9,6.35
+win16_if24_r1,"v5.9, window 24",90,250.0,6.47
+win16_if24_r1,"v5.9, window 24",95,215.5,6.11
+win16_if24_r1,"v5.9, window 24",100,239.3,6.29
+win16b_if32_r1,v5.9,5,248.1,6.48
+win16b_if32_r1,v5.9,10,232.3,6.54
+win16b_if32_r1,v5.9,15,215.5,6.53
+win16b_if32_r1,v5.9,20,250.0,6.79
+win16b_if32_r1,v5.9,25,179.9,5.62
+win16b_if32_r1,v5.9,30,202.2,6.22
+win16b_if32_r1,v5.9,35,216.9,6.26
+win16b_if32_r1,v5.9,40,215.5,6.32
+win16b_if32_r1,v5.9,45,232.3,6.52
+win16b_if32_r1,v5.9,50,250.0,6.46
+win16b_if32_r1,v5.9,55,215.5,6.11
+win16b_if32_r1,v5.9,60,250.0,6.48
+win16b_if32_r1,v5.9,65,230.6,6.42
+win16b_if32_r1,v5.9,70,232.3,6.51
+win16b_if32_r1,v5.9,75,248.1,6.51
+win16b_if32_r1,v5.9,80,216.9,6.42
+win16b_if32_r1,v5.9,85,250.0,6.49
+win16b_if32_r1,v5.9,90,248.1,6.49
+win16b_if32_r1,v5.9,95,232.3,6.48
+win16b_if32_r1,v5.9,100,239.3,6.38
+win16b_if48_r1,"v5.9, window 48",5,230.6,6.54
+win16b_if48_r1,"v5.9, window 48",10,250.0,6.6
+win16b_if48_r1,"v5.9, window 48",15,215.5,6.69
+win16b_if48_r1,"v5.9, window 48",20,232.3,6.57
+win16b_if48_r1,"v5.9, window 48",25,216.9,6.8
+win16b_if48_r1,"v5.9, window 48",30,169.7,5.37
+win16b_if48_r1,"v5.9, window 48",35,216.9,6.28
+win16b_if48_r1,"v5.9, window 48",40,215.5,6.21
+win16b_if48_r1,"v5.9, window 48",45,215.5,6.49
+win16b_if48_r1,"v5.9, window 48",50,250.0,6.51
+win16b_if48_r1,"v5.9, window 48",55,216.9,6.23
+win16b_if48_r1,"v5.9, window 48",60,230.6,6.5
+win16b_if48_r1,"v5.9, window 48",65,232.3,6.55
+win16b_if48_r1,"v5.9, window 48",70,248.1,6.5
+win16b_if48_r1,"v5.9, window 48",75,232.3,6.55
+win16b_if48_r1,"v5.9, window 48",80,230.6,6.52
+win16b_if48_r1,"v5.9, window 48",85,232.3,6.46
+win16b_if48_r1,"v5.9, window 48",90,250.0,6.52
+win16b_if48_r1,"v5.9, window 48",95,230.6,6.5
+win16b_if48_r1,"v5.9, window 48",100,239.3,6.2
+win16b_if64_r1,"v5.9, window 64",5,230.6,6.5
+win16b_if64_r1,"v5.9, window 64",10,250.0,6.75
+win16b_if64_r1,"v5.9, window 64",15,215.5,6.58
+win16b_if64_r1,"v5.9, window 64",20,250.0,6.77
+win16b_if64_r1,"v5.9, window 64",25,216.9,6.8
+win16b_if64_r1,"v5.9, window 64",30,232.3,6.81
+win16b_if64_r1,"v5.9, window 64",35,232.3,6.79
+win16b_if64_r1,"v5.9, window 64",40,230.6,6.74
+win16b_if64_r1,"v5.9, window 64",45,250.0,6.74
+win16b_if64_r1,"v5.9, window 64",50,250.0,6.77
+win16b_if64_r1,"v5.9, window 64",55,250.0,6.75
+win16b_if64_r1,"v5.9, window 64",60,250.0,6.74
+win16b_if64_r1,"v5.9, window 64",65,232.3,6.72
+win16b_if64_r1,"v5.9, window 64",70,250.0,6.74
+win16b_if64_r1,"v5.9, window 64",75,250.0,6.69
+win16b_if64_r1,"v5.9, window 64",80,216.9,6.05
+win16b_if64_r1,"v5.9, window 64",85,230.6,6.66
+win16b_if64_r1,"v5.9, window 64",90,250.0,6.73
+win16b_if64_r1,"v5.9, window 64",95,232.3,6.71
+win16b_if64_r1,"v5.9, window 64",100,263.0,6.57
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",5,248.1,6.47
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",10,250.0,6.74
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",15,216.9,6.56
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",20,248.1,6.75
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",25,180.9,5.64
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",30,215.5,6.21
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",35,215.5,6.27
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",40,215.5,6.36
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",45,250.0,6.58
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",50,250.0,6.51
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",55,230.6,6.15
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",60,230.6,6.5
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",65,250.0,6.54
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",70,248.1,6.57
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",75,250.0,6.54
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",80,232.3,6.57
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",85,232.3,6.57
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",90,248.1,6.49
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",95,250.0,6.58
+win16b_if64w8_r1,"v5.9, window 64, 8 workers",100,263.0,6.46
+win16b_if128_r1,"v5.9, window 128",5,230.6,6.48
+win16b_if128_r1,"v5.9, window 128",10,250.0,6.69
+win16b_if128_r1,"v5.9, window 128",15,202.2,6.49
+win16b_if128_r1,"v5.9, window 128",20,232.3,6.76
+win16b_if128_r1,"v5.9, window 128",25,180.9,5.57
+win16b_if128_r1,"v5.9, window 128",30,202.2,6.24
+win16b_if128_r1,"v5.9, window 128",35,215.5,6.16
+win16b_if128_r1,"v5.9, window 128",40,232.3,6.48
+win16b_if128_r1,"v5.9, window 128",45,215.5,6.42
+win16b_if128_r1,"v5.9, window 128",50,250.0,6.54
+win16b_if128_r1,"v5.9, window 128",55,215.5,5.98
+win16b_if128_r1,"v5.9, window 128",60,250.0,6.56
+win16b_if128_r1,"v5.9, window 128",65,232.3,6.54
+win16b_if128_r1,"v5.9, window 128",70,248.1,6.52
+win16b_if128_r1,"v5.9, window 128",75,232.3,6.55
+win16b_if128_r1,"v5.9, window 128",80,230.6,6.54
+win16b_if128_r1,"v5.9, window 128",85,232.3,6.49
+win16b_if128_r1,"v5.9, window 128",90,248.1,6.41
+win16b_if128_r1,"v5.9, window 128",95,232.3,6.55
+win16b_if128_r1,"v5.9, window 128",100,239.3,6.27
+fin16_v58_r1,v5.8,5,178.0,6.01
+fin16_v58_r1,v5.8,10,160.5,5.29
+fin16_v58_r1,v5.8,15,139.4,5.31
+fin16_v58_r1,v5.8,20,189.3,6.02
+fin16_v58_r1,v5.8,25,123.6,4.8
+fin16_v58_r1,v5.8,30,145.6,5.3
+fin16_v58_r1,v5.8,35,139.4,5.25
+fin16_v58_r1,v5.8,40,168.8,5.82
+fin16_v58_r1,v5.8,45,200.9,6.35
+fin16_v58_r1,v5.8,50,178.0,5.95
+fin16_v58_r1,v5.8,55,178.0,6.02
+fin16_v58_r1,v5.8,60,189.3,5.88
+fin16_v58_r1,v5.8,65,177.0,6.12
+fin16_v58_r1,v5.8,70,200.9,6.28
+fin16_v58_r1,v5.8,75,179.0,6.13
+fin16_v58_r1,v5.8,80,168.8,5.55
+fin16_v58_r1,v5.8,85,178.0,6.01
+fin16_v58_r1,v5.8,90,214.1,6.35
+fin16_v58_r1,v5.8,95,189.3,6.07
+fin16_v58_r1,v5.8,100,185.7,6.04
+fin16_v59_r1,"v5.9, window 16",5,232.3,6.37
+fin16_v59_r1,"v5.9, window 16",10,190.4,5.43
+fin16_v59_r1,"v5.9, window 16",15,179.9,5.98
+fin16_v59_r1,"v5.9, window 16",20,232.3,6.4
+fin16_v59_r1,"v5.9, window 16",25,162.1,5.21
+fin16_v59_r1,"v5.9, window 16",30,190.4,6.13
+fin16_v59_r1,"v5.9, window 16",35,202.2,6.07
+fin16_v59_r1,"v5.9, window 16",40,190.4,5.97
+fin16_v59_r1,"v5.9, window 16",45,216.9,6.4
+fin16_v59_r1,"v5.9, window 16",50,230.6,6.08
+fin16_v59_r1,"v5.9, window 16",55,203.4,5.99
+fin16_v59_r1,"v5.9, window 16",60,215.5,6.02
+fin16_v59_r1,"v5.9, window 16",65,203.4,6.12
+fin16_v59_r1,"v5.9, window 16",70,230.6,6.25
+fin16_v59_r1,"v5.9, window 16",75,232.3,6.4
+fin16_v59_r1,"v5.9, window 16",80,179.9,5.66
+fin16_v59_r1,"v5.9, window 16",85,203.4,6.19
+fin16_v59_r1,"v5.9, window 16",90,230.6,6.29
+fin16_v59_r1,"v5.9, window 16",95,203.4,5.97
+fin16_v59_r1,"v5.9, window 16",100,219.5,6.14
+fin16_v59w32_r1,v5.9,5,230.6,6.43
+fin16_v59w32_r1,v5.9,10,230.6,6.49
+fin16_v59w32_r1,v5.9,15,203.4,6.55
+fin16_v59w32_r1,v5.9,20,250.0,6.74
+fin16_v59w32_r1,v5.9,25,170.6,5.54
+fin16_v59w32_r1,v5.9,30,202.2,6.29
+fin16_v59w32_r1,v5.9,35,202.2,6.27
+fin16_v59w32_r1,v5.9,40,232.3,6.46
+fin16_v59w32_r1,v5.9,45,230.6,6.47
+fin16_v59w32_r1,v5.9,50,232.3,6.51
+fin16_v59w32_r1,v5.9,55,230.6,6.41
+fin16_v59w32_r1,v5.9,60,232.3,6.23
+fin16_v59w32_r1,v5.9,65,230.6,6.43
+fin16_v59w32_r1,v5.9,70,232.3,6.57
+fin16_v59w32_r1,v5.9,75,232.3,6.55
+fin16_v59w32_r1,v5.9,80,230.6,6.32
+fin16_v59w32_r1,v5.9,85,232.3,6.49
+fin16_v59w32_r1,v5.9,90,232.3,6.53
+fin16_v59w32_r1,v5.9,95,230.6,6.44
+fin16_v59w32_r1,v5.9,100,239.3,6.17
+fin16_v59w32_r2,v5.9,5,230.6,6.45
+fin16_v59w32_r2,v5.9,10,216.9,6.28
+fin16_v59w32_r2,v5.9,15,215.5,6.66
+fin16_v59w32_r2,v5.9,20,232.3,6.75
+fin16_v59w32_r2,v5.9,25,170.6,5.52
+fin16_v59w32_r2,v5.9,30,202.2,6.24
+fin16_v59w32_r2,v5.9,35,202.2,6.16
+fin16_v59w32_r2,v5.9,40,216.9,6.43
+fin16_v59w32_r2,v5.9,45,215.5,6.47
+fin16_v59w32_r2,v5.9,50,232.3,6.47
+fin16_v59w32_r2,v5.9,55,230.6,6.46
+fin16_v59w32_r2,v5.9,60,216.9,6.19
+fin16_v59w32_r2,v5.9,65,230.6,6.49
+fin16_v59w32_r2,v5.9,70,216.9,6.53
+fin16_v59w32_r2,v5.9,75,230.6,6.55
+fin16_v59w32_r2,v5.9,80,216.9,6.39
+fin16_v59w32_r2,v5.9,85,230.6,6.44
+fin16_v59w32_r2,v5.9,90,232.3,6.53
+fin16_v59w32_r2,v5.9,95,230.6,6.43
+fin16_v59w32_r2,v5.9,100,239.3,6.15
+fin16_v59_r2,"v5.9, window 16",5,230.6,6.33
+fin16_v59_r2,"v5.9, window 16",10,203.4,5.57
+fin16_v59_r2,"v5.9, window 16",15,179.9,5.88
+fin16_v59_r2,"v5.9, window 16",20,232.3,6.41
+fin16_v59_r2,"v5.9, window 16",25,154.5,5.27
+fin16_v59_r2,"v5.9, window 16",30,202.2,5.98
+fin16_v59_r2,"v5.9, window 16",35,203.4,6.08
+fin16_v59_r2,"v5.9, window 16",40,190.4,5.92
+fin16_v59_r2,"v5.9, window 16",45,202.2,6.25
+fin16_v59_r2,"v5.9, window 16",50,232.3,6.07
+fin16_v59_r2,"v5.9, window 16",55,202.2,5.91
+fin16_v59_r2,"v5.9, window 16",60,216.9,5.97
+fin16_v59_r2,"v5.9, window 16",65,202.2,6.07
+fin16_v59_r2,"v5.9, window 16",70,232.3,6.27
+fin16_v59_r2,"v5.9, window 16",75,216.9,6.3
+fin16_v59_r2,"v5.9, window 16",80,190.4,5.58
+fin16_v59_r2,"v5.9, window 16",85,215.5,6.08
+fin16_v59_r2,"v5.9, window 16",90,232.3,6.29
+fin16_v59_r2,"v5.9, window 16",95,202.2,5.93
+fin16_v59_r2,"v5.9, window 16",100,219.5,5.96
+fin16_v58_r2,v5.8,5,178.0,5.98
+fin16_v58_r2,v5.8,10,160.5,5.28
+fin16_v58_r2,v5.8,15,146.2,5.29
+fin16_v58_r2,v5.8,20,179.0,6.08
+fin16_v58_r2,v5.8,25,123.6,4.73
+fin16_v58_r2,v5.8,30,145.6,5.36
+fin16_v58_r2,v5.8,35,139.4,5.27
+fin16_v58_r2,v5.8,40,168.8,5.82
+fin16_v58_r2,v5.8,45,200.9,6.34
+fin16_v58_r2,v5.8,50,179.0,5.94
+fin16_v58_r2,v5.8,55,178.0,6.04
+fin16_v58_r2,v5.8,60,188.2,5.96
+fin16_v58_r2,v5.8,65,178.0,6.11
+fin16_v58_r2,v5.8,70,188.2,6.16
+fin16_v58_r2,v5.8,75,178.0,6.21
+fin16_v58_r2,v5.8,80,168.8,5.57
+fin16_v58_r2,v5.8,85,178.0,6.01
+fin16_v58_r2,v5.8,90,200.9,6.33
+fin16_v58_r2,v5.8,95,188.2,6.08
+fin16_v58_r2,v5.8,100,185.7,6.0
+fix16_v58_r1,"v5.8, fix check",5,188.2,6.14
+fix16_v58_r1,"v5.8, fix check",10,152.3,5.15
+fix16_v58_r1,"v5.8, fix check",15,139.4,5.37
+fix16_v58_r1,"v5.8, fix check",20,189.3,6.04
+fix16_v58_r1,"v5.8, fix check",25,114.1,4.75
+fix16_v58_r1,"v5.8, fix check",30,139.4,5.26
+fix16_v58_r1,"v5.8, fix check",35,145.6,5.21
+fix16_v58_r1,"v5.8, fix check",40,159.8,5.8
+fix16_v58_r1,"v5.8, fix check",45,189.3,6.33
+fix16_v58_r1,"v5.8, fix check",50,188.2,5.97
+fix16_v58_r1,"v5.8, fix check",55,178.0,5.99
+fix16_v58_r1,"v5.8, fix check",60,188.2,5.85
+fix16_v58_r1,"v5.8, fix check",65,178.0,6.14
+fix16_v58_r1,"v5.8, fix check",70,188.2,6.21
+fix16_v58_r1,"v5.8, fix check",75,178.0,6.08
+fix16_v58_r1,"v5.8, fix check",80,160.5,5.59
+fix16_v58_r1,"v5.8, fix check",85,178.0,6.02
+fix16_v58_r1,"v5.8, fix check",90,200.9,6.3
+fix16_v58_r1,"v5.8, fix check",95,178.0,5.9
+fix16_v58_r1,"v5.8, fix check",100,199.7,6.09
+fix16_v58fix_r1,v5.8 + poll-thread fix,5,199.7,6.2
+fix16_v58fix_r1,v5.8 + poll-thread fix,10,152.3,5.15
+fix16_v58fix_r1,v5.8 + poll-thread fix,15,140.0,5.4
+fix16_v58fix_r1,v5.8 + poll-thread fix,20,188.2,6.02
+fix16_v58fix_r1,v5.8 + poll-thread fix,25,123.1,4.83
+fix16_v58fix_r1,v5.8 + poll-thread fix,30,139.4,5.31
+fix16_v58fix_r1,v5.8 + poll-thread fix,35,139.4,5.23
+fix16_v58fix_r1,v5.8 + poll-thread fix,40,160.5,5.79
+fix16_v58fix_r1,v5.8 + poll-thread fix,45,188.2,6.26
+fix16_v58fix_r1,v5.8 + poll-thread fix,50,178.0,5.95
+fix16_v58fix_r1,v5.8 + poll-thread fix,55,177.0,5.98
+fix16_v58fix_r1,v5.8 + poll-thread fix,60,178.0,5.88
+fix16_v58fix_r1,v5.8 + poll-thread fix,65,189.3,6.12
+fix16_v58fix_r1,v5.8 + poll-thread fix,70,187.1,6.09
+fix16_v58fix_r1,v5.8 + poll-thread fix,75,189.3,6.28
+fix16_v58fix_r1,v5.8 + poll-thread fix,80,159.8,5.55
+fix16_v58fix_r1,v5.8 + poll-thread fix,85,188.2,6.0
+fix16_v58fix_r1,v5.8 + poll-thread fix,90,200.9,6.3
+fix16_v58fix_r1,v5.8 + poll-thread fix,95,188.2,6.08
+fix16_v58fix_r1,v5.8 + poll-thread fix,100,199.7,6.1
+fix16_v58fix_r2,v5.8 + poll-thread fix,5,189.3,5.96
+fix16_v58fix_r2,v5.8 + poll-thread fix,10,153.0,5.1
+fix16_v58fix_r2,v5.8 + poll-thread fix,15,146.2,5.49
+fix16_v58fix_r2,v5.8 + poll-thread fix,20,179.9,6.07
+fix16_v58fix_r2,v5.8 + poll-thread fix,25,110.6,4.7
+fix16_v58fix_r2,v5.8 + poll-thread fix,30,139.4,5.39
+fix16_v58fix_r2,v5.8 + poll-thread fix,35,140.0,5.14
+fix16_v58fix_r2,v5.8 + poll-thread fix,40,169.7,5.75
+fix16_v58fix_r2,v5.8 + poll-thread fix,45,189.3,6.29
+fix16_v58fix_r2,v5.8 + poll-thread fix,50,189.3,5.93
+fix16_v58fix_r2,v5.8 + poll-thread fix,55,178.0,5.97
+fix16_v58fix_r2,v5.8 + poll-thread fix,60,179.0,5.9
+fix16_v58fix_r2,v5.8 + poll-thread fix,65,189.3,6.11
+fix16_v58fix_r2,v5.8 + poll-thread fix,70,189.3,6.21
+fix16_v58fix_r2,v5.8 + poll-thread fix,75,189.3,6.15
+fix16_v58fix_r2,v5.8 + poll-thread fix,80,159.8,5.52
+fix16_v58fix_r2,v5.8 + poll-thread fix,85,179.0,5.9
+fix16_v58fix_r2,v5.8 + poll-thread fix,90,188.2,6.21
+fix16_v58fix_r2,v5.8 + poll-thread fix,95,189.3,6.08
+fix16_v58fix_r2,v5.8 + poll-thread fix,100,185.7,5.81
+fix16_v58_r2,"v5.8, fix check",5,188.2,6.11
+fix16_v58_r2,"v5.8, fix check",10,153.0,5.06
+fix16_v58_r2,"v5.8, fix check",15,153.0,5.49
+fix16_v58_r2,"v5.8, fix check",20,178.0,6.05
+fix16_v58_r2,"v5.8, fix check",25,114.5,4.68
+fix16_v58_r2,"v5.8, fix check",30,139.4,5.36
+fix16_v58_r2,"v5.8, fix check",35,145.6,5.16
+fix16_v58_r2,"v5.8, fix check",40,160.5,5.8
+fix16_v58_r2,"v5.8, fix check",45,188.2,6.29
+fix16_v58_r2,"v5.8, fix check",50,188.2,5.98
+fix16_v58_r2,"v5.8, fix check",55,168.8,6.01
+fix16_v58_r2,"v5.8, fix check",60,188.2,5.89
+fix16_v58_r2,"v5.8, fix check",65,188.2,6.12
+fix16_v58_r2,"v5.8, fix check",70,178.0,6.17
+fix16_v58_r2,"v5.8, fix check",75,188.2,6.2
+fix16_v58_r2,"v5.8, fix check",80,160.5,5.6
+fix16_v58_r2,"v5.8, fix check",85,178.0,5.99
+fix16_v58_r2,"v5.8, fix check",90,199.7,6.28
+fix16_v58_r2,"v5.8, fix check",95,189.3,6.07
+fix16_v58_r2,"v5.8, fix check",100,199.7,6.06

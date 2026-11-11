@@ -1,0 +1,12 @@
+fin5_v58_r1: 41559 ms 154.0 cps cores=6.77 worker=233.8 poll=5.8 gc=4.3 io=1.0 other=2.1 young=12x/613ms full=3x/152ms
+fin5_v59_r1: 33850 ms 189.07 cps cores=7.43 worker=204.8 poll=5.0 gc=4.4 io=0.8 other=1.9 young=11x/593ms full=3x/152ms
+fin5_v59_r2: 34925 ms 183.25 cps cores=7.29 worker=209.5 poll=5.0 gc=4.5 io=0.7 other=1.9 young=11x/607ms full=3x/159ms
+fin5_v58_r2: 40888 ms 156.53 cps cores=6.81 worker=232.3 poll=5.9 gc=4.6 io=1.0 other=2.1 young=13x/605ms full=3x/146ms
+fin5_v58_r3: 41185 ms 155.4 cps cores=6.76 worker=233.0 poll=5.7 gc=4.4 io=0.9 other=2.1 young=13x/599ms full=3x/139ms
+fin5_v59_r3: 33663 ms 190.12 cps cores=7.3 worker=202.2 poll=4.7 gc=4.3 io=0.6 other=1.8 young=11x/596ms full=3x/151ms
+fin5_v59_r4: 33417 ms 191.52 cps cores=7.29 worker=199.2 poll=5.0 gc=4.5 io=0.7 other=1.8 young=11x/579ms full=3x/145ms
+fin5_v58_r4: 40480 ms 158.1 cps cores=6.73 worker=226.9 poll=5.7 gc=4.4 io=0.9 other=2.0 young=13x/618ms full=3x/151ms
+fin5_v58_r5: 41249 ms 155.16 cps cores=6.79 worker=233.0 poll=5.9 gc=4.4 io=1.0 other=2.2 young=13x/606ms full=3x/160ms
+fin5_v59_r5: 34587 ms 185.04 cps cores=7.38 worker=210.3 poll=5.1 gc=4.6 io=0.7 other=1.9 young=11x/625ms full=3x/147ms
+fin5_v59_r6: 34780 ms 184.01 cps cores=7.34 worker=208.4 poll=5.1 gc=4.5 io=0.7 other=1.9 young=11x/630ms full=3x/148ms
+fin5_v58_r6: 41999 ms 152.38 cps cores=6.79 worker=238.5 poll=5.9 gc=4.7 io=1.0 other=2.2 young=13x/619ms full=3x/155ms

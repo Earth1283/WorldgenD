@@ -29,9 +29,15 @@ class OrionV5(
     companion object {
         private const val POLL_BACKOFF_FLOOR_NANOS = 1_000L
         private const val POLL_BACKOFF_CAP_NANOS = 100_000L
+        private const val STALL_CHECK_NANOS = 2_000_000_000L
+        private val pollIsServerThread = System.getProperty("orion.pollServerThread")?.toBoolean()
+            ?: (System.getProperty("scheduler") == "orion5.9")
     }
 
     data class Result(val ok: Int, val failed: Int, val totalMs: Long)
+
+    val stalls = AtomicInteger()
+    private val stallNanos = java.lang.Long.getLong("orion.stallSeconds", 30L) * 1_000_000_000L
 
     val chunkMspc: MutableList<Double> = Collections.synchronizedList(mutableListOf())
 
@@ -43,6 +49,8 @@ class OrionV5(
         onProgress: (completed: Int, total: Int, elapsedMs: Long) -> Unit = { _, _, _ -> },
         // Runs on the poll thread between pollTask calls: main-thread work outside any vanilla task.
         onPoll: () -> Boolean = { false },
+        // A target still unfinished after stallNanos; called once per target from the waiting thread.
+        onStall: (cx: Int, cz: Int, ageMs: Long) -> Unit = { _, _, _ -> },
     ): Result {
         val start = System.nanoTime()
         val telemetry = telemetryFile?.let { OrionTelemetry(it, start) }
@@ -61,6 +69,7 @@ class OrionV5(
         val pollFailure = AtomicReference<Throwable>()
         val pollThread = Thread({
             var backoffNanos = 0L
+            OrionServerThread.claim(pollIsServerThread)
             try {
                 while (!stop.get()) {
                     val ranServer = pollTask.call(dedicatedServer) as Boolean
@@ -72,6 +81,8 @@ class OrionV5(
                 }
             } catch (t: Throwable) {
                 pollFailure.set(t)
+            } finally {
+                OrionServerThread.release()
             }
         }, "orion5-poll").apply { isDaemon = true; start() }
 
@@ -86,6 +97,7 @@ class OrionV5(
         // exception) is fatal, same as the old code's unchecked `future.join()!!` -- recorded
         // here and rethrown from the wait loop instead of thrown from inside a worker thread.
         val fillFailure = AtomicReference<Throwable>()
+        val dispatchedAt = java.util.concurrent.ConcurrentHashMap<Pair<Int, Int>, Long>()
         val submitThread = Thread({
             try {
                 for (coord in coords) {
@@ -96,12 +108,14 @@ class OrionV5(
                     }
                     try {
                         val submitNanos = System.nanoTime()
+                        dispatchedAt[coord] = submitNanos
                         telemetry?.record("DISPATCH", coord.first, coord.second, inFlight.incrementAndGet(), completions.get())
                         if (OrionTrace.enabled) OrionTrace.dispatched(coord.first, coord.second)
                         @Suppress("UNCHECKED_CAST")
                         val future = getChunkFutureHandle.invoke(chunkSource, coord.first, coord.second, fullStatus, true) as CompletableFuture<Any?>
                         future.whenComplete { result, error ->
                             try {
+                                dispatchedAt.remove(coord)
                                 chunkMspc.add((System.nanoTime() - submitNanos) / 1_000_000.0)
                                 if (OrionTrace.enabled) OrionTrace.completed(coord.first, coord.second)
                                 if (error != null) {
@@ -146,10 +160,24 @@ class OrionV5(
         }, "orion5-submit").apply { isDaemon = true; start() }
 
         try {
+            val reported = HashMap<Pair<Int, Int>, Long>()
+            var nextStallCheck = System.nanoTime() + STALL_CHECK_NANOS
             while (settled.get() < coords.size) {
                 pollFailure.get()?.let { throw IllegalStateException("orion5-poll died", it) }
                 fillFailure.get()?.let { throw IllegalStateException("orion5-fill failed", it) }
                 LockSupport.parkNanos(200_000)
+                val now = System.nanoTime()
+                if (now >= nextStallCheck) {
+                    nextStallCheck = now + STALL_CHECK_NANOS
+                    for ((coord, since) in dispatchedAt) {
+                        val last = reported[coord]
+                        if (now - since > stallNanos && (last == null || now - last > stallNanos)) {
+                            if (last == null) stalls.incrementAndGet()
+                            reported[coord] = now
+                            onStall(coord.first, coord.second, (now - since) / 1_000_000)
+                        }
+                    }
+                }
             }
             fillFailure.get()?.let { throw IllegalStateException("orion5-fill failed", it) }
             OrionTrace.end()

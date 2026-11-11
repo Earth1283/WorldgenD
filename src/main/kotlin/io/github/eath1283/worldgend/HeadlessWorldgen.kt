@@ -63,7 +63,7 @@ fun main() {
         if (saveWorld) "World saving enabled: chunks will be flushed after generation timing completes."
         else "World saving disabled (default): benchmark behavior is unchanged."
     )
-    val orionMaxInFlight = System.getProperty("orion.maxinflight", if (schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) "16" else "64").toInt()
+    val orionMaxInFlight = System.getProperty("orion.maxinflight", if (schedulerMode == "orion5.9") "32" else if (schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "16" else "64").toInt()
     val orionLockRadius = System.getProperty("orion.lockradius", Orion.DEPENDENCY_RADIUS.toString()).toInt()
     val orionTelemetry = System.getProperty("orion.telemetry", "false").toBoolean()
     val orionDispatchThreads = System.getProperty("orion.dispatchthreads", "1").toInt()
@@ -77,15 +77,15 @@ fun main() {
 
     val loader = discovered.newClassLoader()
     if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6") DensitySimdPatch.requireInstalled(loader)
-    if ((schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) DensityCellPatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) ImprovedNoisePatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
-    if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) RegionChunkMemo.requireInstalled(loader)
+    if ((schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) DensityCellPatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) ImprovedNoisePatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
+    if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) RegionChunkMemo.requireInstalled(loader)
     val mc = Mc(loader)
 
     mc.method(mc.c("net.minecraft.SharedConstants"), "tryDetectVersion").call(null)
     mc.method(mc.c("net.minecraft.server.Bootstrap"), "bootStrap").call(null)
-    if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) {
+    if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) {
         // Vanilla's own region-file-compression=lz4 codec (RegionFileVersion id 4). Set before boot:
         // each RegionFile keeps the codec it was opened with, and spawn prep opens the first ones.
         mc.publicMethod(mc.c("net.minecraft.world.level.chunk.storage.RegionFileVersion"), "configure", String::class.java)
@@ -463,12 +463,24 @@ fun main() {
             "getBlockState", Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!))
     }
 
+    val biomeFile = System.getProperty("describe.biomefile")?.let { File(it).apply { writeText("") } }
+    val biomeSnapshot = biomeFile?.let {
+        BlockStateSnapshot(mc.publicMethod(mc.c("net.minecraft.world.level.chunk.LevelChunkSection"),
+            "getNoiseBiome", Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!), true)
+    }
+
     fun recordHistogram(chunkResult: Any, cx: Int, cz: Int) {
-        val out = histogramFile ?: return
+        if (histogramFile == null && biomeFile == null) return
         val chunk = mc.publicMethod(chunkResult.javaClass, "orElse", Any::class.java).call(chunkResult, null)!!
         val sections = getSections.call(chunk) as Array<*>
-        val line = "$cx $cz ${snapshot!!.describe(sections)}\n"
-        synchronized(out) { out.appendText(line) }
+        if (histogramFile != null) {
+            val line = "$cx $cz ${snapshot!!.describe(sections)}\n"
+            synchronized(histogramFile) { histogramFile.appendText(line) }
+        }
+        if (biomeFile != null) {
+            val line = "$cx $cz ${biomeSnapshot!!.describe(sections)}\n"
+            synchronized(biomeFile) { biomeFile.appendText(line) }
+        }
     }
 
     val mosaicSide = MOSAIC_N * mosaicTile
@@ -782,7 +794,7 @@ fun main() {
         return
     }
 
-    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) {
+    if (schedulerMode == "orion5" || schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) {
         for (flag in listOf("orion.patchReentrancy", "orion.patchStructureGenState", "orion.patchParallelSteps")) {
             require(System.getProperty(flag) == "true") { "$schedulerMode requires -D$flag=true (see OrionPatchAgent)" }
         }
@@ -798,14 +810,14 @@ fun main() {
         val lo = base + shift
         val hi = base + shift + mosaicSide - 1
         val target = (lo..hi).flatMap { cx -> (lo..hi).map { cz -> cx to cz } }
-        val usesC1gc = schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || (schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8"))
+        val usesC1gc = schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || (schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9")))
         val evictChunks = System.getProperty("orion.evictChunks") == "true" && !usesC1gc
         val c1gc = if (usesC1gc) C1GC(
             mc, chunkSource, lo, hi, mosaicSide,
             ringCapacity = Integer.getInteger("orion.c1gc.ringCapacity", C1GC.RING_CAPACITY),
             maxIoWorkers = Integer.getInteger("orion.c1gc.maxIoWorkers", C1GC.MAX_IO_WORKERS),
             pressure = when (schedulerMode) {
-                "orion5.6", "orion5.7", "orion5.8" -> System.getProperty("orion.c1gc.pressure", "0.3").toDouble()
+                "orion5.6", "orion5.7", "orion5.8", "orion5.9" -> System.getProperty("orion.c1gc.pressure", "0.3").toDouble()
                 "orion5.5" -> System.getProperty("orion.c1gc.pressure", "0.5").toDouble()
                 else -> 0.0
             },
@@ -839,11 +851,87 @@ fun main() {
 
         // Vanilla only runs queued server tasks while a tick has time left. Nothing ticks here, so
         // each chunk's onStructureLoad and POI task (and the ProtoChunk it captures) stayed queued forever.
-        val drainServerTasks = System.getProperty("orion.serverTasks", if (schedulerMode == "orion5.8") "drain" else "hold") == "drain"
+        val drainServerTasks = System.getProperty("orion.serverTasks", if ((schedulerMode == "orion5.8" || schedulerMode == "orion5.9")) "drain" else "hold") == "drain"
         if (drainServerTasks) {
             cMinecraftServer.getDeclaredField("nextTickTimeNanos").apply { isAccessible = true }.setLong(dedicatedServer, Long.MAX_VALUE)
         }
         val pendingServerTasks = mc.publicMethod(mc.c("net.minecraft.util.thread.BlockableEventLoop"), "getPendingTasksCount")
+        val stallFile = File(serversDir.parentFile, "orion_stall.txt").apply { delete() }
+        val chunkMapForStall = mc.field(chunkSource.javaClass, "chunkMap", chunkSource)!!
+        val visibleHolder = mc.method(chunkMapForStall.javaClass, "getVisibleChunkIfPresent", Long::class.javaPrimitiveType!!)
+        val cHolder = mc.c("net.minecraft.server.level.GenerationChunkHolder")
+        val holderLatestStatus = mc.publicMethod(cHolder, "getLatestStatus")
+        val holderTicketLevel = mc.publicMethod(cHolder, "getTicketLevel")
+        val holderQueueLevel = mc.publicMethod(cHolder, "getQueueLevel")
+        fun fieldOf(target: Any, name: String): Any? {
+            var c: Class<*>? = target.javaClass
+            while (c != null) {
+                runCatching { return c.getDeclaredField(name).apply { isAccessible = true }.get(target) }
+                c = c.superclass
+            }
+            return "<no $name>"
+        }
+        fun stallHolderState(holder: Any): String {
+            @Suppress("UNCHECKED_CAST")
+            val futures = mc.publicMethod(cHolder, "getAllFutures").call(holder) as List<Any>
+            val parts = futures.mapNotNull { pair ->
+                val status = mc.publicMethod(pair.javaClass, "getFirst").call(pair).toString().substringAfter(':')
+                val future = mc.publicMethod(pair.javaClass, "getSecond").call(pair) as CompletableFuture<*>?
+                future?.let { "$status=${if (it.isDone) "done" else "pending(deps=${it.numberOfDependents})"}" }
+            }
+            return "futures=$parts task=${fieldOf(holder, "task")?.let { t -> if (t is java.util.concurrent.atomic.AtomicReference<*>) t.get() else t }} " +
+                "generationRefCount=${fieldOf(holder, "generationRefCount")} highestAllowedStatus=${fieldOf(holder, "highestAllowedStatus")} " +
+                "startedWork=${fieldOf(holder, "startedWork")}"
+        }
+        var stallKey = 0L
+        fun stallEngineState(): String {
+            val light = fieldOf(chunkMapForStall, "lightEngine")!!
+            val lightTasks = fieldOf(light, "lightTasks") as? Collection<*>
+            val parts = mutableListOf("lightTasks=${lightTasks?.size} lightScheduled=${fieldOf(light, "scheduled")}")
+            for (name in listOf("worldgenTaskDispatcher", "lightTaskDispatcher")) {
+                val d = fieldOf(chunkMapForStall, name)!!
+                parts += "$name(sleeping=${fieldOf(d, "sleeping")} queue=${fieldOf(d, "queue")} hasWork=${runCatching { d.javaClass.getMethod("hasWork").invoke(d) }.getOrNull()})"
+            }
+            val queue = fieldOf(fieldOf(chunkMapForStall, "worldgenTaskDispatcher")!!, "queue")!!
+            @Suppress("UNCHECKED_CAST")
+            val levels = fieldOf(queue, "queuesPerPriority") as List<Map<Long, List<*>>>
+            val key = stallKey
+            parts += "worldgenQueue{" + levels.withIndex().filter { it.value.isNotEmpty() }.joinToString(" ") { (level, map) ->
+                "L$level:${map.size}chunks/${map.values.sumOf { it.size }}tasks" + (if (map.containsKey(key)) "[TARGET ${map[key]!!.size}]" else "")
+            } + "}"
+            parts += "pendingGenerationTasks=${(fieldOf(chunkMapForStall, "pendingGenerationTasks") as? Collection<*>)?.size}"
+            return parts.joinToString(" ")
+        }
+        // What a target unfinished after -Dorion.stallSeconds is waiting on: nearby holder statuses, area-lock state, busy threads.
+        fun describeStall(cx: Int, cz: Int, ageMs: Long): String {
+            stallKey = cx.toLong() and 0xFFFFFFFFL or (cz.toLong() shl 32)
+            val out = StringBuilder("STALL target=$cx,$cz ageMs=$ageMs pendingServerTasks=${pendingServerTasks.call(dedicatedServer)}\n")
+            out.append("  steps ${OrionParallelSteps.describeNear(cx, cz, 12)}\n")
+            for (dx in -10..10) {
+                out.append("  ")
+                for (dz in -10..10) {
+                    val holder = visibleHolder.call(chunkMapForStall, (cx + dx).toLong() and 0xFFFFFFFFL or ((cz + dz).toLong() shl 32))
+                    val status = holder?.let { holderLatestStatus.call(it) }?.toString()?.substringAfter(':')
+                    out.append(when {
+                        holder == null -> " --"
+                        status == null -> " ??"
+                        else -> " %2d".format(OrionTrace.statuses.indexOf(status))
+                    })
+                }
+                out.append("\n")
+            }
+            visibleHolder.call(chunkMapForStall, cx.toLong() and 0xFFFFFFFFL or (cz.toLong() shl 32))?.let {
+                out.append("  center ticketLevel=${holderTicketLevel.call(it)} queueLevel=${holderQueueLevel.call(it)}\n")
+                out.append("  center ${runCatching { stallHolderState(it) }.getOrElse { e -> "holderState error $e" }}\n")
+            }
+            out.append("  ${runCatching { stallEngineState() }.getOrElse { e -> "engineState error $e" }}\n")
+            for ((thread, stack) in Thread.getAllStackTraces()) {
+                val idle = stack.isEmpty() || (stack.none { it.className.startsWith("net.minecraft") || it.className.startsWith("io.github") })
+                if (idle || !(thread.name.startsWith("Worker-Main") || thread.name.startsWith("orion5") || thread.name.startsWith("IO-Worker"))) continue
+                out.append("  ${thread.name} ${thread.state}: ${stack.take(14).joinToString(" < ") { "${it.className.substringAfterLast('.')}.${it.methodName}" }}\n")
+            }
+            return out.toString()
+        }
         val resultFile = File(serversDir.parentFile, "orion_result.txt")
         resultFile.writeText("$schedulerMode fill() starting, target=${target.size}\n${poolReport()}\n")
         val overallStart = System.nanoTime()
@@ -861,6 +949,7 @@ fun main() {
                     if (progressFile != null) synchronized(progressFile) { progressFile.appendText("$progress\n") }
                 },
                 onPoll = { c1gc?.drain() ?: false },
+                onStall = { cx, cz, ageMs -> stallFile.appendText(describeStall(cx, cz, ageMs)) },
             )
         } catch (t: Throwable) {
             resultFile.writeText("THREW: ${t.stackTraceToString()}\n")
@@ -873,19 +962,24 @@ fun main() {
         resultFile.writeText(
             "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
                 "parallelSteps ${OrionParallelSteps.report()}\n${poolReport()}\n" +
-                (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) "densitySimd ${DensityBatch.report()}\n" else "") +
-                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
+                (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "densitySimd ${DensityBatch.report()}\n" else "") +
+                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
                 (if (evictor != null) {
                     "chunkEvictor ${evictor.report()}\n" +
                         "chunkEvictorGcCheck ${evictor.verifyReclaimed()}\n" +
                         "chunkEvictorRetainerPath ${evictor.findFirstRetainerPath()}\n"
                 } else "") +
                 (if (c1gc != null) "c1gc ${c1gc.report()}\n" else "") +
+                (if (schedulerMode == "orion5.9" || System.getProperty("orion.stage.surfaceColumn") != null) "stagePatch ${StagePatch.report()}\n" else "") +
+                (if (OrionPatchAgent.resortAllLevels) "dispatcherResort allLevels patched=${OrionPatchAgent.resortPatched} rescued=${OrionPatchAgent.strandedRescued.sum()} staleSubmits=${OrionPatchAgent.staleSubmits.sum()}\n" else "") +
+                (if (OldChunkScan.enabled) "oldChunkScan ${OldChunkScan.report()}\n" else "") +
+                (if (OrionParallelSteps.parallelStructureStarts) "templatePalette patched=${OrionPatchAgent.templatePalettePatched}\n" else "") +
+                "stalls count=${orion.stalls.get()}\n" +
                 "serverTasks mode=${if (drainServerTasks) "drain" else "hold"} pending=$pendingAfterFill\n" +
-                (if ((schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) "noiseCell ${DensityCellPatch.report()}\n" else "") +
+                (if ((schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "noiseCell ${DensityCellPatch.report()}\n" else "") +
                 (if (LightSwapPatch.enabled) "lightSwap ${LightSwapPatch.report()}\n" else "") +
                 (if (OrionTrace.enabled) "${OrionTrace.summary}\n" else "") +
-                (if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || schedulerMode == "orion5.8")) "regionFileVersion ${regionFileVersionReport(mc)}\n" else "")
+                (if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "regionFileVersion ${regionFileVersionReport(mc)}\n" else "")
         )
         println("Done: ${result.ok} chunks generated, ${result.failed} failed in ${totalMs}ms.")
         saveWorldIfRequested()

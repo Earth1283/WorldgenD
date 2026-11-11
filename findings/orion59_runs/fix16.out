@@ -1,0 +1,4 @@
+fix16_v58_r1: 405305 ms 161.7 cps cores=6.44 worker=2296.3 poll=67.4 gc=70.5 io=91.5 other=18.7 young=244x/8509ms full=5x/1465ms
+fix16_v58fix_r1: 403998 ms 162.22 cps cores=6.43 worker=2297.2 poll=67.1 gc=70.8 io=88.4 other=18.2 young=246x/8490ms full=5x/1452ms
+fix16_v58fix_r2: 405824 ms 161.49 cps cores=6.41 worker=2296.2 poll=68.3 gc=68.7 io=90.5 other=18.8 young=245x/8417ms full=5x/1389ms
+fix16_v58_r2: 402795 ms 162.7 cps cores=6.43 worker=2286.7 poll=66.9 gc=68.6 io=86.5 other=18.6 young=246x/8288ms full=5x/1433ms

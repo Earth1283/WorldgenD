@@ -147,8 +147,8 @@ Orion v5.3,"C1GC champion-scale A/B, round 1",52430,6400,#69
 Orion v5.3,"C1GC champion-scale A/B, round 2",54561,6400,#69
 Orion v5.4,"C1GC champion-scale A/B, round 2",63075,6400,#69
 Orion v5.4,"256x256 sustained run, 16g heap, 0 fail, 62464/62464 chunks reclaimed",573361,65536,#69
-Orion v5.3,"C1GC batching-fix A/B (finding #69 addendum)",55386,6400,#69
-Orion v5.4,"C1GC batching-fix A/B (finding #69 addendum)",58718,6400,#69
+Orion v5.3,C1GC batching-fix A/B (finding #69 addendum),55386,6400,#69
+Orion v5.4,C1GC batching-fix A/B (finding #69 addendum),58718,6400,#69
 Orion v5.4,"#70 set A (pre race fix), round 1",58407,6400,#70
 Orion v5.4,"#70 set A (pre race fix), round 2",61556,6400,#70
 Orion v5.4,"#70 set A (pre race fix), round 3",56786,6400,#70
@@ -492,3 +492,74 @@ Orion v5.7,"orion5.7 #82 65,536 chunks pair 1, 16g heap",454785,65536,#82
 Orion v5.8,"orion5.8 #82 65,536 chunks pair 1, 16g heap",395619,65536,#82
 Orion v5.8,"orion5.8 #82 65,536 chunks pair 2, 16g heap",395464,65536,#82
 Orion v5.7,"orion5.7 #82 65,536 chunks pair 2, 16g heap",461953,65536,#82
+Orion v5.8,"v5.8 #83 6,400 chunks lev round 1, 16g heap",40566,6400,#83
+Experiment,"v5.8, window 64 #83 6,400 chunks lev round 1, 16g heap",42087,6400,#83
+Experiment,"v5.8, window 256 #83 6,400 chunks lev round 1, 16g heap",40856,6400,#83
+Experiment,"v5.8, 8 workers #83 6,400 chunks lev round 1, 16g heap",41801,6400,#83
+Experiment,"v5.8, 8 workers #83 6,400 chunks lev round 2, 16g heap",40965,6400,#83
+Experiment,"v5.8, window 256 #83 6,400 chunks lev round 2, 16g heap",40660,6400,#83
+Experiment,"v5.8, window 64 #83 6,400 chunks lev round 2, 16g heap",42567,6400,#83
+Orion v5.8,"v5.8 #83 6,400 chunks lev round 2, 16g heap",40040,6400,#83
+Orion v5.8,"v5.8 #83 6,400 chunks lev round 3, 16g heap",40872,6400,#83
+Experiment,"v5.8, window 64 #83 6,400 chunks lev round 3, 16g heap",40870,6400,#83
+Experiment,"v5.8, window 256 #83 6,400 chunks lev round 3, 16g heap",39278,6400,#83
+Experiment,"v5.8, 8 workers #83 6,400 chunks lev round 3, 16g heap",40761,6400,#83
+Orion v5.8,"v5.8 #83 65,536 chunks long round 1, 16g heap",398237,65536,#83
+Experiment,"v5.8, reclamation always on #83 65,536 chunks long round 1, 16g heap",389556,65536,#83
+Experiment,"v5.8, 2 workers #83 6,400 chunks scale round 1, 16g heap",105038,6400,#83
+Experiment,"v5.8, 4 workers #83 6,400 chunks scale round 1, 16g heap",58109,6400,#83
+Experiment,"v5.8, 6 workers #83 6,400 chunks scale round 1, 16g heap",43200,6400,#83
+Orion v5.8,"v5.8 #83 65,536 chunks l16 round 1, 16g heap",403115,65536,#83
+Experiment,"v5.8, 8 workers #83 65,536 chunks l16 round 1, 16g heap",396280,65536,#83
+Experiment,"v5.8 + area lock #83 65,536 chunks l16 round 1, 16g heap",376019,65536,#83
+Orion v5.8,"v5.8 #83 65,536 chunks ab16 round 1, 16g heap",397996,65536,#83
+Experiment,"v5.8 + area lock #83 65,536 chunks ab16 round 1, 16g heap",371434,65536,#83
+Experiment,"+ surface/biome #83 65,536 chunks ab16 round 1, 16g heap",342413,65536,#83
+Experiment,"+ surface/biome #83 65,536 chunks ab16 round 2, 16g heap",341922,65536,#83
+Experiment,"v5.8 + area lock #83 65,536 chunks ab16 round 2, 16g heap",375470,65536,#83
+Orion v5.8,"v5.8 #83 65,536 chunks ab16 round 2, 16g heap",398659,65536,#83
+Experiment,"+ surface/biome #83 65,536 chunks pss16 round 1, 16g heap",342741,65536,#83
+Experiment,"+ lock-free starts #83 65,536 chunks pss16 round 1, 16g heap",323862,65536,#83
+Experiment,"+ lock-free starts, 8 workers #83 65,536 chunks pss16 round 1, 16g heap",327724,65536,#83
+Experiment,"+ lock-free starts, 8 workers #83 65,536 chunks pss16 round 2, 16g heap",329333,65536,#83
+Experiment,"+ lock-free starts #83 65,536 chunks pss16 round 2, 16g heap",325813,65536,#83
+Experiment,"+ surface/biome #83 65,536 chunks pss16 round 2, 16g heap",337150,65536,#83
+Experiment,"+ lock-free starts #83 65,536 chunks scan16 round 1, 16g heap",327732,65536,#83
+Experiment,"v5.9, window 16 #83 65,536 chunks scan16 round 1, 16g heap",322461,65536,#83
+Experiment,"v5.9, window 16, 8 workers #83 65,536 chunks scan16 round 1, 16g heap",321971,65536,#83
+Experiment,"v5.9, window 16, 8 workers #83 65,536 chunks scan16 round 2, 16g heap",320985,65536,#83
+Experiment,"v5.9, window 16 #83 65,536 chunks scan16 round 2, 16g heap",328734,65536,#83
+Experiment,"+ lock-free starts #83 65,536 chunks scan16 round 2, 16g heap",332711,65536,#83
+Experiment,"v5.9, window 16 #83 65,536 chunks win16 round 1, 16g heap",327080,65536,#83
+Orion v5.9,"v5.9 #83 65,536 chunks win16 round 1, 16g heap",298630,65536,#83
+Experiment,"v5.9, 8 workers #83 65,536 chunks win16 round 1, 16g heap",300210,65536,#83
+Experiment,"v5.9, window 24 #83 65,536 chunks win16 round 1, 16g heap",313978,65536,#83
+Orion v5.9,"v5.9 #83 65,536 chunks win16b round 1, 16g heap",296409,65536,#83
+Experiment,"v5.9, window 48 #83 65,536 chunks win16b round 1, 16g heap",298863,65536,#83
+Experiment,"v5.9, window 64 #83 65,536 chunks win16b round 1, 16g heap",413708,65536,#83
+Experiment,"v5.9, window 64, 8 workers #83 65,536 chunks win16b round 1, 16g heap",289783,65536,#83
+Experiment,"v5.9, window 128 #83 65,536 chunks win16b round 1, 16g heap",301653,65536,#83
+Orion v5.8,"v5.8 #83 65,536 chunks fin16 round 1, 16g heap",397631,65536,#83
+Experiment,"v5.9, window 16 #83 65,536 chunks fin16 round 1, 16g heap",331288,65536,#83
+Orion v5.9,"v5.9 #83 65,536 chunks fin16 round 1, 16g heap",301818,65536,#83
+Orion v5.9,"v5.9 #83 65,536 chunks fin16 round 2, 16g heap",307784,65536,#83
+Experiment,"v5.9, window 16 #83 65,536 chunks fin16 round 2, 16g heap",329362,65536,#83
+Orion v5.8,"v5.8 #83 65,536 chunks fin16 round 2, 16g heap",399507,65536,#83
+Orion v5.8,"v5.8 #83 6,400 chunks fin5 round 1, 16g heap",41559,6400,#83
+Orion v5.9,"v5.9 #83 6,400 chunks fin5 round 1, 16g heap",33850,6400,#83
+Orion v5.9,"v5.9 #83 6,400 chunks fin5 round 2, 16g heap",34925,6400,#83
+Orion v5.8,"v5.8 #83 6,400 chunks fin5 round 2, 16g heap",40888,6400,#83
+Orion v5.8,"v5.8 #83 6,400 chunks fin5 round 3, 16g heap",41185,6400,#83
+Orion v5.9,"v5.9 #83 6,400 chunks fin5 round 3, 16g heap",33663,6400,#83
+Orion v5.9,"v5.9 #83 6,400 chunks fin5 round 4, 16g heap",33417,6400,#83
+Orion v5.8,"v5.8 #83 6,400 chunks fin5 round 4, 16g heap",40480,6400,#83
+Orion v5.8,"v5.8 #83 6,400 chunks fin5 round 5, 16g heap",41249,6400,#83
+Orion v5.9,"v5.9 #83 6,400 chunks fin5 round 5, 16g heap",34587,6400,#83
+Orion v5.9,"v5.9 #83 6,400 chunks fin5 round 6, 16g heap",34780,6400,#83
+Orion v5.8,"v5.8 #83 6,400 chunks fin5 round 6, 16g heap",41999,6400,#83
+Experiment,"v5.8 + poll-thread fix #83 262,144 chunks big round 1, 16g heap",1571108,262144,#83
+Orion v5.9,"v5.9 #83 262,144 chunks big round 1, 16g heap",1194266,262144,#83
+Experiment,"v5.8, fix check #83 65,536 chunks fix16 round 1, 16g heap",405305,65536,#83
+Experiment,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 1, 16g heap",403998,65536,#83
+Experiment,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 2, 16g heap",405824,65536,#83
+Experiment,"v5.8, fix check #83 65,536 chunks fix16 round 2, 16g heap",402795,65536,#83
