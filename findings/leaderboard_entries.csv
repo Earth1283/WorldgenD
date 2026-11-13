@@ -563,3 +563,4 @@ Experiment,"v5.8, fix check #83 65,536 chunks fix16 round 1, 16g heap",405305,65
 Experiment,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 1, 16g heap",403998,65536,#83
 Experiment,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 2, 16g heap",405824,65536,#83
 Experiment,"v5.8, fix check #83 65,536 chunks fix16 round 2, 16g heap",402795,65536,#83
+Orion v5.9,"26.1.1 compatibility control, tile 5, window 32 (2026-11-13)",34602,6400,#84

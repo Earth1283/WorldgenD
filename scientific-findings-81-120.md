@@ -491,6 +491,57 @@ Orion v5.8 and v5.9, 7 workers, seed 69, Corretto from `/root/minecraft-server/r
 
 ---
 
+## 84. Orion 5.9 cannot run unchanged against the 26.3 server jar
+
+Tested 2026-11-13 at source revision `605a611928c459dbfdc593ab921e457ca9186452`.
+Both jars identify themselves as the expected stable release in their embedded
+`version.json`, and both require Java 25. This is a runtime API incompatibility.
+
+The same unchanged build, launcher and flags were used for both isolated runs:
+Corretto 25.0.4.1, `-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC`,
+`-Dmax.bg.threads=7 -Dscheduler=orion5.9 -Dmosaic.tile=5`,
+`-Dorion.maxinflight=32 -Dsaveworld=false`, the Orion agent, and all three
+mandatory flags (`patchReentrancy`, `patchStructureGenState`, `patchParallelSteps`).
+Seed stayed at the default 69. Each run had its own working directory and exactly
+one server jar. Reproduce with:
+
+```bash
+python3 findings/run_server_compat.py --output /tmp/worldgend-server-compat --tile 5
+```
+
+| Server jar | Result | Chunks completed | Generation ms | eMSPC | CPS |
+|---|---|---:|---:|---:|---:|
+| 26.3 | Startup failure | No generation started | N/A | N/A | N/A |
+| 26.1.1 | Passed | 6,400 / 6,400, zero failures | 34,602 | 5.4065625 | 184.9604 |
+
+26.3 fails in `DensityCellPatch.requireInstalled` with
+`ClassNotFoundException: net.minecraft.world.level.levelgen.NoiseChunk$NoiseInterpolator`.
+Before that, `StagePatch.patchClimateSampler` also fails because
+`NoiseChunk$FlatCache` is absent. The jar's class list confirms both are absent;
+it also lacks the old `DensityFunction`, the patched `DensityFunctions` nested
+classes, and `SurfaceRules$Context` / `$SequenceRule`.
+
+`javap -p` shows 26.3's `NoiseChunk` now implements `AutoCloseable` and holds
+`densityfunction.DensityVolume`, `DensityBufferPool` and `DensitySamplerSet`.
+This is broader than a single class rename: the old cell-interpolation and stage
+patches require adaptation to a changed implementation. Disabling one shortcut
+does not establish compatibility for the remaining patches or reflection calls.
+Further incompatibilities may remain beyond the first startup blocker.
+
+The 26.1.1 control confirms `PS MarkSweep, PS Scavenge`, pool parallelism 7,
+`stagePatch failed=[]`, `stalls count=0`, `serverTasks mode=drain pending=1`,
+and region-file version 4. Its eMSPC is `34602 / 6400`; CPS is
+`6400 * 1000 / 34602`. This single short control is a sanity check, with no
+cross-version performance comparison possible. No 262,144-chunk runs were used.
+
+Evidence: `findings/server_compat_20261113/results.csv` and `class_presence.csv`;
+local raw logs and crashes under the corresponding `mc26.3_r1` / `mc26.1.1_r1`
+directories. The successful control is also filed in `orion_results.csv` and
+`leaderboard_entries.csv`. The production source and existing server symlink
+were unchanged.
+
+---
+
 ## Open questions / where you pick this up
 
 The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open-questions--where-you-pick-this-up) still applies. New since #81:

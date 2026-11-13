@@ -18,6 +18,11 @@ See [`TUTORIAL.md`](TUTORIAL.md) for the how and why.
 
 Put the jar (or a symlink) at `servers/mojang-26-1-1-server.jar`. That's the whole install.
 
+Orion 5.9 is tested against 26.1.1. The 26.3 jar is **not compatible** with the
+unchanged code: its density-generation API removes classes required by the noise-cell
+and stage patches, and startup fails before generation. See finding #84 in
+[`scientific-findings-81-120.md`](scientific-findings-81-120.md).
+
 ## Running
 
 ```

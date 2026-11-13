@@ -1,0 +1,13 @@
+class,26.1.1,26.3
+net.minecraft.world.level.levelgen.NoiseChunk$NoiseInterpolator,True,False
+net.minecraft.world.level.levelgen.NoiseChunk$FlatCache,True,False
+net.minecraft.world.level.levelgen.DensityFunction,True,False
+net.minecraft.world.level.levelgen.DensityFunctions$Ap2,True,False
+net.minecraft.world.level.levelgen.DensityFunctions$Mapped,True,False
+net.minecraft.world.level.levelgen.DensityFunctions$Clamp,True,False
+net.minecraft.world.level.levelgen.DensityFunctions$RangeChoice,True,False
+net.minecraft.world.level.levelgen.DensityFunctions$Constant,True,False
+net.minecraft.world.level.levelgen.DensityFunctions$MulOrAdd,True,False
+net.minecraft.world.level.levelgen.SurfaceRules$Context,True,False
+net.minecraft.world.level.levelgen.SurfaceRules$SequenceRule,True,False
+net.minecraft.world.level.levelgen.Aquifer$NoiseBasedAquifer,True,True

@@ -498,3 +498,4 @@ o59_fix16_v58_r1,"v5.8, fix check #83 65,536 chunks fix16 round 1, 16g heap",ori
 o59_fix16_v58fix_r1,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 1, 16g heap",orion5.8,16,65536,7,403998,0.18,51.05,68.19,78.84,100.74,371.04,5173.90
 o59_fix16_v58fix_r2,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 2, 16g heap",orion5.8,16,65536,7,405824,0.19,50.94,68.71,79.63,101.03,385.90,4463.27
 o59_fix16_v58_r2,"v5.8, fix check #83 65,536 chunks fix16 round 2, 16g heap",orion5.8,16,65536,7,402795,0.20,50.23,68.26,79.45,100.71,393.93,3120.39
+compat263_20261113_baseline,"26.1.1 compatibility control, window 32",orion5.9,5,6400,7,34602,0.16,67.44,115.45,135.30,164.74,775.36,4118.05
