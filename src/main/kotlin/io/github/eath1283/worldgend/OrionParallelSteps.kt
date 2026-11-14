@@ -28,16 +28,41 @@ object OrionParallelSteps {
     @JvmField val parallelStructureStarts =
         System.getProperty("orion.structureStarts", if (System.getProperty("scheduler") == "orion5.9") "parallel" else "serial") == "parallel"
 
-    @JvmStatic fun lockStructures() {
-        if (!OrionTrace.enabled) return structures.lock()
-        val since = System.nanoTime()
-        structures.lock()
-        if (structures.holdCount == 1) OrionTrace.structureWaited(since)
+    // global: one lock for all placement (v5.9). start: placement locks only its own StructureStart,
+    // striped. none: unsafe ceiling probe, no placement lock.
+    private val lockMode = System.getProperty("orion.structureLock", "global")
+    private val stripes = Array(256) { ReentrantLock() }
+
+    @JvmStatic fun lockStructures() = acquire(structures)
+
+    @JvmStatic fun unlockStructures() = release(structures)
+
+    @JvmStatic fun lockStart(start: Any) {
+        when (lockMode) {
+            "none" -> {}
+            "start" -> acquire(stripes[System.identityHashCode(start) and 255])
+            else -> acquire(structures)
+        }
     }
 
-    @JvmStatic fun unlockStructures() {
-        if (OrionTrace.enabled && structures.holdCount == 1) OrionTrace.structureReleasing()
-        structures.unlock()
+    @JvmStatic fun unlockStart(start: Any) {
+        when (lockMode) {
+            "none" -> {}
+            "start" -> release(stripes[System.identityHashCode(start) and 255])
+            else -> release(structures)
+        }
+    }
+
+    private fun acquire(lock: ReentrantLock) {
+        if (!OrionTrace.enabled) return lock.lock()
+        val since = System.nanoTime()
+        lock.lock()
+        if (lock.holdCount == 1) OrionTrace.structureWaited(since)
+    }
+
+    private fun release(lock: ReentrantLock) {
+        if (OrionTrace.enabled && lock.holdCount == 1) OrionTrace.structureReleasing()
+        lock.unlock()
     }
 
     private class Task(val x: Int, val z: Int, val radius: Int, val status: Int) {
@@ -377,7 +402,7 @@ object OrionParallelSteps {
     fun report(): String =
         "scheduled=${scheduled.get()} deferred=${deferred.get()} inline=${inline.get()} " +
             "maxRunning=${maxRunning.get()} leakedCells=${synchronized(cells) { cells.size + held.size + waiting.size }}" +
-            " areaLock=${if (greedy) "greedy" else "fifo"} bypasses=${bypasses.get()} structureStarts=${if (parallelStructureStarts) "parallel" else "serial"}" +
+            " structureLock=$lockMode areaLock=${if (greedy) "greedy" else "fifo"} bypasses=${bypasses.get()} structureStarts=${if (parallelStructureStarts) "parallel" else "serial"}" +
             (if (verify) " overlapViolations=${overlapViolations.get()}" else "") +
             (if (featureOrder != null) " gated=${gated.get()} kicks=${kicks.get()} kickFailures=${kickFailures.get()} featuresDone=${synchronized(featuresLock) { featuresDone.size }} " +
                 "stuckGates=${synchronized(featuresLock) { gatesWaitingOn.size }}" + (if (verify) " orderViolations=${orderViolations.get()} ${synchronized(featuresLock) { violationSample.toString() }}" else "") else "")

@@ -47,7 +47,7 @@ object OrionTrace {
     private val laneBins = ConcurrentHashMap<String, AtomicLongArray>()
     private val structureHoldBins = AtomicLongArray(MAX_BINS)
     private val structureWaitNanos = AtomicLong()
-    private var structureAcquired = 0L
+    private val structureAcquired: ThreadLocal<LongArray> = ThreadLocal.withInitial { LongArray(1) }
 
     val submitted = AtomicLong()
     val ready = AtomicLong()
@@ -77,11 +77,11 @@ object OrionTrace {
     @JvmStatic fun structureWaited(sinceNanos: Long) {
         val acquired = System.nanoTime()
         structureWaitNanos.addAndGet(acquired - sinceNanos)
-        structureAcquired = acquired
+        structureAcquired.get()[0] = acquired
     }
 
     @JvmStatic fun structureReleasing() {
-        if (origin != 0L) addInterval(structureHoldBins, structureAcquired, System.nanoTime())
+        if (origin != 0L) addInterval(structureHoldBins, structureAcquired.get()[0], System.nanoTime())
     }
 
     private fun addInterval(bins: AtomicLongArray, from: Long, to: Long) {

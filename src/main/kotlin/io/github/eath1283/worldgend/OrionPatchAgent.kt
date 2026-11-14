@@ -403,8 +403,8 @@ object OrionPatchAgent {
         private fun patchStructureStartPlacement(loader: ClassLoader?, original: ByteArray): ByteArray {
             val cc: CtClass = pool(loader).makeClass(java.io.ByteArrayInputStream(original))
             val placeInChunk = cc.getDeclaredMethod("placeInChunk")
-            placeInChunk.insertBefore("{ io.github.eath1283.worldgend.OrionParallelSteps.lockStructures(); }")
-            placeInChunk.insertAfter("{ io.github.eath1283.worldgend.OrionParallelSteps.unlockStructures(); }", true)
+            placeInChunk.insertBefore("{ io.github.eath1283.worldgend.OrionParallelSteps.lockStart($0); }")
+            placeInChunk.insertAfter("{ io.github.eath1283.worldgend.OrionParallelSteps.unlockStart($0); }", true)
             val bytes = cc.toBytecode()
             cc.detach()
             return bytes

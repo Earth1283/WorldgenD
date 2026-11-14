@@ -542,6 +542,43 @@ were unchanged.
 
 ---
 
+## 85. Finer structure locks: nothing to give back (null)
+
+**Short answer.** Replacing v5.9's one global placement lock with a lock per structure start
+changes run time by **-0.4% ± 0.8%** at 6,400 chunks and **-0.8% ± 1.5%** at 65,536. Both are inside
+the noise. Removing the lock completely (unsafe, a ceiling probe) gains **-2.1% ± 0.9%** at 6,400
+and **-0.4% ± 1.1%** at 65,536. There is nothing left here to win, so the default stays `global`.
+
+| Run | Arm | n | Mean total | eMSPC (ms/chunk) | CPS | Paired vs `global` |
+|---|---|--:|--:|--:|--:|--:|
+| 6,400 chunks | global (before) | 6 | 35.40 s | 5.531 | 180.9 | n/a |
+| | start (after) | 6 | 35.25 s | 5.507 | 181.6 | -0.4% ± 0.8% |
+| | none (ceiling) | 6 | 34.64 s | 5.412 | 184.8 | -2.1% ± 0.9% |
+| 65,536 chunks | global (before) | 3 | 327.2 s | 4.993 | 200.3 | n/a |
+| | start (after) | 3 | 324.6 s | 4.954 | 201.9 | -0.8% ± 1.5% |
+| | none (ceiling) | 3 | 326.0 s | 4.974 | 201.1 | -0.4% ± 1.1% |
+
+**Why it was worth trying.** #81 found about 0.6 workers parked on the structures lock. That was
+on v5.7. v5.9 (#83) already took structure starts and references off the lock, so only
+`StructureStart.placeInChunk` (inside FEATURES) still takes it. I did not re-measure lock wait on
+v5.9 directly, so "the parked time was mostly already gone" is an inference from the ceiling probe.
+
+**Correctness.** At tile 5 in deterministic mode, block and biome digests for `start` and `none`
+match `global` on all 6,400 chunks, with zero overlap and order violations. Deterministic mode
+orders overlapping FEATURES steps, so this does not prove `none` is safe in normal runs.
+
+**Method.** `-Dorion.structureLock=global|start|none` (default `global`). `start` takes one of 256
+locks chosen by the structure start's identity hash. `none` is unsafe and for probing only.
+Spec: 10 GiB pretouched heap (not 16, VM memory), ParallelGC, 7 workers, `orion5.9`, default
+32 chunks in flight, seed 69, interleaved rounds with alternating order. Tile 5 had 6 rounds, tile
+16 had 3. Rows: `orion59_runs.csv` (blocks `lock5`, `lock16`), raw files under
+`orion59_runs/lock_bench*` and `lock_det`. Runner: `run_orion59.py`; digests: `check_orion59.py`
+(pass an absolute `--output`; a relative one makes the JVM exit 1 with no error).
+
+**Still open.** Trace lock wait on v5.9 (`-Dorion.trace`) to confirm the parked time is gone.
+
+---
+
 ## Open questions / where you pick this up
 
 The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open-questions--where-you-pick-this-up) still applies. New since #81:
@@ -549,7 +586,7 @@ The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open
 - **#81 shows run time is worker CPU divided by about 7.** Re-test the surface/biome shortcuts
   (#75) on top of v5.7 with 20-30 interleaved pairs and worker CPU recorded. #81 predicts about
   -3.5%.
-- **The structures lock keeps about 0.6 workers parked.** Worth testing whether a finer-grained
+- **The structures lock keeps about 0.6 workers parked.** (Tested on v5.9 in #85: null.) Worth testing whether a finer-grained
   lock (per structure, or per region) gives that time back, given that #75's lane version found
   no other ready work.
 - **Retired-instruction counts would be a steadier yardstick than wall time.** The CPU's

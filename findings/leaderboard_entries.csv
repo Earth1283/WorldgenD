@@ -564,3 +564,30 @@ Experiment,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 1, 16g heap",40
 Experiment,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 2, 16g heap",405824,65536,#83
 Experiment,"v5.8, fix check #83 65,536 chunks fix16 round 2, 16g heap",402795,65536,#83
 Orion v5.9,"26.1.1 compatibility control, tile 5, window 32 (2026-11-13)",34602,6400,#84
+Experiment,"v5.9 structureLock=global, 6,400 chunks round 1, 10g heap (#85)",36482,6400,#85
+Experiment,"v5.9 structureLock=start, 6,400 chunks round 1, 10g heap (#85)",35329,6400,#85
+Experiment,"v5.9 structureLock=none, 6,400 chunks round 1, 10g heap (#85)",34414,6400,#85
+Experiment,"v5.9 structureLock=none, 6,400 chunks round 2, 10g heap (#85)",34205,6400,#85
+Experiment,"v5.9 structureLock=start, 6,400 chunks round 2, 10g heap (#85)",34956,6400,#85
+Experiment,"v5.9 structureLock=global, 6,400 chunks round 2, 10g heap (#85)",33956,6400,#85
+Experiment,"v5.9 structureLock=global, 6,400 chunks round 3, 10g heap (#85)",36062,6400,#85
+Experiment,"v5.9 structureLock=start, 6,400 chunks round 3, 10g heap (#85)",35756,6400,#85
+Experiment,"v5.9 structureLock=none, 6,400 chunks round 3, 10g heap (#85)",35285,6400,#85
+Experiment,"v5.9 structureLock=none, 6,400 chunks round 4, 10g heap (#85)",34548,6400,#85
+Experiment,"v5.9 structureLock=start, 6,400 chunks round 4, 10g heap (#85)",35631,6400,#85
+Experiment,"v5.9 structureLock=global, 6,400 chunks round 4, 10g heap (#85)",35579,6400,#85
+Experiment,"v5.9 structureLock=global, 6,400 chunks round 5, 10g heap (#85)",35028,6400,#85
+Experiment,"v5.9 structureLock=start, 6,400 chunks round 5, 10g heap (#85)",34558,6400,#85
+Experiment,"v5.9 structureLock=none, 6,400 chunks round 5, 10g heap (#85)",34413,6400,#85
+Experiment,"v5.9 structureLock=none, 6,400 chunks round 6, 10g heap (#85)",34948,6400,#85
+Experiment,"v5.9 structureLock=start, 6,400 chunks round 6, 10g heap (#85)",35242,6400,#85
+Experiment,"v5.9 structureLock=global, 6,400 chunks round 6, 10g heap (#85)",35290,6400,#85
+Experiment,"v5.9 structureLock=global, 65,536 chunks round 1, 10g heap (#85)",326879,65536,#85
+Experiment,"v5.9 structureLock=start, 65,536 chunks round 1, 10g heap (#85)",325423,65536,#85
+Experiment,"v5.9 structureLock=none, 65,536 chunks round 1, 10g heap (#85)",326908,65536,#85
+Experiment,"v5.9 structureLock=none, 65,536 chunks round 2, 10g heap (#85)",326251,65536,#85
+Experiment,"v5.9 structureLock=start, 65,536 chunks round 2, 10g heap (#85)",327511,65536,#85
+Experiment,"v5.9 structureLock=global, 65,536 chunks round 2, 10g heap (#85)",322241,65536,#85
+Experiment,"v5.9 structureLock=global, 65,536 chunks round 3, 10g heap (#85)",332533,65536,#85
+Experiment,"v5.9 structureLock=start, 65,536 chunks round 3, 10g heap (#85)",320964,65536,#85
+Experiment,"v5.9 structureLock=none, 65,536 chunks round 3, 10g heap (#85)",324740,65536,#85
