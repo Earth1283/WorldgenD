@@ -71,3 +71,6 @@ findings/critpath_runs/*/*.log
 findings/orion58_runs/*.gc.log
 findings/orion58_runs/*.progress
 findings/orion58_runs/*.out
+
+# Local worlds, jars, logs and traces from the 26.3 compatibility spike.
+findings/compat263_spike/

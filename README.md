@@ -18,10 +18,14 @@ See [`TUTORIAL.md`](TUTORIAL.md) for the how and why.
 
 Put the jar (or a symlink) at `servers/mojang-26-1-1-server.jar`. That's the whole install.
 
-Orion 5.9 is tested against 26.1.1. The 26.3 jar is **not compatible** with the
-unchanged code: its density-generation API removes classes required by the noise-cell
+Orion 5.9 is tested against 26.1.1. Its full patch set is **not compatible** with the
+26.3 jar: the density-generation API removes classes required by the noise-cell
 and stage patches, and startup fails before generation. See finding #84 in
 [`scientific-findings-81-120.md`](scientific-findings-81-120.md).
+
+There is now an **experimental 26.3 bootstrap path** for `mosaic` and core `orion5`, with
+the old compute patches disabled. It is a small-world compatibility spike, not the
+full v5.9 port. See [`SERVER-26.3.md`](SERVER-26.3.md) for the API map, checks, and launcher.
 
 ## Running
 

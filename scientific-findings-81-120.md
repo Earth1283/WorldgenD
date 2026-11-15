@@ -579,6 +579,51 @@ Spec: 10 GiB pretouched heap (not 16, VM memory), ParallelGC, 7 workers, `orion5
 
 ---
 
+## 86. 26.3 boots headlessly with a small core-Orion profile; full v5.9 is still unported
+
+Tested 2026-11-15 on the working tree based on `ae3519b`. Finding #84 remains valid for
+the full v5.9 patch set. Removing those compute patches exposed two further bootstrap
+changes: `Services.create` now takes `MinecraftServicesDiscoveryService`, and
+`DedicatedServer` requires a management-server argument and a notification manager.
+`ServerBootstrap.kt` handles both supplied versions' signatures and attaches the new
+notification manager without opening a management listener.
+
+With that change, 26.3 `mosaic` and core `orion5` each generated 256 chunks with zero
+failures. A separate JVM read all 256 saved targets through vanilla's region reader,
+checking coordinates, `FULL` status, data version, and block/biome section presence.
+Copies of both saved worlds booted in the official server and stopped cleanly without
+world-data fallback or load errors. The same checks passed on 26.1.1 `orion5.9`.
+
+Two deterministic 26.3 Orion runs, shifted away from spawn, had identical positional
+block and biome digests on all 256 targets. Both reported zero area overlaps, ordering
+violations, failed kicks, stuck gates, and stalls. A first diagnostic near spawn found
+ordering violations from chunks generated before ordering was enabled; it is not used
+as the deterministic check. Empty saved-region input was correctly rejected by the
+new inspector. The existing eight Gradle tests pass.
+
+The local jar also confirms that `TERRAIN` replaces the old noise/surface/carver stages.
+The generic `ChunkMap.applyStep` hook still works; `OrionTrace` now recognizes `terrain`
+(400 such records in the traced run). Density evaluation has moved to volume sampling,
+float-valued samplers, a sampler compiler, and reusable buffer pools. The old Perlin
+class and surface-rule classes are absent. This is a new optimization target; no
+performance benefit is inferred from the class layout.
+
+**Spec:** system OpenJDK 25.0.5.0.3, `-Xms1g -Xmx4g`, ParallelGC, two workers, tile 1,
+seed 69; Orion uses eight in flight, deterministic FEATURES, fixed worldgen-light reads,
+verification, server-task draining, poll-thread recognition, and target shift 100.
+No pretouch. These are compatibility diagnostics, not benchmark rows or cross-version
+timing comparisons. No C1GC, large-world, all-structure, all-dimension, or complete
+POI/entity correctness claim follows from them.
+
+Reproducer: `findings/probe_headless_compat.py`. API map and commands:
+[`SERVER-26.3.md`](SERVER-26.3.md). Curated results: `findings/headless_compat_263.csv`,
+`findings/headless_compat_263_digests.csv`, and `findings/server_263_class_presence.csv`.
+Raw worlds, traces and logs are local under `findings/compat263_spike/`. The runner
+waits for `worldgen.completionfile` after the blocking save, rather than terminating
+as soon as a generation result appears.
+
+---
+
 ## Open questions / where you pick this up
 
 The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open-questions--where-you-pick-this-up) still applies. New since #81:

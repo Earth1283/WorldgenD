@@ -4,7 +4,6 @@ import java.io.File
 import java.lang.management.ManagementFactory
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
-import java.net.Proxy as NetProxy
 import java.nio.file.Path
 import java.util.Collections
 import java.util.Optional
@@ -30,6 +29,13 @@ fun main() {
     Thread.setDefaultUncaughtExceptionHandler { _, t ->
         File("main_crash.txt").writeText(t.stackTraceToString())
     }
+    generateWorld()
+    System.getProperty("worldgen.completionfile")?.let { path ->
+        File(path).apply { parentFile?.mkdirs(); writeText("completed\n") }
+    }
+}
+
+private fun generateWorld() {
     // Self-reported, not inferred: which collector actually loaded, straight from the
     // JVM's own MXBeans, so a GC experiment's flags can be confirmed the same way
     // -Dmax.bg.threads got confirmed in #13 — by asking the running JVM, not the flag.
@@ -374,18 +380,13 @@ fun main() {
         mc.c("net.minecraft.core.RegistryAccess"), Path::class.java, mc.c("net.minecraft.world.level.levelgen.WorldGenSettings"),
     ).call(null, compositeAccess, worldRootPath, genSettings)
 
-    val cYggdrasil = mc.c("com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService")
-    val yggdrasil = mc.new(cYggdrasil, arrayOf(java.net.Proxy::class.java), arrayOf(NetProxy.NO_PROXY))
-    val cServices = mc.c("net.minecraft.server.Services")
-    val services = mc.method(cServices, "create", cYggdrasil, File::class.java).call(null, yggdrasil, runDir)
+    val services = ServerBootstrap.services(mc, runDir)
 
     val dataFixer = mc.method(mc.c("net.minecraft.util.datafix.DataFixers"), "getDataFixer").call(null)
 
     val cDedicatedServer = mc.c("net.minecraft.server.dedicated.DedicatedServer")
-    val dedicatedServer = mc.new(
-        cDedicatedServer,
-        arrayOf(Thread::class.java, cLevelStorageAccess, cPackRepository, cWorldStem, Optional::class.java, cDedicatedServerSettings, mc.c("com.mojang.datafixers.DataFixer"), cServices),
-        arrayOf(Thread.currentThread(), levelStorageAccess, packRepository, worldStem, Optional.empty<Any>(), dedicatedServerSettings, dataFixer, services)
+    val dedicatedServer = ServerBootstrap.dedicatedServer(
+        mc, levelStorageAccess, packRepository, worldStem, dedicatedServerSettings, dataFixer, services,
     )
 
     val cMinecraftServer = mc.c("net.minecraft.server.MinecraftServer")
