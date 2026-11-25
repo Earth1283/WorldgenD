@@ -499,3 +499,10 @@ o59_fix16_v58fix_r1,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 1, 16g
 o59_fix16_v58fix_r2,"v5.8 + poll-thread fix #83 65,536 chunks fix16 round 2, 16g heap",orion5.8,16,65536,7,405824,0.19,50.94,68.71,79.63,101.03,385.90,4463.27
 o59_fix16_v58_r2,"v5.8, fix check #83 65,536 chunks fix16 round 2, 16g heap",orion5.8,16,65536,7,402795,0.20,50.23,68.26,79.45,100.71,393.93,3120.39
 compat263_20261113_baseline,"26.1.1 compatibility control, window 32",orion5.9,5,6400,7,34602,0.16,67.44,115.45,135.30,164.74,775.36,4118.05
+mc263_o5_core_r1,"26.3 core orion5 #87 6,400 chunks round 1, window 64, 16g heap",orion5,5,6400,7,35009,0.41,163.91,233.34,269.05,335.80,1406.92,5999.88
+mc263_o59_port_r1,"26.3 ported orion5.9 #87 6,400 chunks round 1, window 32, 16g heap",orion5.9,5,6400,7,31871,4.57,64.11,105.62,123.80,158.02,635.86,3363.68
+mc263_o59_port_r2,"26.3 ported orion5.9 #87 6,400 chunks round 2, window 32, 16g heap",orion5.9,5,6400,7,30899,0.08,64.90,107.37,123.74,150.75,593.80,3447.34
+mc263_o5_core_r2,"26.3 core orion5 #87 6,400 chunks round 2, window 64, 16g heap",orion5,5,6400,7,35117,0.33,143.70,231.08,269.32,332.91,1607.57,6429.28
+mc263_o5_core_r3,"26.3 core orion5 #87 6,400 chunks round 3, window 64, 16g heap",orion5,5,6400,7,33686,0.09,165.86,234.88,269.31,338.60,909.42,4070.32
+mc263_o59_port_r3,"26.3 ported orion5.9 #87 6,400 chunks round 3, window 32, 16g heap",orion5.9,5,6400,7,30589,0.65,72.24,106.58,122.01,149.62,610.67,3456.53
+mc263_o59_port_t16,"26.3 ported orion5.9 #87 65,536 chunks sustained, window 32, 16g heap",orion5.9,16,65536,7,276740,0.80,62.15,104.92,120.47,142.35,291.36,5516.98

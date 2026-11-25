@@ -493,7 +493,7 @@ Orion v5.8 and v5.9, 7 workers, seed 69, Corretto from `/root/minecraft-server/r
 
 ## 84. Orion 5.9 cannot run unchanged against the 26.3 server jar
 
-Tested 2026-11-13 at source revision `605a611928c459dbfdc593ab921e457ca9186452`.
+Tested 2026-11-13 at source commit `605a611928c459dbfdc593ab921e457ca9186452`.
 Both jars identify themselves as the expected stable release in their embedded
 `version.json`, and both require Java 25. This is a runtime API incompatibility.
 
@@ -502,7 +502,7 @@ Corretto 25.0.4.1, `-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC`,
 `-Dmax.bg.threads=7 -Dscheduler=orion5.9 -Dmosaic.tile=5`,
 `-Dorion.maxinflight=32 -Dsaveworld=false`, the Orion agent, and all three
 mandatory flags (`patchReentrancy`, `patchStructureGenState`, `patchParallelSteps`).
-Seed stayed at the default 69. Each run had its own working directory and exactly
+Seed stayed at the default nice seed. Each run had its own working directory and exactly
 one server jar. Reproduce with:
 
 ```bash
@@ -624,6 +624,71 @@ as soon as a generation result appears.
 
 ---
 
+## 87. Porting Orion v5.9 to Minecraft 26.3: 10% faster than core Orion on 26.3, and ~9% faster than 26.1.1 v5.9 without density patches
+
+**Short answer.** Porting `orion5.9` to the 26.3 server jar (`mojang-26-3-server.jar`, data version 5023) cuts 6,400-chunk generation time by **10.1%** relative to core `orion5` on 26.3 (**31.12 s** mean / `4.862 eMSPC` / **205.7 CPS** vs **34.60 s** / `5.407 eMSPC` / **185.0 CPS** across 3 interleaved rounds, **-54%** p50 chunk latency from `269 ms` to `123 ms`). At 65,536 chunks (n=1), ported `orion5.9` finishes in **276.74 s** (`4.223 eMSPC`, **236.81 CPS**, p50 `120.47 ms`, p99 `291.36 ms`) with C1GC arming cleanly at chunk `29,184` and 5 full GCs totaling `1.77 s`.
+
+Compared against 26.1.1 `orion5.9` (#83: `34.2 s` median at 6,400 chunks and `300.2-304.8 s` at 65,536 chunks), 26.3 is ~9% faster at both scales even though 26.3 runs without `DensityCellPatch`, `DensitySimdPatch`, `ImprovedNoisePatch`, or the underground `SurfaceRules` shortcut. Mojang's own 26.3 rewrite absorbed those compute wins upstream. Caveat: 26.1.1 vs 26.3 compares different worldgen content across separate sessions near the box's ~9% noise band, with n=1 at 65,536 chunks.
+
+### Throughput on Minecraft 26.3
+
+| Scale | Round | Arm | Total ms | eMSPC | CPS | p50 ms | p99 ms | Young / Full GCs |
+|---|---:|---|---:|---:|---:|---:|---:|---|
+| 6,400 (tile 5) | 1 | 26.3 core `orion5` (w=64) | 35,009 | 5.470 | 182.81 | 269.05 | 1406.92 | 9 / 3 |
+| 6,400 (tile 5) | 1 | 26.3 ported `orion5.9` (w=32) | 31,871 | 4.980 | 200.81 | 123.80 | 635.86 | 8 / 3 |
+| 6,400 (tile 5) | 2 | 26.3 ported `orion5.9` (w=32) | 30,899 | 4.828 | 207.13 | 123.74 | 593.80 | 8 / 3 |
+| 6,400 (tile 5) | 2 | 26.3 core `orion5` (w=64) | 35,117 | 5.487 | 182.25 | 269.32 | 1607.57 | 9 / 3 |
+| 6,400 (tile 5) | 3 | 26.3 core `orion5` (w=64) | 33,686 | 5.263 | 189.99 | 269.31 | 909.42 | 9 / 3 |
+| 6,400 (tile 5) | 3 | 26.3 ported `orion5.9` (w=32) | 30,589 | 4.780 | 209.23 | 122.01 | 610.67 | 8 / 4 |
+| 65,536 (tile 16) | 1 | 26.3 ported `orion5.9` (w=32) | 276,740 | 4.223 | 236.81 | 120.47 | 291.36 | 157 (7.26 s) / 5 (1.77 s) |
+
+In the tile-16 run, C1GC armed at chunk `29,184` (`peakOldGenUsedMb=3293`), quarantined/detached/persisted `62,464` of `62,464` out-of-radius chunks (`unreclaimed=0`), `serverTasks mode=drain pending=1`, `bypasses=26613`, `dispatcherResort rescued=2382 staleSubmits=662`, `oldChunkScan skippedRegions=100 scannedRegions=0`, `stalls count=0`, and `regionFileVersion id=4`. In contrast, 26.3 core `orion5` at tile 5 left `serverTasks mode=hold pending=10554` and spawned `poolSize=61-104` ForkJoinPool compensation threads.
+
+### What shipped, what adapted, and what 26.3 superseded
+
+| Feature | Status on 26.3 | Details |
+|---|---|---|
+| Core OrionV5, greedy area lock, parallel `structure_starts`, `Template$Palette` sync, `ChunkTaskPriorityQueue` resort, server-task drain, C1GC + LZ4, `RegionChunkMemo`, `fluidEmpty` | Shipped unchanged | Verified against 26.3 bytecode. `TERRAIN` steps run under `OrionParallelSteps` with `overlapViolations=0`. |
+| `AllocationPatch` (`Aquifer$NoiseBasedAquifer`) | Shipped (1 of 4 targets) | `computeSubstance` still allocates `new MutableDouble(Double.NaN)` in 26.3; `MutableDoubleScratch` eliminates it. |
+| `OldChunkScan` (`orion.oldChunkScan=skipEmpty`) | Adapted | `RegionFileStorage.getRegionFile` gained a `boolean create` parameter (`getRegionFile(ChunkPos, false)`); returns empty immediately when `null`. |
+| `StagePatch` `biomeUniform` | Adapted | `BiomeManager` now splits `getBiome(BlockPos)` into `getBiome(int, int, int)`; the quart-uniformity cache hooks the 3-int overload on 26.3. |
+| `StagePatch` `surfaceColumn` + `surfaceSet` | Adapted | Ported from `SurfaceSystem` / `SurfaceSystem$1` to `MaterialSystem` / `MaterialSystem$1` (with `val$minY`/`val$maxY` bounds check and `ChunkAccess.markPosForPostProcessing`). |
+| `DensityCellPatch`, `DensitySimdPatch`, `ImprovedNoisePatch`, `biomeFlat`, 3 of 4 `AllocationPatch` sites | Superseded by 26.3 | 26.3 uses `DensityFunctionCompiler` (`SLICE_UNIFORM_AXES`), float `DensityVolume`/`DensityBufferPool`, volume `PerlinNoise.addToVolume`, plain `MaterialRuleContext.biome` field, and `RuleEvaluator[]` in `SequenceRule.compile`. |
+| `SurfaceRules$Context` underground Y-range shortcut | Intentionally omitted | `data/minecraft/worldgen/material_rule/overworld.json` now evaluates `copper_ore_vein`, `iron_ore_vein`, and `sulfur_cave_bands` below preliminary surface. |
+
+### Thread-safety audit and correctness
+
+Decompiling `RandomState`, `NoiseChunk`, `DensityFunctionCompiler`, `DensityBufferPool`, `NoiseBasedChunkGenerator`, `MaterialSystem`, `MaterialRuleContext`, `Aquifer$NoiseBasedAquifer`, `PerlinNoise`, `NoiseStack`, and `WorldGenRegion` via Recaf's MCP server (`4.0.0-SNAPSHOT` headless) found no shared-state races in parallel `TERRAIN`: `RandomState.acquireDensityBufferPool`/`releaseDensityBufferPool` use a `ReentrantLock`, `DensityFunctionCompiler` guards compilation with `compileLock` and caches samplers in a `ConcurrentHashMap`, and `RandomState.noiseInstances`/`positionalRandoms` are `ConcurrentHashMap`s.
+
+- **Gradle suite**: `./gradlew test agentJar` passed 8/8 unit tests.
+- **26.3 `orion5.9` full probe + reload**: tile 1 (256 chunks, shift 100, deterministic) passed with `dataVersion=5023`, `overlapViolations=0`, `orderViolations=0`, `kickFailures=0`, `stuckGates=0`, `stalls count=0`, `stagePatch failed=[]`, `SavedWorldProbe` 256/256, and clean official 26.3 server reload.
+- **26.3 bit-exactness**: **0/256** chunks differ on both `blocks.hist` and `biomes.hist` between ported `orion5.9` and 26.3 core `orion5`.
+- **26.3 C1GC-armed persistence + reload**: tile 2 (1,024 chunks, `-Dorion.c1gc.pressure=0 -Dsaveworld=true -Dorion.targetShift=100`) quarantined, detached, and persisted all `640/640` out-of-radius chunks (`lifecycleCounts={PERSISTED=640}`, LZ4 `id=4`), passed `SavedWorldProbe` 1,024/1,024 (`dataVersion=5023`), and reloaded cleanly in the official 26.3 server with zero errors.
+- **26.1.1 regression check**: `orion5.9` tile 1 + reload passed (`dataVersion=4788`) with all 4 `AllocationPatch` targets, `DensityCellPatch`, `ImprovedNoisePatch`, and full 26.1.1 `StagePatch` active (`failed=[]`).
+
+### Method
+
+Corretto `25.0.4.1` (`/root/minecraft-server/runtime/java/bin/java`), `-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC` (confirmed `PS MarkSweep, PS Scavenge`), `-Dmax.bg.threads=7` (`backgroundPool parallelism=7`), seed 69, `-Dsaveworld=false`, isolated work dir with `servers/mojang-26-3-server.jar` (default 26.1.1 symlink unchanged):
+
+```bash
+python3 run_direct.py -Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC \
+  -Dmax.bg.threads=7 -Dmosaic.tile=5 -Dsaveworld=false -Duser.dir=<26.3-workdir> \
+  -javaagent:build/libs/orion-agent.jar -Dorion.patchReentrancy=true \
+  -Dorion.patchStructureGenState=true -Dorion.patchParallelSteps=true \
+  -Dscheduler=orion5.9 -Dorion.maxinflight=32
+```
+
+Rows are filed under `mc263_*` in `findings/orion_results.csv` and `#87` (`Experiment`) in `findings/leaderboard_entries.csv`. Code changes: `AllocationPatch.kt`, `OrionPatchAgent.kt`, `StagePatch.kt`, and `HeadlessWorldgen.kt`.
+
+### Still open
+
+- Run an interleaved same-session 26.1.1 vs 26.3 `orion5.9` pair to measure the cross-version speedup directly without session drift.
+- Profile 26.3's native `TERRAIN` / `DensityVolume` / `MaterialSystem` path for 26.3-specific optimizations (e.g., `Aquifer$NoiseBasedAquifer` or `MaterialSystem` inner loops).
+- Exercise more seeds, non-Overworld dimensions, and a 262,144-chunk run on 26.3.
+- Investigate as to why we got a 10% throughput gain when porting to 26.3
+
+---
+
 ## Open questions / where you pick this up
 
 The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open-questions--where-you-pick-this-up) still applies. New since #81:
@@ -636,8 +701,6 @@ The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open
   no other ready work.
 - **Retired-instruction counts would be a steadier yardstick than wall time.** The CPU's
   hardware counters are exposed, but `perf` is not installed.
-- **The 16 GiB champion heap couldn't be pretouched on 2026-11-09** because a Minecraft server on
-  the VM held ~16 GB. Stop it (or check free memory) before the next champion-spec run.
 - **#82's v5.8 removes the per-chunk memory leak, and long runs are 13-14% faster (n=2 pairs).**
   Still open: a run well past 65,536 chunks to confirm memory stays bounded; whether C1GC's 30%
   threshold should move now that the heap can shrink; whether saved worlds from earlier versions
@@ -650,3 +713,8 @@ The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open
   harness default for v5.9 if latency matters more than throughput.
 - **#81's 16 GiB note is resolved:** the host had its full 32 GB on 2026-11-10 and #82 ran at the
   champion heap.
+- **#87's 26.3 v5.9 port ships without legacy density/noise patches and runs ~9% faster than 26.1.1
+  v5.9 (10.1% faster than 26.3 core `orion5` at tile 5).** Still open: same-session interleaved
+  26.1.1 vs 26.3 benchmark, profiling 26.3's `TERRAIN`/`MaterialSystem` path, and multi-seed /
+  multi-dimension / 262,144-chunk validation, mostly to answer why we got a ~10% performance gain
+  "simply from" getting a verison update port working

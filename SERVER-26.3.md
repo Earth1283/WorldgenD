@@ -1,8 +1,8 @@
-# Minecraft 26.3 compatibility spike
+# Minecraft 26.3 compatibility and v5.9 port
 
-The headless bootstrap works on the locally supplied 26.3 server jar with `mosaic` and
-core `orion5`. The full `orion5.9` patch set remains incompatible. The default server
-symlink and scheduler defaults are unchanged.
+The headless bootstrap and the ported `orion5.9` scheduler both run on the locally supplied
+26.3 server jar (`dataVersion=5023`). The default server symlink (`mojang-26-1-1-server.jar`)
+and scheduler defaults are unchanged, and 26.1.1 `orion5.9` passes regression checks.
 
 ## Reproduce
 
@@ -10,8 +10,8 @@ Keep the official jars outside the source tree at `../mojang/mojang-26-3-server.
 and `../mojang/mojang-26-1-1-server.jar`. Use Java 25 and a new output directory per run:
 
 ```bash
-python3 findings/probe_headless_compat.py \
-  --output findings/compat263_spike/core --reload --trace
+python3 findings/probe_headless_compat.py --scheduler orion5.9 \
+  --output findings/compat263_spike/v59 --reload
 
 python3 findings/probe_headless_compat.py --scheduler mosaic \
   --output findings/compat263_spike/mosaic --reload
@@ -72,29 +72,26 @@ Rows and digest comparison counts are in `findings/headless_compat_263.csv` and
 | Authentication | `YggdrasilAuthenticationService` is gone; `Services.create` takes `MinecraftServicesDiscoveryService` | `ServerBootstrap` selects the service factory from the actual signature |
 | Server construction | `DedicatedServer` adds `ManagementServer` and `NotificationManager` constructor arguments | Supply no management listener, construct the notification manager, and call `setServer`, as vanilla does |
 | Generation stages | `TERRAIN` replaces the separate `NOISE`, `SURFACE`, and `CARVERS` statuses | Core `ChunkMap.applyStep` interception still works; trace status names now include `terrain` |
-| Density evaluation | The old root-package `DensityFunction`/`DensityFunctions`, `NoiseInterpolator`, and `FlatCache` are absent | Keep `DensityCellPatch`, `DensitySimdPatch`, and the DFC prototype disabled |
-| Density replacement | `densityfunction.DensityFunctionCompiler`, `DensitySampler`, `DensityVolume`, and `DensityBufferPool` | Use vanilla evaluation; audit it before choosing replacement optimizations |
-| Noise kernel | `synth.ImprovedNoise` is absent | Keep `ImprovedNoisePatch` disabled |
-| Surface rules | `SurfaceSystem`, `SurfaceRules$Context`, and `SurfaceRules$SequenceRule` are absent; `material.MaterialSystem` is present | Keep the old surface and allocation patches disabled |
-| Region persistence | Vanilla's blocking world save and `RegionFileStorage.read` work in the smoke checks | Validate saved data with vanilla APIs; C1GC remains unvalidated |
+| Density evaluation | The old root-package `DensityFunction`/`DensityFunctions`, `NoiseInterpolator`, and `FlatCache` are absent | `OrionPatchAgent` and `HeadlessWorldgen` gate `DensityCellPatch`, `DensitySimdPatch`, and `StagePatch.biomeFlat` on legacy class presence |
+| Density replacement | `densityfunction.DensityFunctionCompiler`, `DensitySampler`, `DensityVolume`, `DensityBufferPool`, and `SLICE_UNIFORM_AXES` | Superseded legacy density/cell/climate-flat patches; thread safety audited via decompilation (`compileLock`, `ConcurrentHashMap`, `ReentrantLock`-guarded buffer pools) |
+| Noise kernel | `synth.ImprovedNoise` is absent; replaced by volume-batched float `synth.PerlinNoise.addToVolume` | `ImprovedNoisePatch` gated on class presence; superseded by 26.3's native kernel |
+| Surface rules | `SurfaceSystem`, `SurfaceRules$Context`, and `SurfaceRules$SequenceRule` are absent; replaced by `material.MaterialSystem`, `MaterialRuleContext`, and `material.rule.SequenceRule` | `StagePatch` `surfaceColumn`/`surfaceSet` ported to `MaterialSystem`/`MaterialSystem$1` (with `markPosForPostProcessing` and `minY`/`maxY` check); underground Y-range shortcut omitted because 26.3 `overworld.json` runs ore veins and sulfur caves underground |
+| Biomes & fluids | `BiomeManager` splits `getBiome(BlockPos)` into `getBiome(int, int, int)`; `FluidState.isEmpty` unchanged | `StagePatch` `biomeUniform` hooks the 3-int overload on 26.3; `fluidEmpty` unchanged |
+| Aquifer allocations | `Aquifer$NoiseBasedAquifer.computeSubstance` still allocates `new MutableDouble(NaN)` | `AllocationPatch` scopes `requireInstalled` to present targets (`Aquifer$NoiseBasedAquifer` active on 26.3) |
+| Region persistence & scan | `RegionFileStorage.getRegionFile(ChunkPos, boolean)` adds `create` flag; `C1GC` + LZ4 (`id=4`) compatible | `OldChunkScan` passes `create=false` and treats `null` as empty; C1GC armed (`pressure=0` and `0.3` at tile 16) validated with `SavedWorldProbe` and official 26.3 reload |
 
 Class presence alone is not method compatibility. The inventory is in
 `findings/server_263_class_presence.csv`; it records both supplied jar versions.
 
-The new sampler API exposes `sampleVolume(...)` and float-valued `sampleValue(...)`.
-The compiler caches samplers in a `ConcurrentHashMap` and protects compilation with a
-`ReentrantLock`. `RandomState` manages reusable density-buffer pools. These observations
-come from the local jar's `javap` output. They do not establish that an old optimization
-is redundant, that every sampler is thread-safe, or that generation is faster.
+## Port validation & throughput (2026-11-25, #87)
+
+- **Correctness**: 26.3 `orion5.9` matches 26.3 core `orion5` on **256/256** block and biome digests (0 mismatches), passes `SavedWorldProbe` (`256/256` at tile 1 and `1,024/1,024` with C1GC armed at `pressure=0`), reloads cleanly in the official 26.3 server, and preserves 26.1.1 `orion5.9` (`256/256` + reload).
+- **Throughput** (Corretto 25.0.4.1, `-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC`, 7 workers, seed 69):
+  - Tile 5 (6,400 chunks, 3 interleaved rounds): `orion5.9` **31.12 s** mean (`4.862 eMSPC`, **205.7 CPS**, p50 `123 ms`) vs 26.3 core `orion5` **34.60 s** (`5.407 eMSPC`, **185.0 CPS**, p50 `269 ms`) — **-10.1% wall time (+11.2% CPS)**.
+  - Tile 16 (65,536 chunks, n=1): `orion5.9` **276.74 s** (`4.223 eMSPC`, **236.81 CPS**, p50 `120.47 ms`, p99 `291.36 ms`, C1GC armed at chunk `29,184`, `62,464/62,464` persisted, 5 full GCs totaling `1.77 s`).
 
 ## Limits and next work
 
-This is an Overworld, one-seed, small-world check. It does not establish C1GC compatibility,
-bounded memory on large runs, complete POI/entity correctness, all-dimension support, or
-safe parallel generation across all structures. An official-server boot checks world
-startup; the separate saved-chunk probe checks the target region data. Neither is a
-gameplay test. Output equality across Minecraft versions is not expected or claimed.
+This port has been validated on the Overworld, seed 69, up to 65,536 chunks (`tile=16`). It does not yet establish multi-seed, non-Overworld dimension, or 262,144-chunk behavior, nor an interleaved same-session 26.1.1 vs 26.3 benchmark.
 
-Next: exercise more seeds, structures and other dimensions, audit
-`TERRAIN` shared state and C1GC against the new jar, then profile the native volume/sampler
-path. Carry over each v5.9 patch only after its assumptions and output have been checked.
+Next: run an interleaved 26.1.1 vs 26.3 `orion5.9` comparison, exercise more seeds and dimensions, and profile 26.3's native `TERRAIN`/`DensityVolume`/`MaterialSystem` path for 26.3-specific optimizations.

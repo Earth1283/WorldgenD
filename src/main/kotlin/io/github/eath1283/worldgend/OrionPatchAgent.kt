@@ -192,9 +192,16 @@ object OrionPatchAgent {
         })
         if (OldChunkScan.enabled) {
             inst.addTransformer(SingleClassTransformer(REGION_FILE_STORAGE) { cc ->
+                val twoArgGetRegion = cc.declaredMethods.any { it.name == "getRegionFile" && it.parameterTypes.size == 2 }
+                val openRegion = if (twoArgGetRegion) {
+                    "net.minecraft.world.level.chunk.storage.RegionFile region = this.getRegionFile(new net.minecraft.world.level.ChunkPos(regionX << 5, regionZ << 5), false);" +
+                        " if (region == null) return true;"
+                } else {
+                    "net.minecraft.world.level.chunk.storage.RegionFile region = this.getRegionFile(new net.minecraft.world.level.ChunkPos(regionX << 5, regionZ << 5));"
+                }
                 cc.addMethod(CtNewMethod.make(
                     "public boolean orionRegionEmpty(int regionX, int regionZ) throws java.io.IOException {" +
-                        " net.minecraft.world.level.chunk.storage.RegionFile region = this.getRegionFile(new net.minecraft.world.level.ChunkPos(regionX << 5, regionZ << 5));" +
+                        openRegion +
                         " for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++)" +
                         "  if (region.hasChunk(new net.minecraft.world.level.ChunkPos((regionX << 5) + x, (regionZ << 5) + z))) return false;" +
                         " return true; }", cc))
@@ -298,8 +305,10 @@ object OrionPatchAgent {
             classfileBuffer: ByteArray,
         ): ByteArray? {
             val dotted = className.replace('/', '.')
+            val legacyNoiseCell = patchNoiseCell &&
+                loader?.getResource("net/minecraft/world/level/levelgen/NoiseChunk\$NoiseInterpolator.class") != null
             val structureGenTargets = setOf(STRONGHOLD_PIECES, STRONGHOLD_PIECE_WEIGHT, NETHER_FORTRESS_PIECES, NETHER_FORTRESS_PIECE_WEIGHT)
-            val handled = (patchNoiseCell && dotted in DensityCellPatch.targets) || (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
+            val handled = (legacyNoiseCell && dotted in DensityCellPatch.targets) || (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
                 (patchBiomeMemo && dotted == SURFACE_RULES_BIOME_CONDITION) ||
                 (patchStructureGenState && dotted in structureGenTargets) ||
                 (patchDfc && dotted == DENSITY_FUNCTIONS_AP2) ||
@@ -311,7 +320,7 @@ object OrionPatchAgent {
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
-                val result = if (patchNoiseCell && dotted in DensityCellPatch.targets) {
+                val result = if (legacyNoiseCell && dotted in DensityCellPatch.targets) {
                     val base = if (DensityCellPatch.glue) classfileBuffer
                     else if (dotted in DensitySimdPatch.targets) DensitySimdPatch.transform(loader, classfileBuffer)
                     else if (dotted == DENSITY_FUNCTIONS_AP2) patchAp2(loader, classfileBuffer, patchDfc, patchAllocations)
