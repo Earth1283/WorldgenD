@@ -4,7 +4,6 @@ import java.io.File
 import java.lang.management.ManagementFactory
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
-import java.net.Proxy as NetProxy
 import java.nio.file.Path
 import java.util.Collections
 import java.util.Optional
@@ -30,6 +29,13 @@ fun main() {
     Thread.setDefaultUncaughtExceptionHandler { _, t ->
         File("main_crash.txt").writeText(t.stackTraceToString())
     }
+    generateWorld()
+    System.getProperty("worldgen.completionfile")?.let { path ->
+        File(path).apply { parentFile?.mkdirs(); writeText("completed\n") }
+    }
+}
+
+private fun generateWorld() {
     // Self-reported, not inferred: which collector actually loaded, straight from the
     // JVM's own MXBeans, so a GC experiment's flags can be confirmed the same way
     // -Dmax.bg.threads got confirmed in #13 — by asking the running JVM, not the flag.
@@ -76,10 +82,17 @@ fun main() {
     println("Hammering ${discovered.jar} (${discovered.classpath.size} bundled libraries)")
 
     val loader = discovered.newClassLoader()
-    if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6") DensitySimdPatch.requireInstalled(loader)
-    if ((schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) DensityCellPatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) ImprovedNoisePatch.requireInstalled(loader)
-    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) AllocationPatch.requireInstalled(loader, OrionPatchAgent.ALLOCATION_PATCH_TARGETS)
+    val hasLegacyDensity = hasClass(loader, "net.minecraft.world.level.levelgen.DensityFunction")
+    val hasLegacyNoiseCell = hasClass(loader, "net.minecraft.world.level.levelgen.NoiseChunk\$NoiseInterpolator")
+    val hasImprovedNoise = hasClass(loader, ImprovedNoisePatch.target)
+    if (hasLegacyDensity && (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6")) DensitySimdPatch.requireInstalled(loader)
+    if (hasLegacyNoiseCell && (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) DensityCellPatch.requireInstalled(loader)
+    if (hasImprovedNoise && (schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9")))) ImprovedNoisePatch.requireInstalled(loader)
+    if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) {
+        val allocationTargets = OrionPatchAgent.ALLOCATION_PATCH_TARGETS.filter { hasClass(loader, it) }.toSet()
+        require(allocationTargets.isNotEmpty()) { "No allocation patch target classes found in server jar" }
+        AllocationPatch.requireInstalled(loader, allocationTargets)
+    }
     if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) RegionChunkMemo.requireInstalled(loader)
     val mc = Mc(loader)
 
@@ -374,18 +387,13 @@ fun main() {
         mc.c("net.minecraft.core.RegistryAccess"), Path::class.java, mc.c("net.minecraft.world.level.levelgen.WorldGenSettings"),
     ).call(null, compositeAccess, worldRootPath, genSettings)
 
-    val cYggdrasil = mc.c("com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService")
-    val yggdrasil = mc.new(cYggdrasil, arrayOf(java.net.Proxy::class.java), arrayOf(NetProxy.NO_PROXY))
-    val cServices = mc.c("net.minecraft.server.Services")
-    val services = mc.method(cServices, "create", cYggdrasil, File::class.java).call(null, yggdrasil, runDir)
+    val services = ServerBootstrap.services(mc, runDir)
 
     val dataFixer = mc.method(mc.c("net.minecraft.util.datafix.DataFixers"), "getDataFixer").call(null)
 
     val cDedicatedServer = mc.c("net.minecraft.server.dedicated.DedicatedServer")
-    val dedicatedServer = mc.new(
-        cDedicatedServer,
-        arrayOf(Thread::class.java, cLevelStorageAccess, cPackRepository, cWorldStem, Optional::class.java, cDedicatedServerSettings, mc.c("com.mojang.datafixers.DataFixer"), cServices),
-        arrayOf(Thread.currentThread(), levelStorageAccess, packRepository, worldStem, Optional.empty<Any>(), dedicatedServerSettings, dataFixer, services)
+    val dedicatedServer = ServerBootstrap.dedicatedServer(
+        mc, levelStorageAccess, packRepository, worldStem, dedicatedServerSettings, dataFixer, services,
     )
 
     val cMinecraftServer = mc.c("net.minecraft.server.MinecraftServer")
@@ -963,7 +971,8 @@ fun main() {
             "scheduler=$schedulerMode ok=${result.ok} failed=${result.failed} totalMs=$totalMs\n${mspcSummary(orion.chunkMspc)}\n" +
                 "parallelSteps ${OrionParallelSteps.report()}\n${poolReport()}\n" +
                 (if (schedulerMode == "orion5.1" || schedulerMode == "orion5.2" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "densitySimd ${DensityBatch.report()}\n" else "") +
-                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\n" else "") +
+                (if (schedulerMode == "orion5.3" || schedulerMode == "orion5.4" || schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9")))
+                    "ap2ScratchMaxDepth ${Ap2Scratch.maxDepthSeen()}\nallocationPatch ${AllocationPatch.report()}\n" else "") +
                 (if (evictor != null) {
                     "chunkEvictor ${evictor.report()}\n" +
                         "chunkEvictorGcCheck ${evictor.verifyReclaimed()}\n" +
@@ -976,7 +985,8 @@ fun main() {
                 (if (OrionParallelSteps.parallelStructureStarts) "templatePalette patched=${OrionPatchAgent.templatePalettePatched}\n" else "") +
                 "stalls count=${orion.stalls.get()}\n" +
                 "serverTasks mode=${if (drainServerTasks) "drain" else "hold"} pending=$pendingAfterFill\n" +
-                (if ((schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "noiseCell ${DensityCellPatch.report()}\n" else "") +
+                (if ((schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9")))
+                    "noiseCell ${if (hasLegacyNoiseCell) DensityCellPatch.report() else "not_applicable"}\n" else "") +
                 (if (LightSwapPatch.enabled) "lightSwap ${LightSwapPatch.report()}\n" else "") +
                 (if (OrionTrace.enabled) "${OrionTrace.summary}\n" else "") +
                 (if (schedulerMode == "orion5.5" || schedulerMode == "orion5.6" || (schedulerMode == "orion5.7" || (schedulerMode == "orion5.8" || schedulerMode == "orion5.9"))) "regionFileVersion ${regionFileVersionReport(mc)}\n" else "")
@@ -1110,3 +1120,6 @@ private fun regionFileVersionReport(mc: Mc): String {
     val selected = mc.publicMethod(cRegionFileVersion, "getSelected").call(null)!!
     return "id=${mc.publicMethod(cRegionFileVersion, "getId").call(selected)}"
 }
+
+private fun hasClass(loader: ClassLoader, fqcn: String): Boolean =
+    loader.getResource(fqcn.replace('.', '/') + ".class") != null

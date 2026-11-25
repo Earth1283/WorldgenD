@@ -7,7 +7,8 @@ How a WorldgenD run is put together, and what has bitten people before. For the 
 
 1. `HeadlessWorldgen.kt` loads the server jar through `ServerRuntime.kt` (a `URLClassLoader`),
    replays `Bootstrap.bootStrap()`, and builds a real `DedicatedServer` and `ServerLevel` by
-   reflection (`Reflect.kt`). No tick loop ever runs.
+   reflection (`Reflect.kt`, `ServerBootstrap.kt`). `ServerBootstrap.kt` selects the auth and
+   `DedicatedServer` constructor signatures dynamically across Minecraft 26.1.1 and 26.3. No tick loop ever runs.
 2. `-Dscheduler` picks a fill strategy. `mosaic` is the original 256-phase tiling; `orion*` are
    the frontier schedulers.
 3. The fill submits `getChunkFuture(..., true)` for every chunk in a `-Dmosaic.tile` square and
@@ -38,9 +39,12 @@ flags. v5 and later need all three of:
 - `-Dorion.patchParallelSteps=true`
 
 The compute patches (`DensitySimdPatch`, `ImprovedNoisePatch`, `AllocationPatch`,
-`DensityCellPatch`, `RegionChunkMemo`) are enabled automatically by the scheduler name; the
-`-Dorion.patch*` properties force them on for other schedulers. `HeadlessWorldgen` calls each
-patch's `requireInstalled`, so a missing agent fails fast instead of silently running vanilla.
+`DensityCellPatch`, `RegionChunkMemo`, `StagePatch`, `OldChunkScan`) are enabled automatically by the scheduler name; the
+`-Dorion.patch*` properties force them on for other schedulers. `HeadlessWorldgen` and `OrionPatchAgent`
+gate legacy 26.1.1 compute patches (`DensitySimdPatch`, `DensityCellPatch`, `ImprovedNoisePatch`,
+`StagePatch.biomeFlat`, and absent `AllocationPatch` targets) on runtime class presence so both
+26.1.1 and 26.3 run from the same agent jar without silently dropping active targets (`requireInstalled`
+still enforces every present target). `SavedWorldProbe.kt` verifies saved region NBT via `RegionFileStorage`.
 
 ## C1GC
 

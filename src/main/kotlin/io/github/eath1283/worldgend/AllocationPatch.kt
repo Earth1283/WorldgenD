@@ -18,6 +18,8 @@ object AllocationPatch {
         transformed.add(className)
     }
 
+    fun report(): String = "transformed=${transformed.sorted()}"
+
     fun requireInstalled(loader: ClassLoader, targets: Set<String>) {
         targets.forEach { Class.forName(it, false, loader) }
         check(transformed.containsAll(targets)) {

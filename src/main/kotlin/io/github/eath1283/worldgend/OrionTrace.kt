@@ -22,7 +22,7 @@ object OrionTrace {
 
     val statuses = listOf(
         "empty", "structure_starts", "structure_references", "biomes", "noise", "surface", "carvers",
-        "features", "initialize_light", "light", "spawn", "full",
+        "features", "initialize_light", "light", "spawn", "full", "terrain",
     )
     private val injectNanos = LongArray(statuses.size).also { arr ->
         System.getProperty("orion.inject")?.split(',')?.filter { it.isNotBlank() }?.forEach { spec ->

@@ -26,6 +26,8 @@ object StagePatch {
     private const val SURFACE_SYSTEM = "$LEVELGEN.SurfaceSystem"
     private const val SURFACE_COLUMN = "$LEVELGEN.SurfaceSystem\$1"
     private const val SURFACE_CONTEXT = "$LEVELGEN.SurfaceRules\$Context"
+    private const val MATERIAL_SYSTEM = "$LEVELGEN.material.MaterialSystem"
+    private const val MATERIAL_COLUMN = "$LEVELGEN.material.MaterialSystem\$1"
     private const val BLOCK_STATE = "net.minecraft.world.level.block.state.BlockState"
 
     private val transformed = ConcurrentHashMap.newKeySet<String>()
@@ -38,7 +40,7 @@ object StagePatch {
     private fun enabled(name: String): Boolean =
         System.getProperty("orion.stage.$name")?.toBoolean() ?: (System.getProperty("scheduler") == "orion5.9")
 
-    private val patches: Map<String, List<Pair<String, (CtClass) -> Unit>>> = mapOf(
+    private val patches: Map<String, List<Pair<String, (CtClass) -> Boolean>>> = mapOf(
         NOISE_CHUNK to listOf("biomeFlat" to ::patchClimateSampler),
         FLAT_CACHE to listOf("biomeFlat" to ::openFlatCache),
         FLUID_STATE to listOf("fluidEmpty" to ::patchFluidState),
@@ -46,6 +48,8 @@ object StagePatch {
         SURFACE_SYSTEM to listOf("surfaceColumn" to ::patchSurfaceSystem),
         SURFACE_COLUMN to listOf("surfaceColumn" to ::patchSurfaceColumn),
         SURFACE_CONTEXT to listOf("surfaceColumn" to ::patchSurfaceContext),
+        MATERIAL_SYSTEM to listOf("surfaceColumn" to ::patchMaterialSystem),
+        MATERIAL_COLUMN to listOf("surfaceColumn" to ::patchMaterialColumn),
     )
 
     fun install(inst: Instrumentation) {
@@ -64,10 +68,19 @@ object StagePatch {
                     pool.appendSystemPath()
                     if (loader != null) pool.appendClassPath(LoaderClassPath(loader))
                     val cc = pool.makeClass(java.io.ByteArrayInputStream(classfileBuffer))
-                    list.forEach { it.second(cc) }
+                    var modified = false
+                    for ((name, fn) in list) {
+                        if (fn(cc)) {
+                            modified = true
+                            transformed.add("$name:${dotted.substringAfterLast('.')}")
+                        }
+                    }
+                    if (!modified) {
+                        cc.detach()
+                        return null
+                    }
                     val bytes = cc.toBytecode()
                     cc.detach()
-                    list.forEach { transformed.add("${it.first}:${dotted.substringAfterLast('.')}") }
                     bytes
                 } catch (t: Throwable) {
                     failed.add("$dotted: $t")
@@ -83,13 +96,15 @@ object StagePatch {
         "transformed=${transformed.sorted()} failed=${failed.sorted()} biomeFlatWraps=${biomeFlatWraps.sum()} " +
         "surfaceVerify=$surfaceVerify surfaceShortcuts=${surfaceShortcuts.sum()} surfaceMismatches=${surfaceMismatches.sum()}"
 
-    private fun openFlatCache(cc: CtClass) {
+    private fun openFlatCache(cc: CtClass): Boolean {
         cc.declaredConstructors.forEach { it.modifiers = Modifier.clear(it.modifiers, Modifier.PRIVATE) }
+        return true
     }
 
     // Temperature and vegetation are shiftedNoise2d (yScale 0, zero shiftY) but, unlike the other
     // climate inputs, not flat-cached, so the biome fill recomputes them at every quart Y.
-    private fun patchClimateSampler(cc: CtClass) {
+    private fun patchClimateSampler(cc: CtClass): Boolean {
+        if (cc.declaredMethods.none { it.name == "cachedClimateSampler" }) return false
         val df = "$LEVELGEN.DensityFunction"
         val shifted = "$LEVELGEN.DensityFunctions\$ShiftedNoise"
         val constant = "$LEVELGEN.DensityFunctions\$Constant"
@@ -128,19 +143,21 @@ object StagePatch {
             }
         })
         check(hits == 1) { "cachedClimateSampler: expected one Climate.Sampler allocation, saw $hits" }
+        return true
     }
 
-    private fun patchFluidState(cc: CtClass) {
+    private fun patchFluidState(cc: CtClass): Boolean {
         cc.addField(CtField.make("private boolean orion\$empty;", cc))
         cc.declaredConstructors.forEach { it.insertAfter("{ this.orion\$empty = ${'$'}1.isEmpty(); }") }
         cc.getDeclaredMethod("isEmpty").setBody("{ return this.orion\$empty; }")
+        return true
     }
 
     // getBiome picks the nearest of 8 quart corners by a seeded fiddle. When all 8 corners hold
     // the same biome the fiddle cannot change the answer, so one uniformity check per quart cell
     // replaces it for every block in the cell. Only for WorldGenRegion sources (one thread, one
     // step, biomes frozen), and only for cells whose corners are within 1 chunk of the center.
-    private fun patchBiomeManager(cc: CtClass) {
+    private fun patchBiomeManager(cc: CtClass): Boolean {
         val holder = "net.minecraft.core.Holder"
         cc.addField(CtField.make("private long[] orion\$keys;", cc))
         cc.addField(CtField.make("private Object[] orion\$vals;", cc))
@@ -179,16 +196,29 @@ object StagePatch {
             }
             """, cc,
         ))
-        cc.getDeclaredMethod("getBiome").insertBefore(
+        val xyzMethod = cc.declaredMethods.firstOrNull { it.name == "getBiome" && it.parameterTypes.size == 3 }
+        val targetMethod = xyzMethod ?: cc.getDeclaredMethod("getBiome")
+        val coords = if (xyzMethod != null) {
+            """
+                int px = (${'$'}1 - 2) >> 2;
+                int py = (${'$'}2 - 2) >> 2;
+                int pz = (${'$'}3 - 2) >> 2;
+            """
+        } else {
+            """
+                int px = (${'$'}1.getX() - 2) >> 2;
+                int py = (${'$'}1.getY() - 2) >> 2;
+                int pz = (${'$'}1.getZ() - 2) >> 2;
+            """
+        }
+        targetMethod.insertBefore(
             """{
                 if (this.orion${'$'}region) {
                     if (this.orion${'$'}vals == null) {
                         this.orion${'$'}keys = new long[256];
                         this.orion${'$'}vals = new Object[256];
                     }
-                    int px = (${'$'}1.getX() - 2) >> 2;
-                    int py = (${'$'}1.getY() - 2) >> 2;
-                    int pz = (${'$'}1.getZ() - 2) >> 2;
+                    $coords
                     long key = (((long) px & 0xFFFFFFL) << 40) | (((long) pz & 0xFFFFFFL) << 16) | ((long) py & 0xFFFFL);
                     int idx = (px * -1640531535 + py * -2048144789 + pz * -1028477387) >>> 24;
                     Object v = this.orion${'$'}vals[idx];
@@ -201,11 +231,12 @@ object StagePatch {
                 }
             }"""
         )
+        return true
     }
 
     // buildSurface reads every block of a column twice through ProtoChunk.getBlockState; the
     // column object reads sections directly instead. No write happens above a pending read.
-    private fun patchSurfaceColumn(cc: CtClass) {
+    private fun patchBlockColumn(cc: CtClass, markMethod: String, boundsCheck: String): Boolean {
         val section = "net.minecraft.world.level.chunk.LevelChunkSection"
         cc.addField(CtField.make("private $section[] orion\$sections;", cc))
         cc.addField(CtField.make("private int orion\$minSection;", cc))
@@ -260,6 +291,7 @@ object StagePatch {
         cc.addMethod(CtNewMethod.make(
             """
             void orion${'$'}set(int y, $BLOCK_STATE state) {
+                $boundsCheck
                 if (this.orion${'$'}setMode == 0) this.orion${'$'}initSet();
                 int i = (y >> 4) - this.orion${'$'}minSection;
                 if (this.orion${'$'}setMode != 1 || i < 0 || i >= this.orion${'$'}sections.length) {
@@ -273,18 +305,25 @@ object StagePatch {
                 sec.setBlockState(lx, y & 15, lz, state);
                 $heightmap[] maps = this.orion${'$'}heightmaps;
                 for (int j = 0; j < maps.length; j++) maps[j].update(lx, y, lz, state);
-                if (!state.getFluidState().isEmpty()) this.val${'$'}protoChunk.markPosForPostprocessing(this.val${'$'}columnPos.setY(y));
+                if (!state.getFluidState().isEmpty()) this.val${'$'}protoChunk.$markMethod(this.val${'$'}columnPos.setY(y));
             }
             """, cc,
         ))
+        return true
     }
+
+    private fun patchSurfaceColumn(cc: CtClass): Boolean =
+        patchBlockColumn(cc, "markPosForPostprocessing", "")
+
+    private fun patchMaterialColumn(cc: CtClass): Boolean =
+        patchBlockColumn(cc, "markPosForPostProcessing", "if (y < this.val\$minY || y > this.val\$maxY) return;")
 
     // A top-level sequence of TestRules guarded by abovePreliminarySurface or a vertical gradient
     // has Y ranges where the outcome is fixed: all-null above every gradient and below the
     // preliminary surface, or a constant state at and below a gradient's trueAtAndBelow. The
     // context answers those itself and skips updateY plus the rule walk; anything else in the
     // tree disables the shortcut.
-    private fun patchSurfaceContext(cc: CtClass) {
+    private fun patchSurfaceContext(cc: CtClass): Boolean {
         val rules = "$LEVELGEN.SurfaceRules"
         val rule = "$rules\$SurfaceRule"
         val test = "$rules\$TestRule"
@@ -388,13 +427,10 @@ object StagePatch {
             """
         }
         cc.addMethod(CtNewMethod.make(body, cc))
+        return true
     }
 
-    private fun patchSurfaceSystem(cc: CtClass) {
-        val pool = cc.classPool
-        // Pool copies only have to compile; the loaded classes get the same patches on load.
-        patchSurfaceColumn(pool.get(SURFACE_COLUMN))
-        patchSurfaceContext(pool.get(SURFACE_CONTEXT))
+    private fun patchBuildSurfaceColumns(cc: CtClass, columnClass: String, hookExtras: Boolean): Boolean {
         val build = cc.declaredMethods.single { it.name == "buildSurface" }
         var reads = 0
         var wraps = 0
@@ -405,26 +441,41 @@ object StagePatch {
             override fun edit(m: javassist.expr.MethodCall) {
                 when {
                     m.methodName == "getBlock" && m.className == "net.minecraft.world.level.chunk.BlockColumn" -> {
-                        m.replace("{ ${'$'}_ = (($SURFACE_COLUMN) ${'$'}0).orion${'$'}get(${'$'}1); }")
+                        m.replace("{ ${'$'}_ = (($columnClass) ${'$'}0).orion${'$'}get(${'$'}1); }")
                         reads++
                     }
-                    m.methodName == "apply" && m.className == "$LEVELGEN.SurfaceRules\$RuleSource" -> {
+                    fastSet && m.methodName == "setBlock" && m.className == "net.minecraft.world.level.chunk.BlockColumn" -> {
+                        m.replace("{ (($columnClass) ${'$'}0).orion${'$'}set(${'$'}1, ${'$'}2); }")
+                        writes++
+                    }
+                    hookExtras && m.methodName == "apply" && m.className == "$LEVELGEN.SurfaceRules\$RuleSource" -> {
                         m.replace("{ ${'$'}_ = (($SURFACE_CONTEXT) ${'$'}1).orion${'$'}wrap(${'$'}proceed(${'$'}${'$'})); }")
                         wraps++
                     }
-                    fastSet && m.methodName == "setBlock" && m.className == "net.minecraft.world.level.chunk.BlockColumn" -> {
-                        m.replace("{ (($SURFACE_COLUMN) ${'$'}0).orion${'$'}set(${'$'}1, ${'$'}2); }")
-                        writes++
-                    }
-                    m.methodName == "updateY" && m.className == SURFACE_CONTEXT -> {
+                    hookExtras && m.methodName == "updateY" && m.className == SURFACE_CONTEXT -> {
                         m.replace("{ ${'$'}0.orion${'$'}updateY(${'$'}${'$'}); }")
                         updates++
                     }
                 }
             }
         })
-        check(reads == 2 && wraps == 1 && updates == 1 && writes == (if (fastSet) 1 else 0)) {
+        val expectedExtras = if (hookExtras) 1 else 0
+        check(reads == 2 && wraps == expectedExtras && updates == expectedExtras && writes == (if (fastSet) 1 else 0)) {
             "buildSurface shape changed: reads=$reads wraps=$wraps updates=$updates writes=$writes"
         }
+        return true
+    }
+
+    private fun patchSurfaceSystem(cc: CtClass): Boolean {
+        val pool = cc.classPool
+        // Pool copies only have to compile; the loaded classes get the same patches on load.
+        patchSurfaceColumn(pool.get(SURFACE_COLUMN))
+        patchSurfaceContext(pool.get(SURFACE_CONTEXT))
+        return patchBuildSurfaceColumns(cc, SURFACE_COLUMN, true)
+    }
+
+    private fun patchMaterialSystem(cc: CtClass): Boolean {
+        patchMaterialColumn(cc.classPool.get(MATERIAL_COLUMN))
+        return patchBuildSurfaceColumns(cc, MATERIAL_COLUMN, false)
     }
 }

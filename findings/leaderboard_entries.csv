@@ -591,3 +591,10 @@ Experiment,"v5.9 structureLock=global, 65,536 chunks round 2, 10g heap (#85)",32
 Experiment,"v5.9 structureLock=global, 65,536 chunks round 3, 10g heap (#85)",332533,65536,#85
 Experiment,"v5.9 structureLock=start, 65,536 chunks round 3, 10g heap (#85)",320964,65536,#85
 Experiment,"v5.9 structureLock=none, 65,536 chunks round 3, 10g heap (#85)",324740,65536,#85
+Experiment,"26.3 core orion5, 6,400 chunks round 1, window 64, 16g heap (#87)",35009,6400,#87
+Experiment,"26.3 ported orion5.9, 6,400 chunks round 1, window 32, 16g heap (#87)",31871,6400,#87
+Experiment,"26.3 ported orion5.9, 6,400 chunks round 2, window 32, 16g heap (#87)",30899,6400,#87
+Experiment,"26.3 core orion5, 6,400 chunks round 2, window 64, 16g heap (#87)",35117,6400,#87
+Experiment,"26.3 core orion5, 6,400 chunks round 3, window 64, 16g heap (#87)",33686,6400,#87
+Experiment,"26.3 ported orion5.9, 6,400 chunks round 3, window 32, 16g heap (#87)",30589,6400,#87
+Experiment,"26.3 ported orion5.9, 65,536 chunks sustained, window 32, 16g heap (#87)",276740,65536,#87

@@ -1610,6 +1610,222 @@ def plot_replication80(out_path):
     plt.close(fig)
 
 
+def plot_orion_v5_evolution(out_path):
+    with (HERE / "leaderboard_entries.csv").open(newline="") as f:
+        lb = list(csv.DictReader(f))
+    with (HERE / "orion_results.csv").open(newline="") as f:
+        res = list(csv.DictReader(f))
+    with (HERE / "orion52_results.csv").open(newline="") as f:
+        r52 = list(csv.DictReader(f))
+    with (HERE / "orion59_runs.csv").open(newline="") as f:
+        r59 = list(csv.DictReader(f))
+
+    def med(vals):
+        return float(np.median(vals)) if vals else None
+
+    def lb_emspc(pred):
+        return med([float(r["total_ms"]) / float(r["chunks"]) for r in lb if pred(r)])
+
+    def res_lat(sched, chunks):
+        rows = [
+            r for r in res
+            if r["scheduler"] == sched and int(r["chunks"]) == chunks
+            and "ablat" not in r["label"].lower() and "window 64" not in r["label"].lower()
+        ]
+        if sched == "orion5.9" and chunks == 65536:
+            rows = [r for r in rows if not r["config"].startswith("mc263_")]
+        return med([float(r["mspc_p50"]) for r in rows]), med([float(r["mspc_p99"]) for r in rows])
+
+    stages = [
+        {
+            "key": "v5.0", "label": "v5.0\n(#62)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5" and r["chunks"] == "6400"),
+            "e16": None, "e32": None,
+            "lat": res_lat("orion5", 6400), "lat_scale": "6.4k",
+            "note": "Parallel steps; OOM/hang at 65k",
+        },
+        {
+            "key": "v5.1", "label": "v5.1\n(#66)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.1" and r["chunks"] == "6400"),
+            "e16": None, "e32": None,
+            "lat": res_lat("orion5.1", 6400), "lat_scale": "6.4k",
+            "note": "SIMD density batches; OOM/hang at 65k",
+        },
+        {
+            "key": "v5.2", "label": "v5.2\n(#67)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.2" and r["chunks"] == "6400"),
+            "e16": None, "e32": None,
+            "lat": (
+                med([float(r["mspc_p50"]) for r in r52 if r["mode"] == "optimized"]),
+                med([float(r["mspc_p99"]) for r in r52 if r["mode"] == "optimized"]),
+            ),
+            "lat_scale": "6.4k",
+            "note": "Perlin kernel; OOM/hang at 65k",
+        },
+        {
+            "key": "v5.3", "label": "v5.3\n(#68)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.3" and r["chunks"] == "6400"),
+            "e16": None, "e32": None,
+            "lat": res_lat("orion5.3", 6400), "lat_scale": "6.4k",
+            "note": "4 alloc fixes (-28% YGC); OOM/hang at 65k",
+        },
+        {
+            "key": "v5.4", "label": "v5.4\n(#69)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.4" and r["chunks"] == "6400"),
+            "e16": lb_emspc(lambda r: r["engine"] == "Orion v5.4" and r["chunks"] == "65536"),
+            "e32": None,
+            "lat": res_lat("orion5.4", 65536), "lat_scale": "65.5k",
+            "note": "C1GC + batched settle: survives 65k",
+        },
+        {
+            "key": "v5.5", "label": "v5.5\n(#70)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.5" and r["chunks"] == "6400"),
+            "e16": lb_emspc(lambda r: r["engine"] == "Orion v5.5" and r["chunks"] == "65536"),
+            "e32": None,
+            "lat": res_lat("orion5.5", 65536), "lat_scale": "65.5k",
+            "note": "Usage gate + poll drain + LZ4 (0 fastutil races)",
+        },
+        {
+            "key": "v5.6", "label": "v5.6\n(#73)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.6" and r["chunks"] == "6400"),
+            "e16": lb_emspc(lambda r: r["engine"] == "Orion v5.6" and r["chunks"] == "65536"),
+            "e32": None,
+            "lat": res_lat("orion5.6", 65536), "lat_scale": "65.5k",
+            "note": "16-in-flight + 0.3 gate: p50 -76%, p99 -70%",
+        },
+        {
+            "key": "v5.7", "label": "v5.7\n(#74)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.7" and r["chunks"] == "6400"),
+            "e16": lb_emspc(lambda r: r["engine"] == "Orion v5.7" and r["chunks"] == "65536"),
+            "e32": None,
+            "lat": res_lat("orion5.7", 65536), "lat_scale": "65.5k",
+            "note": "Cell-batched density fill (bit-exact 30/30)",
+        },
+        {
+            "key": "v5.8", "label": "v5.8\n(#82)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.8" and r["chunks"] == "6400"),
+            "e16": lb_emspc(lambda r: r["engine"] == "Orion v5.8" and r["chunks"] == "65536"),
+            "e32": lb_emspc(lambda r: "v5.8 + poll-thread fix" in r["run_label"] and r["chunks"] == "262144"),
+            "lat": res_lat("orion5.8", 65536), "lat_scale": "65.5k",
+            "note": "Server-task drain: 65k live 11.7->1.9 GB; reaches 262k",
+        },
+        {
+            "key": "v5.9 (26.1.1)", "label": "v5.9\n26.1.1\n(#83)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Orion v5.9" and r["chunks"] == "6400"),
+            "e16": lb_emspc(lambda r: r["engine"] == "Orion v5.9" and r["chunks"] == "65536"),
+            "e32": lb_emspc(lambda r: r["engine"] == "Orion v5.9" and r["chunks"] == "262144"),
+            "lat": (
+                med([float(r["mspc_p50"]) for r in r59 if r["block"] == "fin16" and r["build"] == "v5.9"]),
+                med([float(r["mspc_p99"]) for r in r59 if r["block"] == "fin16" and r["build"] == "v5.9"]),
+            ),
+            "lat_scale": "65.5k",
+            "note": "Greedy lock + queue resort + poll thread: 0 stalls @ 262k",
+        },
+        {
+            "key": "v5.9 (26.3)*", "label": "v5.9\n26.3*\n(#87)",
+            "e5": lb_emspc(lambda r: r["engine"] == "Experiment" and "26.3 ported orion5.9" in r["run_label"] and r["chunks"] == "6400"),
+            "e16": lb_emspc(lambda r: r["engine"] == "Experiment" and "26.3 ported orion5.9" in r["run_label"] and r["chunks"] == "65536"),
+            "e32": None,
+            "lat": (
+                med([float(r["mspc_p50"]) for r in res if r["config"] == "mc263_o59_port_t16"]),
+                med([float(r["mspc_p99"]) for r in res if r["config"] == "mc263_o59_port_t16"]),
+            ),
+            "lat_scale": "65.5k",
+            "note": "26.3 port + MaterialSystem: 0/256 diffs, C1GC+LZ4, reload ok",
+        },
+    ]
+
+    fig, (ax_e, ax_l, ax_n) = plt.subplots(
+        1, 3, figsize=(16.5, 6.2), gridspec_kw={"width_ratios": [1.35, 0.9, 0.95]},
+    )
+
+    # Panel 1: eMSPC across v5.x (6,400 / 65,536 / 262,144 chunks)
+    x = np.arange(len(stages))
+    w = 0.36
+    for i, s in enumerate(stages):
+        b5 = ax_e.bar(i - w / 2, s["e5"], width=w, color=SERIES[0], zorder=3,
+                      label="6,400 chunks (tile 5, median)" if i == 0 else None)
+        ax_e.text(i - w / 2, s["e5"] + 0.14, f"{s['e5']:.2f}", ha="center", va="bottom",
+                  fontsize=7.3, color=INK_PRIMARY, rotation=90)
+        if s["e16"] is not None:
+            c16 = SERIES[2] if i < len(stages) - 1 else "#0e8a5c"
+            ax_e.bar(i + w / 2, s["e16"], width=w, color=c16, zorder=3,
+                     label="65,536 chunks (tile 16, median)" if i == 4 else None)
+            ax_e.text(i + w / 2, s["e16"] + 0.14, f"{s['e16']:.2f}", ha="center", va="bottom",
+                      fontsize=7.3, color=INK_PRIMARY, rotation=90)
+        else:
+            ax_e.scatter([i + w / 2], [0.45], marker="x", s=45, color="#c0392b", linewidths=1.8, zorder=4,
+                         label="65,536 chunks: OOM / hang (pre-C1GC)" if i == 0 else None)
+        if s["e32"] is not None:
+            ax_e.scatter([i + w / 2], [s["e32"]], marker="D", s=42, color=SERIES[1], edgecolor=SURFACE,
+                         linewidth=0.8, zorder=5,
+                         label="262,144 chunks (tile 32, n=1)" if i == 8 else None)
+
+    ax_e.axvline(len(stages) - 1.5, color=BASELINE, linestyle="--", linewidth=1.1, zorder=2)
+    ax_e.text(len(stages) - 1.65, 10.7, "MC 26.1.1", ha="right", va="top", fontsize=8, color=INK_MUTED)
+    ax_e.text(len(stages) - 1.35, 10.7, "MC 26.3*", ha="left", va="top", fontsize=8, color=INK_MUTED)
+    ax_e.set_xticks(x)
+    ax_e.set_xticklabels([s["label"] for s in stages], fontsize=7.8)
+    ax_e.set_ylim(0, 13.0)
+    ax_e.set_ylabel("Effective MSPC (ms/chunk) — lower is better", fontsize=9)
+    ax_e.set_title("A. Effective MSPC across Orion v5.x", loc="left", fontsize=10.5, color=INK_PRIMARY, pad=8)
+    ax_e.legend(frameon=False, fontsize=7.5, loc="upper left", ncol=2, columnspacing=1.0)
+    ax_e.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for sp in ("top", "right"):
+        ax_e.spines[sp].set_visible(False)
+
+    # Panel 2: p50 -> p99 latency range (log scale), top-to-bottom
+    y = np.arange(len(stages))
+    for i, s in enumerate(stages):
+        p50, p99 = s["lat"]
+        col = BASELINE if s["e16"] is None else (SERIES[2] if i < len(stages) - 1 else SERIES[1])
+        ax_l.plot([p50, p99], [i, i], color=col, linewidth=3.0, zorder=2)
+        ax_l.scatter([p50], [i], color=SERIES[0], s=36, zorder=4, label="p50 latency" if i == 0 else None)
+        ax_l.scatter([p99], [i], color="#c0392b", s=36, zorder=4, label="p99 latency" if i == 0 else None)
+        ax_l.text(p50 * 0.90, i, f"{p50:.0f}", ha="right", va="center", fontsize=7.5, color=INK_SECONDARY)
+        ax_l.text(p99 * 1.12, i, f"{p99:.0f} ({s['lat_scale']})", ha="left", va="center", fontsize=7.5, color=INK_SECONDARY)
+
+    ax_l.set_xscale("log")
+    ax_l.set_xlim(25, 18000)
+    ax_l.xaxis.set_major_formatter(mticker.ScalarFormatter())
+    ax_l.set_xticks([50, 100, 250, 500, 1000, 2500, 5000])
+    ax_l.set_yticks(y)
+    ax_l.set_yticklabels([s["key"] for s in stages], fontsize=8.2)
+    ax_l.invert_yaxis()
+    ax_l.set_xlabel("Chunk latency p50 -> p99 (ms, log scale)", fontsize=9)
+    ax_l.set_title("B. Tail latency (ms)", loc="left", fontsize=10.5, color=INK_PRIMARY, pad=8)
+    ax_l.legend(frameon=False, fontsize=7.8, loc="upper left")
+    ax_l.grid(axis="x", color=GRIDLINE, linewidth=0.8, zorder=0)
+    for sp in ("top", "right"):
+        ax_l.spines[sp].set_visible(False)
+
+    # Panel 3: Reliability & memory milestone column aligned row-for-row with Panel B
+    ax_n.set_xlim(0, 1)
+    ax_n.set_ylim(len(stages) - 0.5, -0.5)
+    ax_n.axis("off")
+    ax_n.set_title("C. Reliability & scale milestones", loc="left", fontsize=10.5, color=INK_PRIMARY, pad=8)
+    for i, s in enumerate(stages):
+        bg = "#f3f2ee" if i % 2 == 0 else SURFACE
+        ax_n.axhspan(i - 0.44, i + 0.44, color=bg, zorder=0)
+        weight = "bold" if s["key"] in ("v5.4", "v5.6", "v5.8", "v5.9 (26.1.1)", "v5.9 (26.3)*") else "normal"
+        color = INK_PRIMARY if weight == "bold" else INK_SECONDARY
+        ax_n.text(0.02, i, s["note"], ha="left", va="center", fontsize=8.0, fontweight=weight, color=color)
+
+    fig.suptitle(
+        "Orion v5.x evolution: eMSPC fell 48% (8.81 -> 4.58 ms/chunk on 26.1.1; 4.22 on 26.3*) while scaling to 262k chunks",
+        fontsize=12.5, x=0.03, ha="left", color=INK_PRIMARY, y=0.97,
+    )
+    fig.text(
+        0.03, 0.012,
+        "Left: median eMSPC across leaderboard runs (16 GiB ParallelGC, 7 workers, seed 69). "
+        "*MC 26.3 has updated worldgen content and native TERRAIN/DensityVolume (~9% run-to-run box noise).",
+        fontsize=8.2, color=INK_SECONDARY,
+    )
+    fig.tight_layout(rect=(0.0, 0.04, 1.0, 0.92))
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -1794,6 +2010,7 @@ def main():
     plot_replication80(HERE / "replication_20261031.png")
     plot_orion58(HERE / "orion58_heap.png", HERE / "orion58_throughput.png")
     plot_orion59(HERE / "orion59_ladder.png", HERE / "orion59_profile.png", HERE / "orion59_throughput.png")
+    plot_orion_v5_evolution(HERE / "orion_v5_evolution.png")
 
     print(f"Wrote charts to {HERE}")
 
