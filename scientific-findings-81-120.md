@@ -717,4 +717,4 @@ The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open
   v5.9 (10.1% faster than 26.3 core `orion5` at tile 5).** Still open: same-session interleaved
   26.1.1 vs 26.3 benchmark, profiling 26.3's `TERRAIN`/`MaterialSystem` path, and multi-seed /
   multi-dimension / 262,144-chunk validation, mostly to answer why we got a ~10% performance gain
-  "simply from" getting a verison update port working
+  "simply from" getting a version update port working

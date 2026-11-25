@@ -305,10 +305,10 @@ object OrionPatchAgent {
             classfileBuffer: ByteArray,
         ): ByteArray? {
             val dotted = className.replace('/', '.')
-            val legacyNoiseCell = patchNoiseCell &&
+            val legacyNoiseCell = patchNoiseCell && dotted in DensityCellPatch.targets &&
                 loader?.getResource("net/minecraft/world/level/levelgen/NoiseChunk\$NoiseInterpolator.class") != null
             val structureGenTargets = setOf(STRONGHOLD_PIECES, STRONGHOLD_PIECE_WEIGHT, NETHER_FORTRESS_PIECES, NETHER_FORTRESS_PIECE_WEIGHT)
-            val handled = (legacyNoiseCell && dotted in DensityCellPatch.targets) || (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
+            val handled = legacyNoiseCell || (patchReentrancy && (dotted == BLOCKABLE_EVENT_LOOP || dotted == SERVER_CHUNK_CACHE)) ||
                 (patchBiomeMemo && dotted == SURFACE_RULES_BIOME_CONDITION) ||
                 (patchStructureGenState && dotted in structureGenTargets) ||
                 (patchDfc && dotted == DENSITY_FUNCTIONS_AP2) ||
@@ -320,7 +320,7 @@ object OrionPatchAgent {
             if (!handled) return null
             debugLog("transform() invoked for $dotted")
             return try {
-                val result = if (legacyNoiseCell && dotted in DensityCellPatch.targets) {
+                val result = if (legacyNoiseCell) {
                     val base = if (DensityCellPatch.glue) classfileBuffer
                     else if (dotted in DensitySimdPatch.targets) DensitySimdPatch.transform(loader, classfileBuffer)
                     else if (dotted == DENSITY_FUNCTIONS_AP2) patchAp2(loader, classfileBuffer, patchDfc, patchAllocations)

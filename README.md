@@ -16,16 +16,15 @@ See [`TUTORIAL.md`](TUTORIAL.md) for the how and why.
   against, not checked in (`/servers/*.jar` is gitignored).
 - Java 25 (the build pins `jvmToolchain(25)`).
 
-Put the jar (or a symlink) at `servers/mojang-26-1-1-server.jar`. That's the whole install.
+Put the official server jar (or a symlink) at `servers/mojang-26-3-server.jar` or `servers/mojang-26-1-1-server.jar`. That's the whole install.
 
-Orion 5.9 is tested against 26.1.1. Its full patch set is **not compatible** with the
-26.3 jar: the density-generation API removes classes required by the noise-cell
-and stage patches, and startup fails before generation. See finding #84 in
+Orion 5.9 runs natively on both **Minecraft 26.3** (`dataVersion=5023`) and **Minecraft 26.1.1**
+(`dataVersion=4788`) from the same build. `ServerBootstrap` selects the authentication and
+`DedicatedServer` constructor signatures at runtime, while legacy 26.1.1 density/noise patches
+(`DensityCellPatch`, `DensitySimdPatch`, `ImprovedNoisePatch`, and `StagePatch.biomeFlat`) stay
+automatically gated off on 26.3 where Mojang's `TERRAIN` / `DensityVolume` / `MaterialSystem`
+rewrite supersedes them. See [`SERVER-26.3.md`](SERVER-26.3.md) and `#87` in
 [`scientific-findings-81-120.md`](scientific-findings-81-120.md).
-
-There is now an **experimental 26.3 bootstrap path** for `mosaic` and core `orion5`, with
-the old compute patches disabled. It is a small-world compatibility spike, not the
-full v5.9 port. See [`SERVER-26.3.md`](SERVER-26.3.md) for the API map, checks, and launcher.
 
 ## Running
 
@@ -66,13 +65,21 @@ Options (all inert when omitted):
 | Orion v5.2 | optimized ImprovedNoise kernel | 8.05-8.40 | Perlin CPU share falls; full-generation effect inside noise |
 | Orion v5.3 | allocation-pressure fixes | 7.87-9.34 | bit-exact, real GC-frequency drop, no confirmed throughput win |
 | Orion v5.4 | C1GC bounded chunk reclamation | 8.66-9.17 (6,400 chunks), 8.75 (256x256) | fixes a large-tile hang/OOM; cost inside noise after batching fix |
-| Orion v5.6 | v5.5 compute patches, 16-chunk admission, earlier C1GC trigger | 7.87 (6,400 chunks), 7.93 (65,536) | 76% lower p50 and 57-70% lower p99 than v5.5; total time at parity |
-| Orion v5.7 | v5.6 + cell-batched density fill, lazy interpolators, shared surface cache | 6.80-6.94 (6,400 chunks) | 10-12% lower total time than v5.6 (30/30 pairs, bit-exact) |
+| Orion v5.6 | v5.5 compute patches, 16-chunk admission, earlier C1GC trigger | 7.63 (6,400 chunks), 7.94 (65,536) | 76% lower p50 and 70% lower p99 than v5.5; total time at parity |
+| Orion v5.7 | v5.6 + cell-batched density fill, lazy interpolators, shared surface cache | 6.76 (6,400 chunks), 7.05 (65,536) | 10-12% lower total time than v5.6 (30/30 pairs, bit-exact) |
+| Orion v5.8 | v5.7 + draining queued server tasks (`nextTickTimeNanos = Long.MAX_VALUE`) | 6.39 (6,400 chunks), 6.08 (65,536), 5.99 (262,144) | Fixes ~180 KB/chunk permanent leak; 65k live heap falls 11.7 -> 1.9 GB; 13-14% faster at 65k |
+| Orion v5.9 (26.1.1) | v5.8 + greedy area lock, `StagePatch`, parallel structure starts, empty-region scan skip, queue resort & poll-thread identity fixes | 5.40 (6,400 chunks), 4.58 (65,536), 4.56 (262,144) | Eliminates priority-starvation race and Allay-unload deadlock (0 stalls at 262k); ~24% faster than v5.8 at 65k/262k |
+| Orion v5.9 (26.3) | Native 26.3 support (`ServerBootstrap`, `MaterialSystem` surface column, `BiomeManager` 3-int hook, `OldChunkScan`, `Aquifer` alloc fix, C1GC+LZ4) | 4.83 (6,400 chunks), 4.22 (65,536) | 10.1% faster than 26.3 core `orion5` at tile 5; bit-exact (0/256 diffs); clean official 26.3 server reload |
 
-Across every scheduler generation, **effective MSPC** (`total_ms / chunks`) has fallen roughly 78%
-from the original mosaic to Orion v5.5. Paper and Leaf's best real-server results are plotted for scale.
+Across every scheduler generation, **effective MSPC** (`total_ms / chunks`) has fallen roughly 87%
+from the original mosaic (`36.3`) to Orion v5.9 (`4.58` at 65,536 chunks on 26.1.1; `4.22` on
+26.3). Paper and Leaf's best real-server results are plotted for scale in the integration chart,
+while the **Orion v5.x evolution chart** tracks how v5.0 -> v5.9 turned early OOMs and tail stalls
+into bounded 262,144-chunk runs.
 
 ![Bar chart of effective MSPC across every WorldgenD scheduler generation through Orion v5.5, plus Paper and Leaf's best real-server results](findings/emspc_integration_progress.png)
+
+![Orion v5.x eMSPC, tail latency, and reliability evolution from v5.0 through v5.9 on 26.1.1 and 26.3](findings/orion_v5_evolution.png)
 
 The engine defaults to `mosaic`; the current best is **v5.9**. The harness defaults to v5.1
 (`../harness/src/config.rs`).
@@ -133,6 +140,13 @@ The engine defaults to `mosaic`; the current best is **v5.9**. The harness defau
 
 ![Orion v5.9 vs v5.8 at 6,400, 65,536 and 262,144 chunks](findings/orion59_throughput.png)
 
+- **v5.9 on Minecraft 26.3** runs natively with `ServerBootstrap`, the `MaterialSystem`/`MaterialSystem$1`
+  surface-column patch, the 3-int `BiomeManager` uniformity cache, `RegionFileStorage.getRegionFile(..., false)`
+  empty-region scan, and the `Aquifer` scratch allocation fix, while gating legacy 26.1.1 density/noise
+  patches off when those classes are absent. Measured at `4.86 eMSPC` (`205.7 CPS`, tile 5 mean) and
+  `4.22 eMSPC` (`236.8 CPS`, tile 16), bit-exact against 26.3 core `orion5` (`0/256` block/biome digest diffs),
+  with C1GC + LZ4 persistence and clean official 26.3 server reloads (#87, [`SERVER-26.3.md`](SERVER-26.3.md)).
+
 Orion v2.1 uses raster target order; v2.2 is the scatter-ordered variant.
 
 The full experiment log (GC comparisons, JFR profiles, Paper/Leaf head-to-heads, MC-55596) is in
@@ -141,7 +155,7 @@ The full experiment log (GC comparisons, JFR profiles, Paper/Leaf head-to-heads,
 ## Leaderboard
 
 Every scheduler plus real Paper, Leaf, and Leaf-with-crack-flags, ranked by effective MSPC, one
-row per individual run (31 total), generated from `findings/leaderboard_entries.csv`:
+row per recorded run (599 total), generated from `findings/leaderboard_entries.csv`:
 
 ```
 python3 findings/generate_leaderboard.py   # regenerates findings/leaderboard.html
@@ -158,16 +172,17 @@ vector and cell kernels). See [`ARCHITECTURE.md`](ARCHITECTURE.md) for how the p
 
 | Path | What it is |
 |---|---|
-| `HeadlessWorldgen.kt` | The whole heist: bootstrap replay, `DedicatedServer` construction, scheduler selection, the fill loop, result file, MSPC instrumentation |
+| `HeadlessWorldgen.kt`, `ServerBootstrap.kt` | The whole heist: bootstrap replay, version-adaptive `Services`/`DedicatedServer` construction, scheduler selection, the fill loop, result file, MSPC instrumentation |
 | `ServerRuntime.kt`, `Reflect.kt` | Finds the server jar and builds the `URLClassLoader`; thin reflection helpers (`Mc`) |
 | `Orion.kt`, `OrionV2.kt`, `OrionV2_1.kt`, `OrionV2_2.kt`, `OrionV3.kt` | Frontier schedulers v1-v3 (conflict-checked admission). Kept as benchmark baselines |
-| `OrionV5.kt`, `OrionParallelSteps.kt` | Current scheduler: dispatches chunks and runs vanilla's generation steps on a worker pool (v4 is v3 plus the structure-gen patch) |
-| `OrionPatchAgent.kt` | Java agent (`Premain-Class`): javassist patches selected per `-Dscheduler` and `-Dorion.patch*` flags |
-| `DensityCellPatch.kt`, `DensitySimdPatch.kt`, `ImprovedNoisePatch.kt`, `AllocationPatch.kt` | Compute patches: v5.7 cell fill, v5.1 SIMD batches, v5.2 Perlin kernel, v5.3 allocation fixes |
+| `OrionV5.kt`, `OrionParallelSteps.kt`, `OrionServerThread.kt` | Current scheduler: dispatches chunks, runs vanilla's generation steps on a worker pool under greedy/FIFO area locks, and marks the poll thread as server-thread everywhere |
+| `OrionPatchAgent.kt`, `StagePatch.kt`, `OldChunkScan.kt` | Java agent (`Premain-Class`): javassist patches selected per `-Dscheduler` and `-Dorion.patch*` flags, exact v5.9 stage shortcuts (26.1.1 & 26.3), and empty-region scan skip |
+| `DensityCellPatch.kt`, `DensitySimdPatch.kt`, `ImprovedNoisePatch.kt`, `AllocationPatch.kt` | Compute patches: v5.7 cell fill, v5.1 SIMD batches, v5.2 Perlin kernel, v5.3 allocation fixes (legacy compute patches gated off on 26.3) |
 | `RegionChunkMemo.kt`, `MemoizingPredicate.kt` | Lookup memos (`WorldGenRegion.getChunk`, biome-condition tests) |
 | `LightSwapPatch.kt` | Opt-in light-engine instrumentation (`-Dorion.lightSwap`); experiment closed by finding #77 |
 | `OrionTrace.kt` | Opt-in step/lane/lock tracing (`-Dorion.trace`) and CPU injection (`-Dorion.inject`); finding #81 |
 | `ChunkEvictor.kt`, `c1gc/` | Chunk reclamation: v5.4-era evictor and the C1GC lifecycle that replaced it (see `c1gc/README.md`) |
+| `SavedWorldProbe.kt` | Standalone RegionFileStorage verifier for saved chunk coordinates, `DataVersion`, `minecraft:full` status, and section data |
 | `PendingSpatialIndex.kt`, `HeldCenterIndex.kt`, `OrionTelemetry.kt` | Admission indexes and the `-Dorion.telemetry` event log |
 | `Dfc.kt`, `DfcRuntime.kt` | Density-function compiler prototype, parked at Stage 1 (finding #58) |
 | `*.java` | `DensityBatch`/`DensityVector` (SIMD), `DensityCell*`/`DensitySurfaceCache` (v5.7), `BlockStateSnapshot` |
@@ -175,7 +190,7 @@ vector and cell kernels). See [`ARCHITECTURE.md`](ARCHITECTURE.md) for how the p
 | `run_direct.py` | Direct launcher: adds the Vector API module, rebuilds the agent, runs a scheduler |
 | `wrapper/` | `worldgend-wrap.jar` / TUI front end for end users (own README) |
 | `landing-page/` | Vite site deployed by `.github/workflows/landing-page.yml` |
-| `TUTORIAL.md` | The narrative: what this does and why it works, written for a human |
+| `TUTORIAL.md`, `SERVER-26.3.md` | Narrative walkthrough (`TUTORIAL.md`) and 26.3 compatibility/port reference (`SERVER-26.3.md`) |
 | `ARCHITECTURE.md` | Runtime map: scheduler, patches, C1GC, and the hard-won gotchas |
 | `findings/` | Raw data (`mspc_results.csv`, `algorithm_progress.csv`, `gc_results.csv`, ...), JFR profiles, and the matplotlib scripts (`plot_results.py`) behind every chart |
 | `findings/leaderboard_entries.csv`, `findings/generate_leaderboard.py` | Source and generator for `findings/leaderboard.html`, the sortable cursed leaderboard |

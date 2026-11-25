@@ -1,3 +1,5 @@
 first,second,kind,chunks,different
 core_away_from_spawn,core_repeat,blocks,256,0
 core_away_from_spawn,core_repeat,biomes,256,0
+port59_checked,core_away_from_spawn,blocks,256,0
+port59_checked,core_away_from_spawn,biomes,256,0

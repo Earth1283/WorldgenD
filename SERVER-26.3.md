@@ -1,8 +1,8 @@
-# Minecraft 26.3 compatibility and v5.9 port
+# Minecraft 26.3 compatibility and v5.9 support
 
-The headless bootstrap and the ported `orion5.9` scheduler both run on the locally supplied
-26.3 server jar (`dataVersion=5023`). The default server symlink (`mojang-26-1-1-server.jar`)
-and scheduler defaults are unchanged, and 26.1.1 `orion5.9` passes regression checks.
+The headless bootstrap and `orion5.9` scheduler fully support Minecraft 26.3 (`dataVersion=5023`)
+while preserving 26.1.1 (`dataVersion=4788`) compatibility from the same build. The default server
+symlink (`mojang-26-1-1-server.jar`) and scheduler defaults are unchanged.
 
 ## Reproduce
 
@@ -46,17 +46,19 @@ finished. `-Dworldgen.completionfile=<path>` is optional for other launchers too
 `results.csv` contains correctness outcomes and jar hashes. Raw generation timings remain
 in the local result files; they are not added to the performance leaderboard.
 
-## Results (2026-11-15)
+## Results (2026-11-15 spike & 2026-11-25 v5.9 port)
 
 | Jar / scheduler | Generated | Saved chunks checked | Official-server reload |
 |---|---:|---:|---|
 | 26.3 / mosaic | 256 / 256 | 256 / 256 | Passed |
 | 26.3 / core orion5, tracing on | 256 / 256 | 256 / 256 | Passed |
 | 26.3 / core orion5, repeat | 256 / 256 | 256 / 256 | Not repeated |
+| 26.3 / ported orion5.9 | 256 / 256 | 256 / 256 | Passed |
 | 26.1.1 / orion5.9 regression | 256 / 256 | 256 / 256 | Passed |
 
-Both 26.3 Orion runs reported zero overlaps, ordering violations, failed kicks, stuck
-gates, and stalls. Their positional block and biome digests match on all 256 targets.
+Both 26.3 Orion runs and the ported `orion5.9` run reported zero overlaps, ordering violations,
+failed kicks, stuck gates, and stalls (`stagePatch failed=[]`). Their positional block and biome
+digests match on all 256 targets (`0/256` diffs between 26.3 `orion5.9` and 26.3 core `orion5`).
 The traced run contains 400 `terrain` step records. Saved data versions are 5023 (26.3)
 and 4788 (26.1.1). The saved-world inspector also rejected an empty target region with
 `Missing saved chunk`, and the existing Gradle suite passed all eight tests.
@@ -67,7 +69,7 @@ Rows and digest comparison counts are in `findings/headless_compat_263.csv` and
 
 ## API map
 
-| Area | 26.3 change | Spike handling |
+| Area | 26.3 change | 26.3 handling |
 |---|---|---|
 | Authentication | `YggdrasilAuthenticationService` is gone; `Services.create` takes `MinecraftServicesDiscoveryService` | `ServerBootstrap` selects the service factory from the actual signature |
 | Server construction | `DedicatedServer` adds `ManagementServer` and `NotificationManager` constructor arguments | Supply no management listener, construct the notification manager, and call `setServer`, as vanilla does |
@@ -90,8 +92,9 @@ Class presence alone is not method compatibility. The inventory is in
   - Tile 5 (6,400 chunks, 3 interleaved rounds): `orion5.9` **31.12 s** mean (`4.862 eMSPC`, **205.7 CPS**, p50 `123 ms`) vs 26.3 core `orion5` **34.60 s** (`5.407 eMSPC`, **185.0 CPS**, p50 `269 ms`) — **-10.1% wall time (+11.2% CPS)**.
   - Tile 16 (65,536 chunks, n=1): `orion5.9` **276.74 s** (`4.223 eMSPC`, **236.81 CPS**, p50 `120.47 ms`, p99 `291.36 ms`, C1GC armed at chunk `29,184`, `62,464/62,464` persisted, 5 full GCs totaling `1.77 s`).
 
-## Limits and next work
+## Next work
 
-This port has been validated on the Overworld, seed 69, up to 65,536 chunks (`tile=16`). It does not yet establish multi-seed, non-Overworld dimension, or 262,144-chunk behavior, nor an interleaved same-session 26.1.1 vs 26.3 benchmark.
-
-Next: run an interleaved 26.1.1 vs 26.3 `orion5.9` comparison, exercise more seeds and dimensions, and profile 26.3's native `TERRAIN`/`DensityVolume`/`MaterialSystem` path for 26.3-specific optimizations.
+26.3 `orion5.9` has been validated on the Overworld (seed 69) up to 65,536 chunks (`tile=16`).
+Next: run an interleaved 26.1.1 vs 26.3 `orion5.9` comparison, exercise additional seeds and
+non-Overworld dimensions alongside a 262,144-chunk run, and profile 26.3's native
+`TERRAIN`/`DensityVolume`/`MaterialSystem` path for 26.3-specific optimizations.
