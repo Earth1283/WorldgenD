@@ -1826,6 +1826,121 @@ def plot_orion_v5_evolution(out_path):
     plt.close(fig)
 
 
+def plot_profile88(throughput_path, stage_path):
+    with (HERE / "profile88_ab_runs.csv").open(newline="") as f:
+        ab = list(csv.DictReader(f))
+    with (HERE / "profile88_jfr_stages.csv").open(newline="") as f:
+        stages = list(csv.DictReader(f))
+    with (HERE / "profile88_jfr_hotframes.csv").open(newline="") as f:
+        frames = list(csv.DictReader(f))
+
+    # Chart 1: Interleaved A/B CPS + worker/fill CPU-seconds (Tile 5 & Tile 16)
+    fig, (ax_cps, ax_cpu) = plt.subplots(1, 2, figsize=(12.2, 4.9))
+    groups = [("Tile 5 (6,400, n=3)", "5"), ("Tile 16 (65,536, n=1)", "16")]
+    x = np.arange(len(groups))
+    w = 0.34
+    for idx, (ver, color, label) in enumerate((("26.1.1", BASELINE, "MC 26.1.1"), ("26.3", SERIES[0], "MC 26.3"))):
+        means, offsets = [], (idx - 0.5) * w
+        for gi, (_, tile) in enumerate(groups):
+            vals = [float(r["cps"]) for r in ab if r["tile"] == tile and r["version"] == ver]
+            means.append(np.mean(vals))
+            if len(vals) > 1:
+                ax_cps.scatter([gi + offsets] * len(vals), vals, color=INK_PRIMARY, s=18, zorder=5)
+        bars = ax_cps.bar(x + offsets, means, width=w, color=color, label=label, zorder=3)
+        for gi, (bar, m) in enumerate(zip(bars, means)):
+            vals = [float(r["cps"]) for r in ab if r["tile"] == groups[gi][1] and r["version"] == ver]
+            y_text = max(vals) + 5 if len(vals) > 1 else m + 5
+            ax_cps.text(bar.get_x() + bar.get_width() / 2, y_text, f"{m:.1f}", ha="center", va="bottom",
+                        fontsize=8.5, color=INK_PRIMARY)
+    ax_cps.set_xticks(x, [g[0] for g in groups])
+    ax_cps.set_ylim(0, 275)
+    ax_cps.set_ylabel("Chunks per second — higher is better")
+    ax_cps.set_title("A. Same-session interleaved throughput (CPS)", loc="left", fontsize=10.5)
+    ax_cps.legend(frameon=False, loc="upper left")
+    ax_cps.grid(axis="y", color=GRIDLINE, linewidth=0.8, zorder=0)
+
+    # Panel B: Tile 16 CPU breakdown by thread group
+    cpu_cats = [("worker_cpu_s", "Workers"), ("gc_cpu_s", "GC"), ("io_cpu_s", "IO/C1GC"),
+                ("jit_cpu_s", "JIT"), ("poll_cpu_s", "Poll")]
+    y = np.arange(len(cpu_cats))
+    h = 0.34
+    t16 = {r["version"]: r for r in ab if r["tile"] == "16"}
+    for idx, (ver, color, label) in enumerate((("26.1.1", BASELINE, "MC 26.1.1"), ("26.3", SERIES[0], "MC 26.3"))):
+        vals = [float(t16[ver][col]) for col, _ in cpu_cats]
+        bars = ax_cpu.barh(y + (idx - 0.5) * h, vals, height=h, color=color, label=label, zorder=3)
+        for bar, val in zip(bars, vals):
+            ax_cpu.text(val + 18, bar.get_y() + bar.get_height() / 2, f"{val:.0f}s", va="center",
+                        fontsize=8.2, color=INK_SECONDARY)
+    ax_cpu.set_yticks(y, [c[1] for c in cpu_cats])
+    ax_cpu.invert_yaxis()
+    ax_cpu.set_xlim(0, 2250)
+    ax_cpu.set_xlabel("Measured CPU-seconds during fill (Tile 16)")
+    ax_cpu.set_title("B. Tile 16 CPU-seconds by thread group (-11.5% worker CPU)", loc="left", fontsize=10.5)
+    ax_cpu.legend(frameon=False, loc="lower right")
+    ax_cpu.grid(axis="x", color=GRIDLINE, linewidth=0.8, zorder=0)
+
+    for ax in (ax_cps, ax_cpu):
+        for sp in ("top", "right"):
+            ax.spines[sp].set_visible(False)
+    fig.suptitle("#88: MC 26.3 runs 10-11% faster than 26.1.1 because workers do ~11% less CPU work",
+                 fontsize=12.5, x=0.04, ha="left")
+    fig.text(0.04, 0.01, "Orion v5.9, 16 GiB pretouched ParallelGC, 7 workers, 32 in flight, seed 69, Corretto 25.0.4.1.",
+             fontsize=8.5, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.92))
+    fig.savefig(throughput_path, dpi=150)
+    plt.close(fig)
+
+    # Chart 2: Tile 5 subsystem worker CPU-s (26.1.1 vs 26.3) + Tile 16 26.3 top leaf frames
+    fig, (ax_sub, ax_hot) = plt.subplots(1, 2, figsize=(13.2, 5.4), gridspec_kw={"width_ratios": [1.0, 1.05]})
+    sub_order = [
+        "Density / Noise eval", "Surface / Material", "Terrain container / Heightmap",
+        "Features", "Aquifer", "Biomes", "other", "Light", "Scheduler / FJP", "Carvers", "Structures",
+    ]
+    by_lv = {(r["label"], r["subsystem"]): float(r["est_worker_cpu_s"]) for r in stages}
+    ys = np.arange(len(sub_order))
+    v2611 = [by_lv.get(("jfr_t5_mc2611", s), 0.0) for s in sub_order]
+    v263 = [by_lv.get(("jfr_t5_mc263", s), 0.0) for s in sub_order]
+    ax_sub.barh(ys - 0.18, v2611, height=0.34, color=BASELINE, label="MC 26.1.1 (215.3s)", zorder=3)
+    ax_sub.barh(ys + 0.18, v263, height=0.34, color=SERIES[0], label="MC 26.3 (186.4s)", zorder=3)
+    for i, (a, b) in enumerate(zip(v2611, v263)):
+        diff = b - a
+        sign = "+" if diff >= 0 else ""
+        ax_sub.text(max(a, b) + 1.0, i, f"{b:.1f}s ({sign}{diff:.1f}s)", va="center", fontsize=7.6, color=INK_SECONDARY)
+    ax_sub.set_yticks(ys, sub_order, fontsize=8.2)
+    ax_sub.invert_yaxis()
+    ax_sub.set_xlim(0, 98)
+    ax_sub.set_xlabel("Estimated worker CPU-seconds (Tile 5 JFR share x worker CPU)")
+    ax_sub.set_title("A. Tile 5 worker CPU budget: 26.1.1 vs 26.3", loc="left", fontsize=10.5)
+    ax_sub.legend(frameon=False, loc="lower right")
+    ax_sub.grid(axis="x", color=GRIDLINE, linewidth=0.8, zorder=0)
+
+    top_leaf = [r for r in frames if r["label"] == "jfr_t16_mc263" and r["kind"] == "leaf"][:14]
+    yh = np.arange(len(top_leaf))
+    hvals = [float(r["est_worker_cpu_s"]) for r in top_leaf]
+    hnames = [".".join(r["method"].split(".")[-2:]) for r in top_leaf]
+    ax_hot.barh(yh, hvals, height=0.62, color=SERIES[1], zorder=3)
+    for i, (val, r) in enumerate(zip(hvals, top_leaf)):
+        ax_hot.text(val + 3.0, i, f"{val:.0f}s ({float(r['share_pct']):.1f}%)", va="center", fontsize=7.6, color=INK_SECONDARY)
+    ax_hot.set_yticks(yh)
+    ax_hot.set_yticklabels(hnames, fontsize=8.0, parse_math=False)
+    ax_hot.invert_yaxis()
+    ax_hot.set_xlim(0, 315)
+    ax_hot.set_xlabel("Estimated worker CPU-seconds (Tile 16, 1,692.8s total)")
+    ax_hot.set_title("B. 26.3 Tile 16 top worker leaf frames (next targets)", loc="left", fontsize=10.5)
+    ax_hot.grid(axis="x", color=GRIDLINE, linewidth=0.8, zorder=0)
+
+    for ax in (ax_sub, ax_hot):
+        for sp in ("top", "right"):
+            ax.spines[sp].set_visible(False)
+    fig.suptitle("#88: Where the 26.3 savings came from — and where 26.3's remaining CPU sits",
+                 fontsize=12.5, x=0.03, ha="left")
+    fig.text(0.03, 0.01, "Note: OreVeinRule moved from 26.1.1 Noise into 26.3 MaterialSystem (+6.2s Surface/Material, -19.8s Density/Noise).",
+             fontsize=8.3, color=INK_SECONDARY)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.92))
+    fig.savefig(stage_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     rows = load_rows()
     plot_percentiles(rows, HERE / "mspc_percentiles.png")
@@ -2011,6 +2126,7 @@ def main():
     plot_orion58(HERE / "orion58_heap.png", HERE / "orion58_throughput.png")
     plot_orion59(HERE / "orion59_ladder.png", HERE / "orion59_profile.png", HERE / "orion59_throughput.png")
     plot_orion_v5_evolution(HERE / "orion_v5_evolution.png")
+    plot_profile88(HERE / "profile88_throughput_cpu.png", HERE / "profile88_stage_budget.png")
 
     print(f"Wrote charts to {HERE}")
 

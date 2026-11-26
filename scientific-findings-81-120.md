@@ -658,7 +658,7 @@ In the tile-16 run, C1GC armed at chunk `29,184` (`peakOldGenUsedMb=3293`), quar
 
 ### Thread-safety audit and correctness
 
-Decompiling `RandomState`, `NoiseChunk`, `DensityFunctionCompiler`, `DensityBufferPool`, `NoiseBasedChunkGenerator`, `MaterialSystem`, `MaterialRuleContext`, `Aquifer$NoiseBasedAquifer`, `PerlinNoise`, `NoiseStack`, and `WorldGenRegion` via Recaf's MCP server (`4.0.0-SNAPSHOT` headless) found no shared-state races in parallel `TERRAIN`: `RandomState.acquireDensityBufferPool`/`releaseDensityBufferPool` use a `ReentrantLock`, `DensityFunctionCompiler` guards compilation with `compileLock` and caches samplers in a `ConcurrentHashMap`, and `RandomState.noiseInstances`/`positionalRandoms` are `ConcurrentHashMap`s.
+Decompiling `RandomState`, `NoiseChunk`, `DensityFunctionCompiler`, `DensityBufferPool`, `NoiseBasedChunkGenerator`, `MaterialSystem`, `MaterialRuleContext`, `Aquifer$NoiseBasedAquifer`, `PerlinNoise`, `NoiseStack`, and `WorldGenRegion` via Recaf's analysis server (`4.0.0-SNAPSHOT` headless) found no shared-state races in parallel `TERRAIN`: `RandomState.acquireDensityBufferPool`/`releaseDensityBufferPool` use a `ReentrantLock`, `DensityFunctionCompiler` guards compilation with `compileLock` and caches samplers in a `ConcurrentHashMap`, and `RandomState.noiseInstances`/`positionalRandoms` are `ConcurrentHashMap`s.
 
 - **Gradle suite**: `./gradlew test agentJar` passed 8/8 unit tests.
 - **26.3 `orion5.9` full probe + reload**: tile 1 (256 chunks, shift 100, deterministic) passed with `dataVersion=5023`, `overlapViolations=0`, `orderViolations=0`, `kickFailures=0`, `stuckGates=0`, `stalls count=0`, `stagePatch failed=[]`, `SavedWorldProbe` 256/256, and clean official 26.3 server reload.
@@ -689,6 +689,108 @@ Rows are filed under `mc263_*` in `findings/orion_results.csv` and `#87` (`Exper
 
 ---
 
+## 88. Why Minecraft 26.3 runs 10-12% faster than 26.1.1 under Orion v5.9: volume-batched float noise, compiled samplers, and fused TERRAIN cut worker CPU by 11%
+
+**Short answer.** In same-session interleaved runs on Orion v5.9 (Corretto 25.0.4.1, 16 GiB pretouched ParallelGC, 7 workers, 32 in flight, seed 69), Minecraft 26.3 beats 26.1.1 by **-10.4% wall time (+11.6% CPS)** at 6,400 chunks (**30.98 s** mean / **206.6 CPS** vs **34.57 s** / **185.1 CPS**, 3 of 3 rounds) and **-10.7% wall time (+12.0% CPS)** at 65,536 chunks (**273.80 s** / **239.4 CPS** vs **306.61 s** / **213.7 CPS**, with **-48.8% p99 latency** from `547.4 ms` to `280.0 ms`).
+
+Worker utilization stays nearly identical (`7.223` vs `7.219` busy cores at Tile 16; `6.03` vs `6.00` steady pool cores in `OrionTrace`), and GC pauses change by less than 0.5 s. Instead, the speedup tracks **worker CPU work** directly: total worker CPU falls **-10.7%** at Tile 5 (`190.0 s` vs `212.7 s`) and **-11.5%** at Tile 16 (`1,702.9 s` vs `1,924.9 s`, `-222.0 s`). By #81's `1/7` rule, saving `222.0 s` across 7 workers predicts `-31.7 s` of wall time, accounting for 97% of the measured `-32.8 s` gain.
+
+### Same-session interleaved A/B throughput and CPU
+
+![#88: interleaved throughput and CPU breakdown, MC 26.1.1 vs 26.3](findings/profile88_throughput_cpu.png)
+
+| Scale | Arm | Rounds | Mean wall | eMSPC | CPS | Worker CPU | Poll / GC / IO CPU | Young / Full GCs | p50 / p99 ms |
+|---|---|---:|---:|---:|---:|---:|---:|---|---:|
+| 6,400 (tile 5) | 26.1.1 `orion5.9` | 3 | 34.57 s | 5.402 | 185.1 | 212.7 s | 5.3 / 4.6 / 0.8 s | 11.0 (627 ms) / 3.0 (153 ms) | 135.6 / 806.2 |
+| 6,400 (tile 5) | 26.3 `orion5.9` | 3 | **30.98 s** | **4.841** | **206.6** | **190.0 s** | 4.9 / 3.5 / 0.8 s | 8.0 (475 ms) / 3.0 (174 ms) | 123.0 / 603.5 |
+| 65,536 (tile 16) | 26.1.1 `orion5.9` | 1 | 306.61 s | 4.679 | 213.7 | 1,924.9 s | 55.6 / 69.8 / 87.2 s | 195 (8,353 ms) / 5 (1,309 ms) | 132.2 / 547.4 |
+| 65,536 (tile 16) | 26.3 `orion5.9` | 1 | **273.80 s** | **4.178** | **239.4** | **1,702.9 s** | 53.1 / 65.4 / 81.8 s | 156 (7,368 ms) / 5 (1,798 ms) | 118.3 / 280.0 |
+
+At Tile 16, `26.3` also cuts `parallelSteps` dispatches by **135,200** (`414,272` vs `549,472`, exactly `2 * 67,600` scheduled chunks) because `ChunkPyramid.GENERATION_PYRAMID` fuses `NOISE`, `SURFACE`, and `CARVERS` into a single `TERRAIN` step (`buildTerrain`). Both Tile 16 runs armed C1GC cleanly (`29,248` completions on 26.3, `15,936` on 26.1.1) and persisted `62,464 / 62,464` out-of-radius chunks with `0` stalls and `failed=0`.
+
+### Where worker CPU and allocations changed (JFR + `OrionTrace`)
+
+![#88: Tile 5 subsystem worker CPU budget and 26.3 Tile 16 hot frames](findings/profile88_stage_budget.png)
+
+Multiplying each subsystem's JFR worker `ExecutionSample` share by that run's measured `worker_cpu_s` gives the worker CPU budget (Tile 5 JFR pair: `215.34 s` / `15,289` samples on 26.1.1 vs `186.38 s` / `12,990` samples on 26.3; Tile 16 26.3 JFR: `1,692.79 s` / `110,443` samples):
+
+| Subsystem | 26.1.1 Tile 5 | 26.3 Tile 5 | Tile 5 Delta | 26.3 Tile 16 |
+|---|---:|---:|---:|---:|
+| **Density / Noise eval + NoiseChunk init** | 80.69 s (37.5%) | 61.35 s (32.9%) | **-19.34 s (-24.0%)** | 572.83 s (33.8%) |
+| **Surface / Material** | 22.73 s (10.6%) | 28.94 s (15.5%) | +6.21 s (+27.3%) | 254.57 s (15.0%) |
+| **Aquifer** | 13.59 s (6.3%) | 12.90 s (6.9%) | -0.69 s (-5.1%) | 130.74 s (7.7%) |
+| **Carvers** | 4.38 s (2.0%) | 2.38 s (1.3%) | **-2.00 s (-45.7%)** | 26.32 s (1.6%) |
+| *Combined Terrain subtotal* | *121.39 s (56.4%)* | *105.57 s (56.6%)* | **-15.82 s (-13.0%)** | *984.46 s (58.2%)* |
+| **Terrain container / Heightmap** | 27.30 s (12.7%) | 27.68 s (14.9%) | +0.38 s (+1.4%) | 226.14 s (13.4%) |
+| **Biomes** | 15.49 s (7.2%) | 10.59 s (5.7%) | **-4.90 s (-31.6%)** | 92.02 s (5.4%) |
+| **Features** | 14.58 s (6.8%) | 14.65 s (7.9%) | +0.07 s (+0.5%) | 128.14 s (7.6%) |
+| **Light** | 7.85 s (3.6%) | 7.50 s (4.0%) | -0.35 s (-4.5%) | 114.19 s (6.7%) |
+| **Structures** | 3.32 s (1.5%) | 2.68 s (1.4%) | -0.64 s (-19.3%) | 14.32 s (0.8%) |
+| **Scheduler / FJP** | 5.18 s (2.4%) | 7.60 s (4.1%) | +2.42 s (+46.7%) | 50.75 s (3.0%) |
+| **Other (JDK / Lambda / Tag / hashCode)** | 20.14 s (9.4%) | 9.94 s (5.3%) | **-10.20 s (-50.6%)** | 82.20 s (4.9%) |
+
+Note why `Surface / Material` increases (`+6.21 s`) while `Density / Noise` drops (`-19.34 s`): **26.3 moved ore veins out of `NOISE` (`OreVeinifier` in 26.1.1's `NoiseChunk`) into `MaterialSystem` (`OreVeinRule` in `overworld.json`)**, so comparing the **combined Terrain subtotal (`-15.82 s`)** gives the true apples-to-apples terrain speedup.
+
+Worker sampled allocation weight at Tile 5 dropped **-28.5%** from **46.00 GB** (`7.188 MB/chunk`) on 26.1.1 to **32.88 GB** (`5.137 MB/chunk`) on 26.3, cutting young GCs from 11 to 8 at Tile 5 and 195 to 156 at Tile 16.
+
+### Code-level attribution via Recaf (`server-26.3.jar` vs `server-26.1.1.jar`)
+
+Decompiling both inner server jars with Recaf's headless analysis server explains every shift in the JFR and `OrionTrace` tables:
+
+1. **Compiled sampler graph removes per-chunk `mapAll`/`wrap` AST cloning (-10.2 s `other`, lower allocations):**
+   In 26.1.1, `NoiseChunk.<init>` called `router.mapAll(this::wrap)` on every chunk (`NoiseChunk.java:142`), recursively allocating wrapped `DensityFunction` records and hashing them (`Objects.hashCode` inside `MulOrAdd`/`Ap2` took `489` JFR samples / `6.89 s` CPU, plus `7.28 GB` of `mapAll`/`wrap` allocations at Tile 5). In 26.3, `DensityFunctionCompiler` compiles the router **once per `RandomState`** into a `ConcurrentHashMap<DensityFunction, DensitySampler>`, applies `DfRewriteRule.SLICE_UNIFORM_AXES` to hoist 1D/2D expressions into `SliceFunction`, and `NoiseChunk` only checks out reusable `float[]` arrays from `RandomState`'s `DensityBufferPool` (`ScopedDensityBuffer`). `Objects.hashCode` falls from `489` to `25` samples (`6.89 s -> 0.36 s`), and `NoiseBasedChunkGenerator.iterateNoiseColumn` (`getBaseHeight`) reuses those compiled samplers too (`OrionTrace` `structure_starts` sync `body_s` drops from `5.40 s` to `2.66 s`).
+
+2. **Volume-batched `float` Perlin kernel (`PerlinNoise.addToVolume` & `SmearedPerlinNoise.addToVolume`):**
+   In 26.1.1, `ImprovedNoise.sampleAndLerp`/`noise` (`31.69 s` combined leaf CPU) evaluated 3D Perlin noise point-by-point in `double` precision. In 26.3, `PerlinNoise.addToVolume` loops `Z -> X -> Y` over contiguous `DensityVolume` buffers (`indexY + (indexX + indexZ * sizeX) * sizeY`), hoists `floorZ`, `floorX`, `x0/x1`, `alphaZ`, `alphaX`, and caches `lastFloorY` across Y steps so consecutive blocks in the same grid cell reuse X-Z gradient dots (`d000xz..d111xz`) and skip all 12 `permute`/`permuteToGrad` lookups in `float` arithmetic. Even without Orion's `DensitySimdPatch`, `DensityCellPatch`, or `ImprovedNoisePatch`, Terrain compute drops **-15.82 s (-13.0%)**.
+
+3. **Volume-batched Biomes (`-4.90 s` / `-31.6%` CPU; `OrionTrace` `biomes` tail `44.62 s -> 10.62 s`):**
+   In 26.1.1, `MultiNoiseBiomeSource.getNoiseBiome` ran `Climate.Sampler.sample` per quart (`4 x 96 x 4 = 1,536` scalar density evaluations per chunk), and Orion's `ResettableBiomeSupplier` still allocated `2.80 GB` at Tile 5. In 26.3, `MultiNoiseBiomeSource.createResolverForChunk` evaluates all 6 climate channels once per chunk in `4x4x4`-step `DensityVolume` buffers (`6.76 GB` at Tile 16), where `SLICE_UNIFORM_AXES` collapses `yScale=0` climate functions (`temperature`, `humidity`, `continents`, `erosion`, `weirdness`) to a single `4x1x4` Y-slice per chunk.
+
+4. **Pure-bitmask `WorldCarver` & fused `TERRAIN` (`-2.00 s` / `-45.7%` Carvers CPU, `-135,200` step dispatches):**
+   In 26.1.1, `WorldCarver` checked `ChunkAccess`, `Aquifer`, and `SurfaceRules` eagerly inside the 289-chunk neighbor scan, and `NOISE -> SURFACE -> CARVERS` ran three separate `ChunkStatusTasks` dispatches, `WorldGenRegion` allocations, and `Blender.of(region)` passes. In 26.3, `WorldCarver.carveEllipsoid` only flips bits in a local `CarvingMask`, and `NoiseBasedChunkGenerator.applyCarvingMask` runs once per chunk (only when `!mask.isEmpty()`) inside `TERRAIN` sharing one `NoiseChunk` and `Aquifer` (`features` `area_wait` in `OrionTrace` drops `99.23 s -> 82.44 s`).
+
+### Ranked 26.3-specific optimization targets (from Tile 16 JFR, `1,692.8 s` worker CPU)
+
+Using #81's `1/7` rule (`~7 s` worker CPU saved = `~1 s` wall time at 7 workers), Tile 16 JFR surfaces clear targets for Orion v6:
+
+| Rank | Target & 26.3 code location | Tile 16 budget | What JFR + Recaf show |
+|---:|---|---:|---|
+| 1 | **`GradientNoise.permute` / `PerlinNoise.addToVolume`** | **254.1 s** leaf (15.0%) | `PerlinNoise.addToVolume` (`6,934` samples) and `SmearedPerlinNoise.addToVolume` (`6,927` samples) still run scalar `permuteToGrad` (`Gradient` object dereferences) and scalar `Mth.lerp3`; vectorizing or flattening `Gradient[]` and batching Y-runs targets the single largest leaf hotspot. |
+| 2 | **`MaterialSystem` / `OreVeinRule` / `MaterialRuleContext`** | **254.6 s** (15.0%) + **57.7 GB** alloc | `SequenceRule.lambda$compile$0` (`83.0 s`), `ConditionRule.lambda$compile$0` (`65.0 s`), `MaterialSystem.buildSurface` (`47.5 s`), `MaterialRuleContext$LazyYCondition` (`36.9 s`, boxed `Boolean`), and `DensityVolume.indexOfBlock` (`40.6 s`, 98% from `OreVeinRule`). `MaterialRuleContext.getDensitiesInChunk` calls `DensityBuffer.createUnpooled` (`57.7 GB`), and `overworld.json` checks `copper_ore_vein` (`Y 0..50`) and `iron_ore_vein` (`Y -60..-8`) before `above_preliminary_surface`. |
+| 3 | **`Aquifer$NoiseBasedAquifer.computeSubstance` + `MutableDoubleScratch`** | **130.7 s** (7.7%) + **12.6 GB** alloc | `Aquifer` is untouched in 26.3 except Orion's `MutableDoubleScratch.reset`, whose reflective `Method.invoke(existing, initial)` boxes `Double` (`12.6 GB` at Tile 16) and costs `135` ThreadLocal-lookup samples. |
+| 4 | **`NoiseBasedChunkGenerator.doFill` inner loop** | **46.2 s** `doFill` + **78.4 s** `PalettedContainer.getAndSet` | Unlike 26.1.1 (`NoiseBasedChunkGenerator.java:327`), 26.3's `doFill` calls `chunk.getSection(chunk.getSectionIndex(blockY))` on every single Y block (`98,304` times/chunk) instead of caching `lastSectionIndex`. |
+| 5 | **`LightEngine` `Long2ObjectOpenHashMap.clone`** | **114.2 s** (6.7%) + **259.0 GB** alloc (47% of total!) | `SkyDataLayerStorageMap.copy` (`151.4 GB`) + `BlockDataLayerStorageMap.copy` (`107.6 GB`) clone the growing global light section map in `LayerLightSectionStorage.swapSectionMap` (40.7% of Tile 16 allocation weight, `28.9 s` CPU in `clone`). |
+| 6 | **`BitSet.expandTo` (`OreFeature` + `CarvingMask`)** | **40.9 s** (2.4%) | `OreFeature.doPlace` (`2,406` samples) and `CarvingMask.carve` (`257` samples) hit `BitSet.set` -> `expandTo` on every carved/placed block; replacing `CarvingMask`/`OreFeature` `BitSet` with a fixed `long[]` skips `wordsInUse` checks. |
+| 7 | **`WorldGenRegion.warnIfReadOutsideWriteZone`** | **~2.9 s** @ Tile 5 (1.6%) | Debug logger guard runs on every `getBlockState`/`getFluidState`/`getHeight` (primarily `OreFeature.place`), checking chunk distance bounds even when not logging. |
+
+### Caveats
+
+- **Cross-version content difference:** `26.3` (`dataVersion=5023`) is a newer Minecraft release with updated `overworld.json` material rules (including sulfur cave bands and moved ore veins), so `26.3` vs `26.1.1` is not a pure engine-only A/B on identical worldgen rules. However, `Features`, `Aquifer`, and `Terrain container/Heightmap` CPU budgets match within ~2% at Tile 5, confirming the bulk of the `-10.7%` to `-11.5%` worker CPU reduction comes from the rewritten `DensityVolume`/`PerlinNoise`/`MultiNoiseBiomeSource`/`TERRAIN` pipeline.
+- **Sample sizes:** Tile 5 interleaved A/B has `n=3` alternating rounds; Tile 16 has `n=1` interleaved pair plus `n=1` `26.3` JFR run; `OrionTrace` has `n=1` Tile 5 pair.
+- **JFR stage attribution:** JFR `ExecutionSample` shares are multiplied by measured `worker_cpu_s` (`186.38 s` vs `215.34 s`); `other` is `5.3%` (`26.3` Tile 5), `9.4%` (`26.1.1` Tile 5, dominated by `Objects.hashCode` / `LambdaForm` inside `mapAll`), and `4.9%` (`26.3` Tile 16).
+
+### Method
+
+Corretto `25.0.4.1` (`/root/minecraft-server/runtime/java/bin/java`), `-Xms16g -Xmx16g -XX:+AlwaysPreTouch -XX:+UseParallelGC` (confirmed `PS MarkSweep, PS Scavenge`), `-Dmax.bg.threads=7` (`backgroundPool parallelism=7`), `-Dscheduler=orion5.9 -Dorion.maxinflight=32 -Dsaveworld=false`, seed `69`, isolated `-Duser.dir=<workdir>` per run with `servers/mojang-26-3-server.jar` or `servers/mojang-26-1-1-server.jar`.
+
+```bash
+python3 findings/run_mc263_profile.py --mode ab --tile 5 --rounds 3 --tag ab_t5
+python3 findings/run_mc263_profile.py --mode ab --tile 16 --rounds 1 --tag ab_t16
+python3 findings/run_mc263_profile.py --mode trace --tile 5 --tag trace_t5
+python3 findings/run_mc263_profile.py --mode jfr --tile 5 --tag jfr_t5
+python3 findings/run_mc263_profile.py --mode jfr --tile 16 --versions 26.3 --tag jfr_t16
+python3 findings/analyze_mc263_profile.py
+```
+
+- Clean A/B rows are filed in `findings/orion_results.csv` (`mc263_ab88_*`) and `findings/leaderboard_entries.csv` (`#88`); profiling summaries are in `findings/profile88_ab_runs.csv`, `findings/profile88_trace_stages.csv`, `findings/profile88_jfr_stages.csv`, `findings/profile88_jfr_hotframes.csv`, and `findings/profile88_jfr_alloc.csv`. Raw `.jfr`, trace CSVs, and logs remain gitignored under `findings/profile_263_runs/`.
+
+### Still open
+
+- Prototype the top 26.3 optimization targets (`GradientNoise`/`PerlinNoise.addToVolume`, `MaterialSystem`/`OreVeinRule` Y-range + buffer pooling, non-reflective `MutableDoubleScratch`, hoisted `doFill` section lookup, and `CarvingMask` raw `long[]`) as Orion v6 candidates and screen at Tile 16.
+- Run a 262,144-chunk (`tile=32`) endurance run and non-Overworld dimension checks on `26.3` `orion5.9`.
+
+---
+
 ## Open questions / where you pick this up
 
 The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open-questions--where-you-pick-this-up) still applies. New since #81:
@@ -714,7 +816,6 @@ The list from [`scientific-findings-41-80.md`](scientific-findings-41-80.md#open
 - **#81's 16 GiB note is resolved:** the host had its full 32 GB on 2026-11-10 and #82 ran at the
   champion heap.
 - **#87's 26.3 v5.9 port ships without legacy density/noise patches and runs ~9% faster than 26.1.1
-  v5.9 (10.1% faster than 26.3 core `orion5` at tile 5).** Still open: same-session interleaved
-  26.1.1 vs 26.3 benchmark, profiling 26.3's `TERRAIN`/`MaterialSystem` path, and multi-seed /
-  multi-dimension / 262,144-chunk validation, mostly to answer why we got a ~10% performance gain
-  "simply from" getting a version update port working
+  v5.9 (10.1% faster than 26.3 core `orion5` at tile 5).**
+- **#88 confirms and explains the 26.3 speedup in same-session interleaved runs (-10.4% wall / -10.7% worker CPU at 6,400 chunks; -10.7% wall / -11.5% worker CPU at 65,536 chunks):**
+  Mojang's `DensityFunctionCompiler`, volume-batched `float` `PerlinNoise.addToVolume`, volume-batched `MultiNoiseBiomeSource`, pure-bitmask `WorldCarver`, and fused `TERRAIN` status explain the ~11% worker CPU drop (`-222 s` at Tile 16). Still open: prototyping 26.3-specific optimizations (`GradientNoise.permute`, `MaterialSystem`/`OreVeinRule` buffer pooling + Y-range dispatch, non-reflective `MutableDoubleScratch`, hoisted `doFill` section lookup, `CarvingMask` raw `long[]`) and multi-seed / multi-dimension / 262,144-chunk validation.

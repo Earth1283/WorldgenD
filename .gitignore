@@ -74,3 +74,4 @@ findings/orion58_runs/*.out
 
 # Local worlds, jars, logs and traces from the 26.3 compatibility spike.
 findings/compat263_spike/
+findings/profile_263_runs/

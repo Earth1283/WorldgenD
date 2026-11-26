@@ -598,3 +598,11 @@ Experiment,"26.3 core orion5, 6,400 chunks round 2, window 64, 16g heap (#87)",3
 Experiment,"26.3 core orion5, 6,400 chunks round 3, window 64, 16g heap (#87)",33686,6400,#87
 Experiment,"26.3 ported orion5.9, 6,400 chunks round 3, window 32, 16g heap (#87)",30589,6400,#87
 Experiment,"26.3 ported orion5.9, 65,536 chunks sustained, window 32, 16g heap (#87)",276740,65536,#87
+Experiment,"26.3 v5.9 #88, 6,400 chunks round 1, window 32, 16g heap (#88)",30498,6400,#88
+Orion v5.9,"26.1.1 v5.9 #88, 6,400 chunks round 1, window 32, 16g heap (#88)",34525,6400,#88
+Orion v5.9,"26.1.1 v5.9 #88, 6,400 chunks round 2, window 32, 16g heap (#88)",34993,6400,#88
+Experiment,"26.3 v5.9 #88, 6,400 chunks round 2, window 32, 16g heap (#88)",31820,6400,#88
+Experiment,"26.3 v5.9 #88, 6,400 chunks round 3, window 32, 16g heap (#88)",30633,6400,#88
+Orion v5.9,"26.1.1 v5.9 #88, 6,400 chunks round 3, window 32, 16g heap (#88)",34201,6400,#88
+Experiment,"26.3 v5.9 #88, 65,536 chunks round 1, window 32, 16g heap (#88)",273802,65536,#88
+Orion v5.9,"26.1.1 v5.9 #88, 65,536 chunks round 1, window 32, 16g heap (#88)",306611,65536,#88
